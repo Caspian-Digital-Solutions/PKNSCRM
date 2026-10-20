@@ -5,6 +5,7 @@ import Num from '../components/Num.jsx';
 import { LostDialog, SignedDialog, commitStage } from '../components/MoveDialogs.jsx';
 import { PIPELINE_STAGES } from '../data/config.js';
 import { contactLog, firstResponseMinutes, liveAssets, liveEnquiries, liveUnits } from '../data/selectors.js';
+import { useQrEnquiries } from '../qrStore.js';
 import { date, duration, num, rm, rm2, time } from '../format.js';
 
 const LOG_TYPES = ['Call', 'WhatsApp', 'Email', 'Viewing', 'Note'];
@@ -28,7 +29,8 @@ export default function Enquiry({ params }) {
   const [entryType, setEntryType] = useState('Call');
   const [entryText, setEntryText] = useState('');
   const enquiries = useMemo(() => liveEnquiries(data, state), [data, state]);
-  const enquiry = enquiries.find((item) => item.id === id);
+  const { enquiries: qrEnquiries, ready: qrReady } = useQrEnquiries();
+  const enquiry = enquiries.find((item) => item.id === id) || qrEnquiries.find((item) => item.id === id);
   const units = useMemo(() => liveUnits(data, state), [data, state]);
   const assets = useMemo(() => liveAssets(data, state), [data, state]);
   const log = useMemo(() => (enquiry ? contactLog(data, state, enquiry.id).slice().reverse() : []), [data, state, enquiry]);
@@ -37,7 +39,7 @@ export default function Enquiry({ params }) {
     return (
       <section>
         <h1 className="page-title">Enquiry</h1>
-        <p>This enquiry is not on the board.</p>
+        <p>{id.startsWith('qr-') && !qrReady ? 'Loading the live enquiry…' : 'This enquiry is not on the board.'}</p>
         <p><a href="#/pipeline" onClick={(e) => { e.preventDefault(); go('pipeline'); }}>Back to pipeline</a></p>
       </section>
     );
@@ -50,8 +52,10 @@ export default function Enquiry({ params }) {
     || units.find((item) => item.asset === enquiry.asset && item.lot === enquiry.lot);
   const minutes = firstResponseMinutes(enquiry);
 
+  const editable = canEdit && !enquiry.qr;
+
   const requestStage = (stage) => {
-    if (!canEdit || stage === enquiry.stage) return;
+    if (!editable || stage === enquiry.stage) return;
     if (stage === 'Signed' || stage === 'Lost') {
       setPending(stage);
       return;
@@ -155,7 +159,7 @@ export default function Enquiry({ params }) {
         ))}
         {log.length === 0 && <li>No contact logged yet.</li>}
       </ol>
-      {canEdit && (
+      {editable && (
         <form className="stack-form" onSubmit={addEntry}>
           <label>
             Type
@@ -172,7 +176,7 @@ export default function Enquiry({ params }) {
       )}
 
       <h2 className="section-title">Follow-up and officer</h2>
-      {canEdit ? (
+      {editable ? (
         <div className="stack-form">
           <label>
             Next follow-up
@@ -201,7 +205,7 @@ export default function Enquiry({ params }) {
         </div>
       )}
 
-      {canEdit && (
+      {editable && (
         <>
           <h2 className="section-title">Stage</h2>
           <div className="stage-actions">

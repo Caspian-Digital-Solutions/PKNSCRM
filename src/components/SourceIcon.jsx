@@ -4,6 +4,7 @@ const KIND = {
   Instagram: 'instagram',
   'Google Ads': 'google',
   'Website form': 'web',
+  'Website form – QR demo': 'web',
   WhatsApp: 'whatsapp',
   'Walk-in / call': 'walkin',
 };

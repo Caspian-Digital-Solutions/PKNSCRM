@@ -31,9 +31,61 @@ That test logs in as Management, walks the demo at 1920×1080, checks the visibl
 
 ## Deploy it
 
-Deploy to Vercel: framework **Vite**, build command `npm run build`, output folder `dist`. No environment variables.
+Deploy to Vercel: framework **Vite**, build command `npm run build`, output folder `dist`. The storyline runs with no environment variables. The QR form needs the variables in the next section, and Vite reads them at build time, so set them before you redeploy.
 
-`npm run build` is the hosted build. `npm run build:single` writes one self-contained HTML file, `artifact/pkns-asset-marketing-hub.html`. Open that file in Chrome on the presenting laptop if the network is down. It runs the full storyline offline.
+`npm run build` is the hosted build. `npm run build:single` writes one self-contained HTML file, `artifact/pkns-asset-marketing-hub.html`. Open that file in Chrome on the presenting laptop if the network is down. It runs the full storyline offline. The offline file does not talk to Supabase.
+
+## QR live enquiry (Supabase and Vercel)
+
+This is the phone form at `#/qr` and the QR code on Enquiry pipeline (**Show QR code**). You create the Supabase project and paste the keys yourself. The app does not ship any keys. If the variables are missing, or Supabase cannot be reached, the pipeline stays as it is and **Simulate enquiry** still runs the demo.
+
+Do these steps in order.
+
+1. In [Supabase](https://supabase.com), create a free project. Wait until it finishes starting.
+2. Open **SQL Editor**, start a new query, paste the script below, and run it. It creates one table, turns on row-level security, and lets the public anon role insert a row and read only rows from the last 2 hours. It cannot update or delete.
+
+```sql
+create table public.qr_enquiries (
+  id uuid primary key default gen_random_uuid(),
+  created_at timestamptz not null default now(),
+  name text not null,
+  business text not null,
+  space_type text not null,
+  asset text not null,
+  phone text not null
+);
+
+alter table public.qr_enquiries enable row level security;
+
+grant select, insert on table public.qr_enquiries to anon;
+
+create policy "Submit an enquiry"
+  on public.qr_enquiries
+  for insert
+  to anon
+  with check (true);
+
+create policy "Read enquiries from the last 2 hours"
+  on public.qr_enquiries
+  for select
+  to anon
+  using (created_at >= now() - interval '2 hours');
+```
+
+3. In the Supabase project, open **Project Settings → API**. Copy the **Project URL** and the **anon public** key. Leave the service role key where it is. Do not put that key in Vercel or in this repo.
+4. In the Vercel project, open **Settings → Environment Variables** and add these three for Production (and Preview, if you will rehearse on a preview URL):
+
+| Name | Value |
+| --- | --- |
+| `VITE_SUPABASE_URL` | The Project URL from step 3 |
+| `VITE_SUPABASE_ANON_KEY` | The anon public key from step 3 |
+| `VITE_HOSTED_URL` | The public site origin only, such as `https://your-app.vercel.app`. No path and no `#/qr`. |
+
+5. Redeploy. Vite copies `VITE_` variables into the browser bundle when it builds, so a deploy that ran before the variables existed will not see them. Use **Deployments → Redeploy** after saving the variables.
+6. Open the hosted site, choose **Leasing**, and open **Enquiry pipeline**. Click **Show QR code**. The code is 300×300 and points at `<your hosted URL>/#/qr`.
+7. Scan it with a phone (or open that address). The form asks for name, business, space type, asset and phone, and it says **Demo: please use made-up details**. Send the form.
+8. On the laptop, within about 2 seconds, a card appears in **New**. Its source is **Website form – QR demo**. The officer is the officer for the asset you picked (Aina Rahman for Kompleks PKNS Shah Alam, Siti Nur Izzati for Kompleks PKNS Bangi, Hafiz Kamal for Menara PKNS, and Nurul Huda Azman for the Section 13 and other Shah Alam assets).
+9. If the card does not appear, the storyline is unchanged: use **Simulate enquiry**. Check that the latest deployment was built after the variables were saved, and that the Supabase project is not paused.
 
 ## How it is put together
 
@@ -70,7 +122,8 @@ Expected results are on page 06 §4 ("SA Sentral after the hero enquiry is signe
 | TP-27 | 2.2 Dummy data and calculation rules | Built; checked by `npm run verify` |
 | TP-28 | 2.3 Setup, hosting, reset | App, reset, storyline test and offline HTML built; Vercel hosting by Bharg |
 | TP-29 … TP-34 | 3.1–3.6 Core screens and end-to-end flow (M1, Fri 23 Oct) | Built (Phases 0–1) |
-| TP-35 … TP-41 | 4.1–4.7 Dry-run screens (M2, Mon 26 Oct) | Built (Phases 2–3). QR live enquiry is not started |
+| TP-35 … TP-40 | 4.1–4.6 Dry-run screens (M2, Mon 26 Oct) | Built (Phases 2–3) |
+| TP-41 | 4.7 QR live enquiry | Built. Supabase project and Vercel keys are set up from the README section above |
 
 ## Rules for anyone building on this
 

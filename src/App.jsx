@@ -13,6 +13,7 @@ import Marketing from './screens/Marketing.jsx';
 import Settings from './screens/Settings.jsx';
 import Visitors from './screens/Visitors.jsx';
 import Report from './screens/Report.jsx';
+import QrForm from './screens/QrForm.jsx';
 import DataTable from './components/DataTable.jsx';
 import Num from './components/Num.jsx';
 import Term from './components/Term.jsx';
@@ -39,6 +40,7 @@ const BUILT = {
 export default function App() {
   const { state } = useStore();
   const { screen, params } = useRoute();
+  if (screen === 'qr') return <QrForm />;
   if (!state.role) return <Login />;
   const role = ROLES[state.role];
   if (screen === 'data-check') return <Shell current="data-check"><DataCheck /></Shell>;
