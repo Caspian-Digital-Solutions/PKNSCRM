@@ -1,0 +1,97 @@
+/* PKNS Asset Marketing Hub — design tokens derived from the PKNS logo and pkns.gov.my. */
+:root {
+  --red: #e31b23;
+  --red-dark: #b8141b;
+  --red-tint: #fdecec;
+  --ink: #231f20;
+  --ink-2: #4a4546;
+  --muted: #6e6a6b;
+  --line: #e4e1df;
+  --line-2: #efedeb;
+  --bg: #f7f6f4;
+  --panel: #ffffff;
+  --gold: #f2c500;
+  --focus: #1f6feb;
+  /* Neutral data series (no traffic-light meaning). */
+  --s1: #e31b23; --s2: #3d5a80; --s3: #8a9a5b; --s4: #c9a227; --s5: #7d6b91; --s6: #5c8d89;
+  --radius: 10px;
+  --shadow: 0 1px 2px rgba(35, 31, 32, 0.06), 0 2px 8px rgba(35, 31, 32, 0.04);
+  font-family: 'Source Sans 3', 'Segoe UI', system-ui, sans-serif;
+  font-size: 16px;
+  color: var(--ink);
+  background: var(--bg);
+}
+* { box-sizing: border-box; }
+html, body, #root { height: 100%; margin: 0; }
+body { background: var(--bg); color: var(--ink); }
+body { line-height: 1.45; -webkit-font-smoothing: antialiased; }
+button { font: inherit; color: inherit; cursor: pointer; }
+a { color: inherit; }
+:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+
+/* Layout */
+.app { min-height: 100%; display: grid; grid-template-rows: auto 1fr auto; }
+.topbar { height: 76px; background: var(--panel); border-top: 4px solid var(--red); border-bottom: 1px solid var(--line); display: flex; align-items: center; justify-content: space-between; padding: 0 28px; position: sticky; top: 0; z-index: 20; }
+.brand { display: flex; align-items: center; gap: 16px; text-decoration: none; }
+.brand img { height: 44px; width: auto; display: block; }
+.brand-name { font-size: 22px; font-weight: 700; letter-spacing: -0.01em; padding-left: 16px; border-left: 2px solid var(--line); }
+.topbar-right { display: flex; align-items: center; gap: 16px; }
+.demo-tag { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--red-dark); background: var(--red-tint); border: 1px solid #f6c6c8; padding: 4px 10px; border-radius: 999px; }
+.role { position: relative; }
+.role-btn { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 8px 14px; font-weight: 700; font-size: 16px; }
+.role-label { font-weight: 400; color: var(--muted); margin-right: 4px; }
+.role-menu { position: absolute; right: 0; top: calc(100% + 6px); width: 320px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: 0 8px 28px rgba(0,0,0,0.12); padding: 6px; }
+.role-menu button { display: block; width: 100%; text-align: left; background: none; border: 0; border-radius: 6px; padding: 10px 12px; }
+.role-menu button:hover, .role-menu button.on { background: var(--bg); }
+.role-menu button span { display: block; font-size: 14px; color: var(--muted); }
+.role-menu hr { border: 0; border-top: 1px solid var(--line); margin: 6px 0; }
+.body { display: grid; grid-template-columns: 240px 1fr; min-height: 0; }
+.sidenav { background: var(--panel); border-right: 1px solid var(--line); padding: 18px 0; display: flex; flex-direction: column; gap: 2px; }
+.sidenav a { text-decoration: none; padding: 11px 24px; font-size: 17px; color: var(--ink-2); border-left: 4px solid transparent; }
+.sidenav a:hover { background: var(--bg); color: var(--ink); }
+.sidenav a.active { border-left-color: var(--red); color: var(--ink); font-weight: 700; background: var(--bg); }
+.content { padding: 28px 36px 40px; min-width: 0; }
+.footer { display: flex; justify-content: space-between; align-items: center; padding: 10px 28px; font-size: 13px; color: var(--muted); border-top: 1px solid var(--line); background: var(--panel); }
+.reset { background: none; border: 0; color: var(--muted); font-size: 13px; text-decoration: underline; padding: 4px; }
+
+/* Type */
+.page-title { font-size: 32px; font-weight: 800; letter-spacing: -0.015em; margin: 0 0 6px; }
+.section-title { font-size: 21px; font-weight: 700; margin: 28px 0 12px; }
+.muted { color: var(--muted); }
+
+/* Tables */
+.table { width: 100%; border-collapse: collapse; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; font-size: 16px; }
+.table.narrow { width: auto; min-width: 420px; }
+.table th { text-align: left; font-weight: 700; font-size: 14px; color: var(--ink-2); background: #faf9f8; border-bottom: 1px solid var(--line); padding: 10px 14px; white-space: nowrap; }
+.table td { padding: 10px 14px; border-bottom: 1px solid var(--line-2); font-variant-numeric: tabular-nums; }
+.table tr:last-child td { border-bottom: 0; }
+.table .r { text-align: right; }
+.table tr.total td { font-weight: 700; background: #faf9f8; border-top: 1px solid var(--line); }
+
+/* Placeholder */
+.placeholder { margin-top: 20px; background: var(--panel); border: 1px dashed var(--line); border-radius: var(--radius); padding: 40px; font-size: 18px; }
+.placeholder p { margin: 0 0 6px; }
+
+/* Login */
+.login { min-height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 40px 20px; background: linear-gradient(180deg, #fff 0%, var(--bg) 100%); border-top: 4px solid var(--red); }
+.login-card { width: min(980px, 100%); text-align: center; }
+.login-logo { height: 72px; width: auto; }
+.login h1 { font-size: 44px; font-weight: 800; letter-spacing: -0.02em; margin: 18px 0 8px; }
+.login .lead { font-size: 20px; color: var(--ink-2); max-width: 720px; margin: 0 auto 36px; }
+.login .choose { font-size: 14px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin: 0 0 14px; }
+.roles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+.role-card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 28px 24px; text-align: left; box-shadow: var(--shadow); transition: border-color .15s, transform .15s; border-top: 4px solid var(--line); }
+.role-card:hover { border-color: var(--red); border-top-color: var(--red); transform: translateY(-2px); }
+.role-card-name { display: block; font-size: 26px; font-weight: 800; margin-bottom: 6px; }
+.role-card-blurb { display: block; font-size: 17px; color: var(--ink-2); }
+.login-foot { margin-top: 36px; font-size: 13px; color: var(--muted); }
+
+@media (max-width: 900px) {
+  .body { grid-template-columns: 1fr; }
+  .sidenav { flex-direction: row; overflow-x: auto; padding: 0; border-right: 0; border-bottom: 1px solid var(--line); }
+  .sidenav a { border-left: 0; border-bottom: 3px solid transparent; white-space: nowrap; padding: 12px 16px; }
+  .sidenav a.active { border-bottom-color: var(--red); }
+  .roles { grid-template-columns: 1fr; }
+  .content { padding: 20px 16px; }
+  .brand-name { display: none; }
+}

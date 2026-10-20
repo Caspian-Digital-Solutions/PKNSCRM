@@ -1,0 +1,21 @@
+Project: PKNS Asset Marketing Hub, a pitch prototype (React 18 + Vite, plain CSS, no backend). All data is dummy and generated in the browser.
+
+Build instructions
+- BUILD_PROMPT.md is the full build brief: phases, screen specs, acceptance criteria and the golden numbers. Work one phase at a time and stop at each checkpoint.
+
+Source of truth
+- Confluence PCD page 04 (screen specs, role matrix, acceptance criteria, calculation rules, KPI set), page 05 (demo storyline), page 06 (every figure). Read README.md first.
+- src/data/config.js holds the fixed inputs from page 06. src/data/generate.js builds the data set with a fixed seed. src/data/metrics.js holds every calculation.
+
+Hard rules
+- Never hard-code a figure in a screen. Read from useStore().data and compute with functions in src/data/metrics.js. Add new calculations to metrics.js, not to components.
+- Live demo state (role, heroStage, moves, notes, sitcAdded) lives in src/store.jsx and must be passed to metrics so every screen updates together without a reload.
+- After any change to config.js, generate.js or metrics.js run `npm run verify`; it must print ALL CHECKS PASSED.
+- No scores, health ratings, traffic-light colours or AI judgements on data. Show raw numbers with sort and filter. Series colours are neutral (--s1 … --s6 in styles.css).
+- Every table: sortable columns, numbers right-aligned with tabular figures, totals row where totals make sense.
+- Use format.js helpers (num, rm, rm2, pct, x, date) for every number.
+- Keep the "Demo data" tag visible; CDS appears only in the footer. Interface English; campaign/ad/post names in Bahasa Malaysia exactly as in config.js.
+- Screens must read well through a 1920×1080 Google Meet screen share: body ≥16px, key figures ≥32px, no thin low-contrast text.
+- Navigation uses hash routes via go() from src/router.js. Register screens in the BUILT map in src/App.jsx using ids from SCREENS in store.jsx; respect the role matrix.
+- Dependencies allowed: recharts 3.10.1, xlsx 0.18.5, jspdf 4.2.1, jspdf-autotable 5.0.8, @playwright/test 1.63.0 (dev), qrcode.react 4.2.0 (Phase 4 only). Install with --save-exact. Nothing else.
+- All screens read figures through src/data/selectors.js (live state + generated data) and src/data/metrics.js.
