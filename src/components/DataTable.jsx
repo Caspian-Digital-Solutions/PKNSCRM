@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import ExportButton from './ExportButton.jsx';
+import Term from './Term.jsx';
 
 function compare(a, b) {
   if (a == null && b == null) return 0;
@@ -72,7 +73,7 @@ export default function DataTable({
           <div className="filters">
             {filterable.map((col) => (
               <label key={col.key}>
-                {col.label}
+                {col.filterLabel || col.label}
                 {col.filter === 'select' ? (
                   <select value={filters[col.key] || ''} onChange={(e) => setFilters((f) => ({ ...f, [col.key]: e.target.value }))}>
                     <option value="">All</option>
@@ -98,12 +99,15 @@ export default function DataTable({
               {columns.map((col) => {
                 const active = sort.key === col.key;
                 const ariaSort = active ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none';
+                const button = (
+                  <button type="button" className="th-btn" onClick={() => onHeader(col.key)}>
+                    {col.label}
+                    {active ? <span aria-hidden="true">{sort.dir === 'asc' ? '↑' : '↓'}</span> : null}
+                  </button>
+                );
                 return (
                   <th key={col.key} className={col.align === 'right' ? 'r' : undefined} aria-sort={ariaSort}>
-                    <button type="button" className="th-btn" onClick={() => onHeader(col.key)}>
-                      {col.label}
-                      {active ? <span aria-hidden="true">{sort.dir === 'asc' ? '↑' : '↓'}</span> : null}
-                    </button>
+                    {col.term ? <Term id={col.term}>{button}</Term> : button}
                   </th>
                 );
               })}

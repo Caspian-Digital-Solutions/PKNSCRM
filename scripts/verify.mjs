@@ -1,9 +1,10 @@
 // Reconciles the generated dummy data against Confluence page 06. Exits non-zero on any mismatch.
 import { generate } from '../src/data/generate.js';
 import { campaignChannels, totalRow, statusCounts, leasingKpis, medianFirstResponseHours } from '../src/data/metrics.js';
-import { ASSETS, CAMPAIGNS, STAGE_COUNTS } from '../src/data/config.js';
+import { ASSETS, CAMPAIGNS, STAGE_COUNTS, SITC_TEMPLATE } from '../src/data/config.js';
 import {
   liveUnits, liveEnquiries, campaignRows, assetMarketing, portfolioRows, pipelineSummary, marketingSummary, reportBlocks, contactLog,
+  campaignWeeks, funnelSteps, daysInStage,
 } from '../src/data/selectors.js';
 import { DEFINITIONS } from '../src/data/definitions.js';
 
@@ -261,6 +262,43 @@ check('October website sessions', dash.website.sessions, 85000);
 check('October website users', dash.website.users, 61000);
 check('Main Facebook followers', dash.social.find((p) => p.id === 'pkns-fb').followers, 55200);
 check('Main Instagram followers', dash.social.find((p) => p.id === 'pkns-ig').followers, 9650);
+
+for (const c of D.campaigns) {
+  const weeks = campaignWeeks(D, {}, c.id, { from: c.start, to: c.end });
+  const t = totalRow(campaignRows(D, {}, c.id, { from: c.start, to: c.end }));
+  check(`${c.short} weeks sum spend`, weeks.reduce((s, w) => s + w.spend, 0), t.spend);
+  check(`${c.short} weeks sum enquiries`, weeks.reduce((s, w) => s + w.enquiries, 0), t.enquiries);
+}
+const saWeeks = campaignWeeks(D, {}, 'sa', { from: '2026-07-01', to: '2026-10-31' });
+check('SA first week is 1 Jul', saWeeks[0].first, '2026-07-01');
+check('SA first week is partial', saWeeks[0].partial, true);
+check('SA first week starts on the Monday', saWeeks[0].start, '2026-06-29');
+const saWeeksAfter = campaignWeeks(D, { heroStage: 'Signed' }, 'sa', { from: '2026-07-01', to: '2026-10-31' });
+check('SA weeks after hero enquiries', saWeeksAfter.reduce((s, w) => s + w.enquiries, 0), 421);
+const saFunnel = funnelSteps(totalRow(campaignRows(D, {}, 'sa', {})));
+check('SA funnel enquiries / viewings / signed', [saFunnel[2].value, saFunnel[3].value, saFunnel[4].value].join('/'), '420/96/14');
+check('SA funnel has no rate on impressions', saFunnel[0].rate, null);
+const heroNew = liveEnquiries(D, {
+  heroStage: 'New',
+  heroReceivedAt: '2026-10-31T10:00:00+08:00',
+  heroLog: [{ stage: 'New', at: '2026-10-31T10:00:00+08:00' }],
+}).find((e) => e.hero);
+check('Hero days in stage on the as-at date', daysInStage(heroNew), 0);
+
+const sitc = { customAssets: [SITC_TEMPLATE] };
+const sitcRows = portfolioRows(D, sitc, '2026-10');
+const sitcTotal = sitcRows.find((r) => r.total);
+check('SITC asset count', sitcTotal.assets, 13);
+check('SITC leaves unit count', sitcTotal.units, p0.units);
+check('SITC leaves occupancy', pct1(sitcTotal.occupancy), pct1(p0.occupancy));
+check('SITC row is an event space', sitcRows.some((r) => r.id === 'sitc' && r.eventSpace && r.spaces === 3), true);
+const sitcAll = allCampaigns(sitc, {});
+const baseAll = allCampaigns({}, {});
+check('SITC leaves campaign spend', sitcAll.spend, baseAll.spend);
+check('SITC leaves campaign enquiries', sitcAll.enquiries, baseAll.enquiries);
+check('SITC leaves campaign viewings', sitcAll.viewings, baseAll.viewings);
+check('SITC leaves campaign signed', sitcAll.signed, baseAll.signed);
+check('SITC leaves campaign first-year value', sitcAll.firstYearValue, baseAll.firstYearValue);
 
 const k = leasingKpis(D.units);
 console.log('\nComputed leasing figures (write these back to page 06 section 7):');

@@ -4,7 +4,7 @@
 import {
   HERO, AS_AT, CHANNELS, PIPELINE_STAGES, LEASING_BY_MONTH, MONTHS, WEBSITE_OCT, TOP_POSTS,
 } from './config.js';
-import { allocate, ymd, addDays, dateUTC } from './rng.js';
+import { allocate, ymd, addDays, dateUTC, daysBetween } from './rng.js';
 import { lastDayOf } from './generate.js';
 import {
   heroEffects, inRange, campaignChannels, withRatios, totalRow, unitStatus, statusCounts,
@@ -394,6 +394,7 @@ export function portfolioRows(data, state, month = '2026-10') {
         vacant: null,
         redev: null,
         occupancy: null,
+        lettable: null,
         medianDaysVacant: null,
         paidEnquiries: 0,
         viewings: 0,
@@ -429,6 +430,7 @@ export function portfolioRows(data, state, month = '2026-10') {
       vacant: counts.Vacant,
       redev: counts['Under redevelopment'],
       occupancy: counts.occupancy,
+      lettable: counts.total - counts['Under redevelopment'],
       medianDaysVacant: medianDaysVacant(assetUnits, s.heroStage),
       paidEnquiries: marketing.enquiries,
       viewings: marketing.viewings,
@@ -465,6 +467,7 @@ export function portfolioRows(data, state, month = '2026-10') {
     vacant: counts.Vacant,
     redev: counts['Under redevelopment'],
     occupancy: counts.occupancy,
+    lettable: counts.total - counts['Under redevelopment'],
     medianDaysVacant: medianDaysVacant(units, s.heroStage),
     paidEnquiries: marketing.enquiries,
     viewings: marketing.viewings,
@@ -480,7 +483,7 @@ export function portfolioRows(data, state, month = '2026-10') {
   return rows;
 }
 
-export function pipelineSummary(data, state, filters = {}) {
+export function filteredEnquiries(data, state, filters = {}) {
   const s = norm(state);
   let list = liveEnquiries(data, s);
   const asset = filters.asset || filters.assetId || '';
@@ -490,6 +493,11 @@ export function pipelineSummary(data, state, filters = {}) {
   if (filters.source) list = list.filter((e) => e.source === filters.source);
   if (filters.officer) list = list.filter((e) => e.officer === filters.officer);
   if (filters.channel) list = list.filter((e) => e.channel === filters.channel);
+  return list;
+}
+
+export function pipelineSummary(data, state, filters = {}) {
+  const list = filteredEnquiries(data, state, filters);
   const counts = Object.fromEntries(PIPELINE_STAGES.map((stage) => [stage, 0]));
   let openValue = 0;
   for (const e of list) {
@@ -831,4 +839,80 @@ export function contactLog(data, state, enquiryId) {
     return Number.isFinite(t) ? t : 0;
   };
   return [...generated, ...live].sort((a, b) => time(a) - time(b));
+}
+
+function mondayOf(iso) {
+  const d = dateUTC(iso);
+  const dow = d.getUTCDay();
+  const back = dow === 0 ? 6 : dow - 1;
+  return ymd(addDays(d, -back));
+}
+
+// Monday–Sunday buckets. Partial first and last weeks keep the dates that fall inside the range.
+export function campaignWeeks(data, state, campaignId, range = {}) {
+  const s = norm(state);
+  const campaign = data.campaigns.find((c) => c.id === campaignId);
+  if (!campaign) return [];
+  const from = range.from || campaign.start;
+  const to = range.to || campaign.end;
+  const buckets = new Map();
+  campaign.days.forEach((day, i) => {
+    if (!inRange(day, from, to)) return;
+    const start = mondayOf(day);
+    let bucket = buckets.get(start);
+    if (!bucket) {
+      bucket = { start, first: day, last: day, spend: 0, enquiries: 0 };
+      buckets.set(start, bucket);
+    }
+    if (day < bucket.first) bucket.first = day;
+    if (day > bucket.last) bucket.last = day;
+    for (const ch of CHANNELS) {
+      const daily = campaign.daily[ch.id];
+      bucket.spend += daily.spend[i] || 0;
+      bucket.enquiries += daily.enq[i] || 0;
+    }
+  });
+  const fx = heroEffects(s.heroStage);
+  if (campaign.id === HERO.campaign && fx.enquiry && inRange(AS_AT, from, to)) {
+    const start = mondayOf(AS_AT);
+    const bucket = buckets.get(start);
+    if (bucket) bucket.enquiries += fx.enquiry;
+    else buckets.set(start, { start, first: AS_AT, last: AS_AT, spend: 0, enquiries: fx.enquiry });
+  }
+  return [...buckets.values()].sort((a, b) => a.start.localeCompare(b.start)).map((bucket) => {
+    const sunday = ymd(addDays(dateUTC(bucket.start), 6));
+    return { ...bucket, partial: bucket.first !== bucket.start || bucket.last !== sunday };
+  });
+}
+
+// Step rates sit between the bars: each rate is this step ÷ the previous step.
+export function funnelSteps(row) {
+  const impressions = row?.impressions || 0;
+  const clicks = row?.clicks || 0;
+  const enquiries = row?.enquiries || 0;
+  const viewings = row?.viewings || 0;
+  const signed = row?.signed || 0;
+  return [
+    { id: 'impressions', label: 'Impressions', value: impressions, rate: null },
+    { id: 'clicks', label: 'Clicks', value: clicks, rate: ratio(clicks, impressions) },
+    { id: 'enquiries', label: 'Paid enquiries', value: enquiries, rate: ratio(enquiries, clicks) },
+    { id: 'viewings', label: 'Viewings', value: viewings, rate: ratio(viewings, enquiries) },
+    { id: 'signed', label: 'Signed', value: signed, rate: ratio(signed, viewings) },
+  ];
+}
+
+export function daysInStage(enquiry) {
+  if (!enquiry) return null;
+  const history = enquiry.history || [];
+  const current = [...history].reverse().find((entry) => entry[0] === enquiry.stage);
+  const entered = current ? current[1] : enquiry.receivedAt;
+  if (!entered) return null;
+  return daysBetween(String(entered).slice(0, 10), AS_AT);
+}
+
+export function firstResponseMinutes(enquiry) {
+  if (!enquiry?.firstResponseAt || !enquiry.receivedAt) return null;
+  const minutes = (new Date(enquiry.firstResponseAt) - new Date(enquiry.receivedAt)) / 60000;
+  if (!Number.isFinite(minutes)) return null;
+  return Math.max(0, Math.round(minutes));
 }

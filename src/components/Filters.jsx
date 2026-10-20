@@ -45,6 +45,7 @@ export default function Filters({
   officers = [],
   sources = [],
   fields = ['asset', 'campaign', 'channel', 'officer', 'source', 'range'],
+  rangePresets = RANGE_PRESETS,
 }) {
   const v = {
     asset: '',
@@ -61,7 +62,7 @@ export default function Filters({
   const show = (name) => fields.includes(name);
 
   const onPreset = (preset) => {
-    const found = RANGE_PRESETS.find((p) => p.id === preset);
+    const found = rangePresets.find((p) => p.id === preset);
     if (!found || found.id === 'custom') {
       set({ preset: 'custom' });
       return;
@@ -80,7 +81,7 @@ export default function Filters({
         <label>
           Period
           <select value={v.preset} onChange={(e) => onPreset(e.target.value)}>
-            {RANGE_PRESETS.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
+            {rangePresets.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
           </select>
         </label>
       )}

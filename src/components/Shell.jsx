@@ -6,7 +6,7 @@ import { go } from '../router.js';
 export default function Shell({ current, children }) {
   const { state, dispatch } = useStore();
   const role = ROLES[state.role];
-  const nav = SCREENS.filter((s) => s.roles.includes(state.role));
+  const nav = SCREENS.filter((s) => !s.hidden && s.roles.includes(state.role));
   const [menu, setMenu] = useState(false);
 
   // Hidden reset for the presenter: Alt + Shift + R.

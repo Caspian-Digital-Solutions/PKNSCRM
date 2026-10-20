@@ -4,6 +4,10 @@ import Shell from './components/Shell.jsx';
 import Login from './screens/Login.jsx';
 import Placeholder from './screens/Placeholder.jsx';
 import DataCheck from './screens/DataCheck.jsx';
+import Portfolio from './screens/Portfolio.jsx';
+import Campaign from './screens/Campaign.jsx';
+import Pipeline from './screens/Pipeline.jsx';
+import Enquiry from './screens/Enquiry.jsx';
 import DataTable from './components/DataTable.jsx';
 import Num from './components/Num.jsx';
 import Term from './components/Term.jsx';
@@ -12,10 +16,15 @@ import Filters from './components/Filters.jsx';
 import ExportButton from './components/ExportButton.jsx';
 import Modal from './components/Modal.jsx';
 
-// Shared Phase 0 components. Screens register themselves in BUILT in later phases.
+// Shared Phase 0 components stay in the module graph.
 export const sharedComponents = { DataTable, Num, Term, Kpi, Filters, ExportButton, Modal };
 
-const BUILT = {};
+const BUILT = {
+  portfolio: Portfolio,
+  campaign: Campaign,
+  pipeline: Pipeline,
+  enquiry: Enquiry,
+};
 
 export default function App() {
   const { state } = useStore();

@@ -12,13 +12,14 @@ export const ROLES = {
 };
 
 // Screen access matrix (Confluence page 04, section 3).
-// Enquiry detail is added with the pipeline screen in a later phase. It is not registered here yet.
+// Enquiry detail uses the pipeline roles and stays out of the nav.
 export const SCREENS = [
   { id: 'portfolio', n: 2, name: 'Portfolio overview', roles: ['marketing', 'leasing', 'management'], milestone: 'M1 · Fri 23 Oct' },
   { id: 'asset', n: 3, name: 'Asset detail', roles: ['marketing', 'leasing', 'management'], milestone: 'M2 · Mon 26 Oct' },
   { id: 'marketing', n: 4, name: 'Marketing dashboard', roles: ['marketing', 'management'], milestone: 'M2 · Mon 26 Oct' },
   { id: 'campaign', n: 5, name: 'Campaigns', roles: ['marketing', 'leasing', 'management'], milestone: 'M1 · Fri 23 Oct' },
   { id: 'pipeline', n: 6, name: 'Enquiry pipeline', roles: ['marketing', 'leasing', 'management'], milestone: 'M1 · Fri 23 Oct' },
+  { id: 'enquiry', n: 7, name: 'Enquiry detail', roles: ['marketing', 'leasing', 'management'], milestone: 'M1 · Fri 23 Oct', hidden: true },
   { id: 'report', n: 10, name: 'Management report', roles: ['marketing', 'management'], milestone: 'M2 · Mon 26 Oct' },
   { id: 'visitors', n: 9, name: 'Visitors (future phase)', roles: ['marketing', 'management'], milestone: 'M2 · Mon 26 Oct' },
   { id: 'settings', n: 8, name: 'Settings', roles: ['management'], milestone: 'M2 · Mon 26 Oct' },
