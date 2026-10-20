@@ -15,6 +15,24 @@ export const time = (iso) => {
   return new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: 'Asia/Kuala_Lumpur' });
 };
 export const ratio = (v) => (v == null ? '–' : round(v, 2).toFixed(2));
+export const years = (v) => (v == null || !Number.isFinite(Number(v)) ? '–' : `${round(Number(v), 2).toFixed(2)} years`);
+export const hours = (v) => (v == null || !Number.isFinite(Number(v)) ? '–' : `${round(Number(v), 1).toFixed(1)} h`);
+export const dec1 = (v) => (v == null || !Number.isFinite(Number(v)) ? '–' : round(Number(v), 1).toFixed(1));
+// Values already stored as a percent (4.2 means 4.2%, not 420%).
+export const pctPlain = (v, d = 1) => (v == null || !Number.isFinite(Number(v)) ? '–' : `${round(Number(v), d).toFixed(d)}%`);
+export const pctStored = (v, d = 1) => {
+  if (v == null || !Number.isFinite(Number(v))) return '–';
+  const n = round(Number(v), d);
+  const body = `${n.toFixed(d)}%`;
+  return n > 0 ? `+${body}` : body;
+};
+
+export function signedChange(value, format) {
+  if (value == null || !Number.isFinite(Number(value))) return '–';
+  const text = format(value);
+  if (Number(value) > 0 && text[0] !== '+' && text[0] !== '-') return `+${text}`;
+  return text;
+}
 
 export function duration(minutes) {
   if (minutes == null || !Number.isFinite(Number(minutes))) return '–';

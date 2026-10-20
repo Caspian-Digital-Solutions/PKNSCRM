@@ -2,13 +2,13 @@
 // Every figure is computed here or in metrics.js. Pass live state in; do not copy numbers into components.
 
 import {
-  HERO, AS_AT, CHANNELS, PIPELINE_STAGES, LEASING_BY_MONTH, MONTHS, WEBSITE_OCT, TOP_POSTS,
+  HERO, AS_AT, CHANNELS, PIPELINE_STAGES, LEASING_BY_MONTH, MONTHS, WEBSITE_OCT, TOP_POSTS, OFFICERS,
 } from './config.js';
 import { allocate, ymd, addDays, dateUTC, daysBetween } from './rng.js';
 import { lastDayOf } from './generate.js';
 import {
   heroEffects, inRange, campaignChannels, withRatios, totalRow, unitStatus, statusCounts,
-  leasingKpis, medianDaysVacant, medianFirstResponseHours, occupancyAtMonthEnd,
+  leasingKpis, medianDaysVacant, medianFirstResponseHours, occupancyAtMonthEnd, daysVacant,
 } from './metrics.js';
 
 const OPEN_STAGES = PIPELINE_STAGES.filter((s) => s !== 'Signed' && s !== 'Lost');
@@ -481,6 +481,126 @@ export function portfolioRows(data, state, month = '2026-10') {
     newLeases: marketing.signed,
   });
   return rows;
+}
+
+export const LEASE_WINDOWS = ['≤3 months', '3–12 months', '>12 months', 'none'];
+
+// ≤3 months ends 31 Jan 2027 (as-at + 3 months). 3–12 months ends 31 Oct 2027, the same bound as rent expiring next 12 months.
+export function leaseExpiryWindow(unit) {
+  const expiry = unit?.leaseExpiry;
+  if (!expiry) return 'none';
+  if (expiry <= '2027-01-31') return '≤3 months';
+  if (expiry <= '2027-10-31') return '3–12 months';
+  return '>12 months';
+}
+
+function floorsTopToBottom(asset, units) {
+  const listed = [];
+  for (const group of asset.mix || []) {
+    for (const floor of group.floors || []) {
+      if (!listed.includes(floor)) listed.push(floor);
+    }
+  }
+  const known = new Set(listed);
+  const extra = [];
+  for (const unit of units) {
+    if (!known.has(unit.floor) && !extra.includes(unit.floor)) extra.push(unit.floor);
+  }
+  const order = [...listed.slice().reverse(), ...extra];
+  const byLot = (a, b) => String(a.lot).localeCompare(String(b.lot), 'en', { numeric: true });
+  return order
+    .map((floor) => ({
+      floor,
+      units: units.filter((unit) => unit.floor === floor).slice().sort(byLot),
+    }))
+    .filter((row) => row.units.length);
+}
+
+export function assetDetail(data, state, assetId) {
+  const s = norm(state);
+  const asset = liveAssets(data, s).find((item) => item.id === assetId) || null;
+  if (!asset) return null;
+  const eventSpace = isEventSpace(asset);
+  const units = liveUnits(data, s).filter((unit) => unit.asset === asset.id);
+  const enquiries = liveEnquiries(data, s).filter((enquiry) => enquiry.asset === asset.id);
+  const open = enquiries.filter((enquiry) => OPEN_STAGES.includes(enquiry.stage));
+  const counts = eventSpace ? null : statusCounts(units, s.heroStage);
+  const nla = eventSpace || !units.length ? null : units.reduce((sum, unit) => sum + (Number(unit.size) || 0), 0);
+  const marketing = assetMarketing(data, s, asset.id, {});
+  const campaign = data.campaigns.find((item) => item.short && item.short === asset.grouping) || null;
+  const openFor = (unit) => open.filter((enquiry) => enquiry.unitId === unit.id || enquiry.lot === unit.lot);
+  const campaignName = marketing.byCampaign.map((item) => item.short).filter(Boolean).join(', ') || null;
+  const enrich = (unit) => {
+    const matches = openFor(unit);
+    return {
+      ...unit,
+      status: unitStatus(unit, s.heroStage),
+      daysVacant: daysVacant(unit, s.heroStage),
+      openEnquiries: matches.length,
+      openEnquiryIds: matches.map((enquiry) => enquiry.id),
+      leaseWindow: leaseExpiryWindow(unit),
+      campaign: campaignName,
+    };
+  };
+  const enriched = units.map(enrich);
+  return {
+    asset,
+    eventSpace,
+    counts,
+    nla,
+    spaceCount: asset.spaces?.length || 0,
+    medianDaysVacant: eventSpace ? null : medianDaysVacant(units, s.heroStage),
+    officer: OFFICERS[asset.officer] || null,
+    campaign,
+    marketing,
+    units: enriched,
+    floors: eventSpace ? [] : floorsTopToBottom(asset, enriched),
+    openEnquiries: open,
+    enquiries,
+    spaces: (asset.spaces || []).map((space) => ({ ...space })),
+  };
+}
+
+export function visitorSummary(data, assetId, range = {}) {
+  const { from, to } = range;
+  const days = data.visitors?.days || [];
+  const spend = data.visitors?.spend || [];
+  const spendByDate = new Map(days.map((day, index) => [day, spend[index] || 0]));
+  const daily = (data.visitors?.byAsset?.[assetId] || [])
+    .filter((day) => inRange(day.date, from, to))
+    .map((day) => {
+      const dow = dateUTC(day.date).getUTCDay();
+      return {
+        date: day.date,
+        visitors: day.total,
+        main: day.main,
+        car: day.car,
+        side: day.side,
+        spend: spendByDate.get(day.date) || 0,
+        weekend: dow === 0 || dow === 6,
+      };
+    });
+  const total = daily.reduce((sum, day) => sum + day.visitors, 0);
+  const main = daily.reduce((sum, day) => sum + day.main, 0);
+  const car = daily.reduce((sum, day) => sum + day.car, 0);
+  const side = daily.reduce((sum, day) => sum + day.side, 0);
+  const weekdays = daily.filter((day) => !day.weekend);
+  const weekends = daily.filter((day) => day.weekend);
+  const average = (list) => (list.length ? list.reduce((sum, day) => sum + day.visitors, 0) / list.length : null);
+  const share = (part) => (total ? part / total : null);
+  return {
+    assetId,
+    daily,
+    total,
+    weekdayAverage: average(weekdays),
+    weekendAverage: average(weekends),
+    totalShare: total ? 1 : null,
+    entrances: [
+      { name: 'Main', visitors: main, share: share(main) },
+      { name: 'Car park', visitors: car, share: share(car) },
+      { name: 'Side', visitors: side, share: share(side) },
+    ],
+  };
 }
 
 export function filteredEnquiries(data, state, filters = {}) {

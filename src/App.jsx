@@ -8,6 +8,11 @@ import Portfolio from './screens/Portfolio.jsx';
 import Campaign from './screens/Campaign.jsx';
 import Pipeline from './screens/Pipeline.jsx';
 import Enquiry from './screens/Enquiry.jsx';
+import Asset from './screens/Asset.jsx';
+import Marketing from './screens/Marketing.jsx';
+import Settings from './screens/Settings.jsx';
+import Visitors from './screens/Visitors.jsx';
+import Report from './screens/Report.jsx';
 import DataTable from './components/DataTable.jsx';
 import Num from './components/Num.jsx';
 import Term from './components/Term.jsx';
@@ -21,9 +26,14 @@ export const sharedComponents = { DataTable, Num, Term, Kpi, Filters, ExportButt
 
 const BUILT = {
   portfolio: Portfolio,
+  asset: Asset,
+  marketing: Marketing,
   campaign: Campaign,
   pipeline: Pipeline,
   enquiry: Enquiry,
+  settings: Settings,
+  visitors: Visitors,
+  report: Report,
 };
 
 export default function App() {

@@ -4,9 +4,13 @@ import { campaignChannels, totalRow, statusCounts, leasingKpis, medianFirstRespo
 import { ASSETS, CAMPAIGNS, STAGE_COUNTS, SITC_TEMPLATE } from '../src/data/config.js';
 import {
   liveUnits, liveEnquiries, campaignRows, assetMarketing, portfolioRows, pipelineSummary, marketingSummary, reportBlocks, contactLog,
-  campaignWeeks, funnelSteps, daysInStage,
+  campaignWeeks, funnelSteps, daysInStage, assetDetail, leaseExpiryWindow, visitorSummary,
 } from '../src/data/selectors.js';
 import { DEFINITIONS } from '../src/data/definitions.js';
+import { reportModel } from '../src/data/reportModel.js';
+import { hours } from '../src/format.js';
+import { buildReportPdf } from '../src/reportPdf.js';
+import * as XLSX from 'xlsx';
 
 const D = generate();
 let fails = 0;
@@ -299,6 +303,95 @@ check('SITC leaves campaign enquiries', sitcAll.enquiries, baseAll.enquiries);
 check('SITC leaves campaign viewings', sitcAll.viewings, baseAll.viewings);
 check('SITC leaves campaign signed', sitcAll.signed, baseAll.signed);
 check('SITC leaves campaign first-year value', sitcAll.firstYearValue, baseAll.firstYearValue);
+
+const kpsaDetail = assetDetail(D, {}, 'kpsa');
+const legendCounts = { Occupied: 0, Reserved: 0, Vacant: 0, 'Under redevelopment': 0 };
+for (const unit of kpsaDetail.units) legendCounts[unit.status] += 1;
+check(
+  'Legend matches the lot table',
+  [kpsaDetail.counts.Occupied, kpsaDetail.counts.Reserved, kpsaDetail.counts.Vacant, kpsaDetail.counts['Under redevelopment']].join('/'),
+  [legendCounts.Occupied, legendCounts.Reserved, legendCounts.Vacant, legendCounts['Under redevelopment']].join('/'),
+);
+check('KPSA floors run top to bottom', kpsaDetail.floors.map((floor) => floor.floor).join(','), '4,3,2,1,G');
+check('KPSA net lettable area is the sum of unit sizes', kpsaDetail.nla, kpsaDetail.units.reduce((sum, unit) => sum + unit.size, 0));
+check('KPSA median days vacant matches the portfolio row', kpsaDetail.medianDaysVacant, assetBody.find((row) => row.id === 'kpsa').medianDaysVacant);
+check('Lot 4-07 starts vacant', kpsaDetail.units.find((unit) => unit.id === 'kpsa:4-07').status, 'Vacant');
+check('Lot 4-07 is reserved in negotiation', assetDetail(D, { heroStage: 'Negotiation' }, 'kpsa').units.find((unit) => unit.id === 'kpsa:4-07').status, 'Reserved');
+check('Lot 4-07 is occupied after signing', assetDetail(D, { heroStage: 'Signed' }, 'kpsa').units.find((unit) => unit.id === 'kpsa:4-07').status, 'Occupied');
+const detailNew = assetDetail(D, {
+  heroStage: 'New',
+  heroReceivedAt: '2026-10-31T10:00:00+08:00',
+  heroLog: [{ stage: 'New', at: '2026-10-31T10:00:00+08:00' }],
+}, 'kpsa');
+check('Hero is an open enquiry on lot 4-07', detailNew.units.find((unit) => unit.id === 'kpsa:4-07').openEnquiryIds.includes('ENQ-HERO'), true);
+check('Signed hero leaves the open list', assetDetail(D, { heroStage: 'Signed' }, 'kpsa').units.find((unit) => unit.id === 'kpsa:4-07').openEnquiryIds.includes('ENQ-HERO'), false);
+check('No lease expiry window', leaseExpiryWindow({}), 'none');
+check('Expiry inside three months', leaseExpiryWindow({ leaseExpiry: '2027-01-31' }), '≤3 months');
+check('Expiry inside twelve months', leaseExpiryWindow({ leaseExpiry: '2027-10-31' }), '3–12 months');
+check('Expiry after twelve months', leaseExpiryWindow({ leaseExpiry: '2027-11-01' }), '>12 months');
+check('Lot windows use the lease rule', kpsaDetail.units.every((unit) => unit.leaseWindow === leaseExpiryWindow(unit)), true);
+const saccDetail = assetDetail(D, {}, 'sacc');
+check('SACC occupancy is not a rate', saccDetail.counts.occupancy, null);
+check('SACC net lettable area is the sum of unit sizes', saccDetail.nla, saccDetail.units.reduce((sum, unit) => sum + unit.size, 0));
+const sitcDetail = assetDetail(D, sitc, 'sitc');
+check('SITC has no lot grid', sitcDetail.floors.length, 0);
+check('SITC rates come from the template', sitcDetail.spaces.map((space) => space.rate).join('/'), SITC_TEMPLATE.spaces.map((space) => space.rate).join('/'));
+check('SITC spaces are priced per day', sitcDetail.spaces.every((space) => space.basis === 'per day'), true);
+check('SITC net lettable area is blank', sitcDetail.nla, null);
+
+const visitorsOct = visitorSummary(D, 'kpsa', OCT);
+check('Visitor entrances sum to the total', visitorsOct.entrances.reduce((sum, row) => sum + row.visitors, 0), visitorsOct.total);
+check('Visitor days sum to the total', visitorsOct.daily.reduce((sum, day) => sum + day.visitors, 0), visitorsOct.total);
+check('Each visitor day splits across the entrances', visitorsOct.daily.every((day) => day.main + day.car + day.side === day.visitors), true);
+check('Weekend visitors average above weekdays', visitorsOct.weekendAverage > visitorsOct.weekdayAverage, true);
+
+const modelOct = reportModel(D, {}, '2026-10');
+const rowBy = (rows, id) => rows.find((row) => row.id === id);
+check('Report model spend matches block 2', rowBy(modelOct.block2, 'spend').current, report.block2.spend.current);
+check('October report spend', rowBy(modelOct.block2, 'spend').current, 34206);
+check('October report spend text', rowBy(modelOct.block2, 'spend').currentText, 'RM34,206');
+check('October report paid enquiries', rowBy(modelOct.block2, 'paid-enquiries').current, 282);
+check('October report CPL', money2(rowBy(modelOct.block2, 'cpl').current), 121.30);
+check('October report CPL text', rowBy(modelOct.block2, 'cpl').currentText, 'RM121.30');
+check('October report signed', rowBy(modelOct.block2, 'signed').current, 9);
+check('October report ROAS text', rowBy(modelOct.block2, 'roas').currentText, '12.4x');
+check('Renewal rate text', rowBy(modelOct.block1, 'renewal').currentText, '65.4%');
+check('Renewal note', rowBy(modelOct.block1, 'renewal').note, '34 of 52');
+check('Reversion text', rowBy(modelOct.block1, 'reversion').currentText, '+4.2%');
+check('WALE text', rowBy(modelOct.block1, 'wale').currentText, '1.35 years');
+check('WALE last month is Snapshot', rowBy(modelOct.block1, 'wale').previousText, 'Snapshot');
+check('WALE change is blank', rowBy(modelOct.block1, 'wale').changeText, '');
+check('Expiry profile text', [0, 1, 2].map((index) => rowBy(modelOct.block1, `expiry-${index}`).currentText).join('/'), '8.2%/34.0%/57.8%');
+check('Rent expiring next 12 months text', rowBy(modelOct.block1, 'rent-next-12').currentText, '36.9%');
+check('Median days vacant before the storyline', rowBy(modelOct.block1, 'median-days').current, 135);
+check('Median first response matches block 2', rowBy(modelOct.block2, 'response').current, report.block2.medianFirstResponse.current);
+check('Median first response text', rowBy(modelOct.block2, 'response').currentText, hours(report.block2.medianFirstResponse.current));
+check('Retail trade mix rows', modelOct.block1.filter((row) => row.id.startsWith('trade-')).length, Object.keys(report.block1.snapshot.tradePct).length);
+check('July last month is blank', rowBy(reportModel(D, {}, '2026-07').block2, 'spend').previousText, '–');
+const modelAfter = reportModel(D, { heroStage: 'Signed' }, '2026-10');
+check('Report model after enquiries', rowBy(modelAfter.block2, 'paid-enquiries').current, 283);
+check('Report model after CPL', money2(rowBy(modelAfter.block2, 'cpl').current), 120.87);
+check('Report model after signed', rowBy(modelAfter.block2, 'signed').current, 10);
+check('Report model after ROAS', roas1(rowBy(modelAfter.block2, 'roas').current), 13.6);
+check('Report PDF is one page', buildReportPdf(modelOct).getNumberOfPages(), 1);
+check('Report PDF after the hero is one page', buildReportPdf(modelAfter).getNumberOfPages(), 1);
+
+function reportWorkbook(model) {
+  const wb = XLSX.utils.book_new();
+  for (const sheet of model.sheets) {
+    const header = sheet.columns.map((column) => column.label);
+    const body = sheet.rows.map((row) => sheet.columns.map((column) => (row[column.key] == null ? '' : row[column.key])));
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([[model.banner], header, ...body]), sheet.name.slice(0, 31));
+  }
+  return wb;
+}
+const reportBook = reportWorkbook(modelOct);
+check('Excel has four sheets', reportBook.SheetNames.join('|'), 'Portfolio and leasing|Marketing to tenancy|Digital reach|Definitions');
+const marketingLines = XLSX.utils.sheet_to_json(reportBook.Sheets['Marketing to tenancy'], { header: 1 });
+check('Excel banner names the month', marketingLines[0][0], 'October 2026 · Demo data');
+check('Excel spend is the raw number', marketingLines.find((line) => line[0] === 'Spend')[1], 34206);
+const definitionLines = XLSX.utils.sheet_to_json(reportBook.Sheets.Definitions, { header: 1 });
+check('Excel definitions include the benchmark note', definitionLines.some((line) => String(line[3] || '').includes('Residential references are indicative only and not shown as targets.')), true);
 
 const k = leasingKpis(D.units);
 console.log('\nComputed leasing figures (write these back to page 06 section 7):');
