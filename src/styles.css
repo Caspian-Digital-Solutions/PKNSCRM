@@ -100,6 +100,8 @@ a { color: inherit; }
 .datatable-bar { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; justify-content: space-between; margin-bottom: 12px; }
 .table-scroll { overflow-x: auto; }
 .data-table th, .data-table td { font-size: 16px; }
+/* Separate borders and a visible overflow let the first column stick to the scroll container. */
+.table.data-table { border-collapse: separate; border-spacing: 0; overflow: visible; }
 .data-table th:first-child, .data-table td:first-child { position: sticky; left: 0; background: var(--panel); z-index: 1; }
 .data-table th:first-child { background: #faf9f8; z-index: 2; }
 .th-btn { background: none; border: 0; font: inherit; font-weight: 700; font-size: 16px; color: var(--ink-2); padding: 0; display: inline-flex; align-items: center; gap: 6px; }

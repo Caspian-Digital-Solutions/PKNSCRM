@@ -219,11 +219,22 @@ test('layout, reload and the reset shortcut', async ({ page }) => {
 
   await page.setViewportSize({ width: 1440, height: 900 });
   await openNav(page, 'Portfolio overview');
-  const table = page.locator('.table-scroll').first();
-  const sticky = await table.locator('th').first().evaluate((el) => getComputedStyle(el).position);
-  expect(sticky).toBe('sticky');
-  const tableScrollsInside = await table.evaluate((el) => el.scrollWidth > el.clientWidth + 1);
-  expect(tableScrollsInside).toBe(true);
+  await expect(page.getByRole('button', { name: 'Asset', exact: true })).toBeVisible();
+  const table = page.locator('main .table-scroll');
+  await expect.poll(async () => table.evaluate((el) => el.clientWidth > 0 && el.scrollWidth > el.clientWidth + 1)).toBe(true);
+  const stuck = await table.evaluate((el) => {
+    const th = el.querySelector('th');
+    const before = th.getBoundingClientRect().left - el.getBoundingClientRect().left;
+    el.scrollLeft = 200;
+    const after = th.getBoundingClientRect().left - el.getBoundingClientRect().left;
+    return {
+      position: getComputedStyle(th).getPropertyValue('position'),
+      before,
+      after,
+    };
+  });
+  expect(stuck.position, JSON.stringify(stuck)).toBe('sticky');
+  expect(Math.abs(stuck.after - stuck.before)).toBeLessThanOrEqual(1);
   expect(await pageOverflow(page)).toBe(0);
 
   await openNav(page, 'Enquiry pipeline');
