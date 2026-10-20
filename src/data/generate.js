@@ -270,6 +270,99 @@ function buildVisitors(rng, saCampaign) {
   return { days, spend, byAsset: out };
 }
 
+const LOG_TYPE = { Qualified: 'Note', 'Viewing Scheduled': 'Viewing', Negotiation: 'Email', Signed: 'Note', Lost: 'Note' };
+const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+function rmInt(n) {
+  return String(Math.round(n || 0)).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+}
+
+function whenLabel(iso) {
+  const d = new Date(iso);
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Asia/Kuala_Lumpur',
+    day: 'numeric',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(d);
+  const pick = (type) => parts.find((p) => p.type === type)?.value || '';
+  const month = pick('month') || MONTHS_SHORT[d.getUTCMonth()];
+  const hour = pick('hour') === '24' ? '00' : pick('hour');
+  return { label: `${pick('day')} ${month}`, clock: `${hour}:${pick('minute')}` };
+}
+
+const CALL_TEXT = [
+  (e) => `Called. Looking at lot ${e.lot}; sent the floor plan and rate card.`,
+  (e) => `Called ${e.contact}. Discussed lot ${e.lot} and sent the rate card.`,
+  (e) => `Called. Asked about lot ${e.lot}. Floor plan and rate card sent.`,
+  (e) => `Phone call with ${e.contact}. Sent details for lot ${e.lot}.`,
+  (e) => `Called. Shared the rate card for lot ${e.lot} and answered questions on the space.`,
+];
+const WHATSAPP_TEXT = [
+  (e) => `WhatsApp to ${e.contact}. Sent the floor plan and rate card for lot ${e.lot}.`,
+  (e) => `WhatsApp: shared availability for lot ${e.lot} and the asking rent of RM${rmInt(e.rent)} a month.`,
+  (e) => `Messaged ${e.contact} on WhatsApp with the floor plan for lot ${e.lot}.`,
+  (e) => `WhatsApp follow-up. Rate card for lot ${e.lot} is with the prospect.`,
+  (e) => `WhatsApp to ${e.contact}. Confirmed interest and sent details for lot ${e.lot}.`,
+];
+const LOG_TEXT = {
+  Call: CALL_TEXT,
+  WhatsApp: WHATSAPP_TEXT,
+  Qualified: [
+    (e) => `Budget discussed for lot ${e.lot}. Asking rent is RM${rmInt(e.rent)} a month.`,
+    (e) => `Qualified. ${e.contact} wants to proceed on lot ${e.lot}.`,
+    (e) => `Note: budget and timing confirmed for lot ${e.lot}.`,
+    (e) => `Prospect qualified. Next step is a viewing of lot ${e.lot}.`,
+    (e) => `Confirmed interest in lot ${e.lot} at RM${rmInt(e.rent)} a month.`,
+  ],
+  'Viewing Scheduled': [
+    (e, at) => `Viewing booked for lot ${e.lot} on ${whenLabel(at).label}, ${whenLabel(at).clock}.`,
+    (e, at) => `Viewing of lot ${e.lot} confirmed for ${whenLabel(at).label} at ${whenLabel(at).clock}.`,
+    (e, at) => `Site visit arranged for lot ${e.lot} on ${whenLabel(at).label}.`,
+    (e, at) => `Viewing set with ${e.contact} for lot ${e.lot} on ${whenLabel(at).label}, ${whenLabel(at).clock}.`,
+    (e, at) => `Booked a viewing of lot ${e.lot} on ${whenLabel(at).label}.`,
+  ],
+  Negotiation: [
+    (e) => `Sent offer letter for lot ${e.lot} at RM${rmInt(e.rent)} a month, 2-year term.`,
+    (e) => `Emailed the draft offer for lot ${e.lot} to ${e.contact}.`,
+    (e) => `Offer sent: lot ${e.lot}, RM${rmInt(e.rent)} a month, 2-year term.`,
+    (e) => `Negotiating terms for lot ${e.lot} by email.`,
+    (e) => `Sent the proposal for lot ${e.lot} at RM${rmInt(e.rent)} a month.`,
+  ],
+  Signed: [
+    (e, at) => `Tenancy agreement signed for lot ${e.lot} on ${whenLabel(at).label}.`,
+    (e) => `Signed. Lot ${e.lot} is now let at RM${rmInt(e.rent)} a month.`,
+    (e, at) => `Agreement completed for lot ${e.lot}. Signed on ${whenLabel(at).label}.`,
+    (e) => `Tenancy signed by ${e.business} for lot ${e.lot}.`,
+    (e) => `Signed the agreement for lot ${e.lot} at RM${rmInt(e.rent)} a month.`,
+  ],
+  Lost: [
+    (e) => `Lost: ${e.lostReason}. Prospect chose another unit.`,
+    (e) => `Closed as lost (${e.lostReason}).`,
+    (e) => `Lost: ${e.lostReason}. No further action.`,
+    (e) => `Prospect withdrew. Reason: ${e.lostReason}.`,
+    (e) => `Lost: ${e.lostReason}.`,
+  ],
+};
+
+// Own random stream so every other generated field stays identical.
+export function buildContactLogs(enquiries) {
+  const rng = makeRng(20261030);
+  for (const e of enquiries) {
+    const log = [];
+    for (const [stage, at] of e.history) {
+      if (stage === 'New' || (stage !== 'Contacted' && !LOG_TYPE[stage])) continue;
+      const type = stage === 'Contacted' ? (rng.next() < 0.5 ? 'Call' : 'WhatsApp') : LOG_TYPE[stage];
+      const templates = stage === 'Contacted' ? LOG_TEXT[type] : LOG_TEXT[stage];
+      const text = templates[rng.int(0, templates.length - 1)](e, at);
+      log.push({ type, text, at, by: e.officer });
+    }
+    e.log = log;
+  }
+}
+
 export function generate() {
   const rng = makeRng();
   const signed = SIGNED.map((s) => ({ ...s }));
@@ -280,6 +373,7 @@ export function generate() {
   const website = buildWebsite(rng);
   const social = buildSocial(rng);
   const visitors = buildVisitors(rng, campaigns.find((c) => c.id === 'sa'));
+  buildContactLogs(enquiries);
   return { asAt: AS_AT, months: MONTHS, assets: ASSETS, officers: OFFICERS, units, signed, campaigns, enquiries, website, social, visitors };
 }
 
