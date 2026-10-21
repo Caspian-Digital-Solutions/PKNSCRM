@@ -306,13 +306,18 @@ a { color: var(--ink); }
 .content { padding: 0; min-width: 0; }
 .content-inner { max-width: 1600px; margin: 0 auto; padding: 32px; min-width: 0; container-type: inline-size; }
 .sidenav {
-  position: sticky; top: 0; height: 100vh; overflow: auto;
+  position: sticky; top: 0; height: 100vh; overflow-x: hidden; overflow-y: auto;
   background: var(--ink); color: #fff; border-right: 0; padding: 0;
   display: flex; flex-direction: column; gap: 0;
 }
-.side-brand { display: flex; gap: 10px; align-items: center; padding: 16px 14px 12px; text-decoration: none; color: #fff; }
+.sidenav a.side-brand {
+  flex-direction: column; align-items: flex-start; gap: 8px; padding: 16px 14px 8px;
+  border-left-color: transparent; text-decoration: none; color: #fff;
+}
+.sidenav a.side-brand:hover { background: transparent; color: #fff; }
 .logo-tile { background: #fff; border-radius: 8px; padding: 6px; display: inline-flex; flex: 0 0 auto; }
-.logo-tile img { height: 36px; width: auto; display: block; }
+.logo-tile img { height: 36px; width: auto; max-width: 168px; display: block; }
+.side-copy { min-width: 0; }
 .side-product { display: block; font-weight: 700; font-size: 16px; line-height: 1.2; color: #fff; }
 .side-links { display: flex; flex-direction: column; gap: 2px; padding: 8px 0; }
 .sidenav a {
@@ -422,10 +427,14 @@ html.presenter .btn, html.presenter .sidenav a, html.presenter .icon-btn, html.p
 .pipe-col-head h2 { flex: 1 1 100%; font-size: 16px; overflow-wrap: anywhere; }
 .pipe-col-head span { font-size: 20px; font-weight: 700; font-family: var(--signage); }
 .pipe-rent { flex: 1 1 100%; font-size: 13px !important; font-family: inherit !important; font-weight: 600 !important; color: var(--ink-2); }
-.pipe-card { position: relative; min-width: 0; overflow: hidden; }
-.pipe-card a, .card-contact, .card-lot, .card-foot, .source-line { min-width: 0; overflow-wrap: anywhere; }
+.pipe-card { position: relative; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
+.pipe-card > a { font-weight: 600; max-width: 100%; overflow-wrap: break-word; }
+.card-contact, .card-lot, .source-line, .card-foot, .reason-pill { max-width: 100%; }
 .card-contact { color: var(--ink-2); font-size: 16px; }
-.card-foot { display: flex; align-items: center; gap: 6px; font-size: 16px; }
+.card-lot, .source-line { overflow-wrap: break-word; }
+.card-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 16px; }
+.card-foot .move-menu { margin-left: auto; margin-top: 0; }
+.crest-dot { position: absolute; top: 8px; right: 8px; }
 .pipe-card.is-new { animation: hero-pulse 1s ease 5; }
 @keyframes hero-pulse {
   0%, 100% { box-shadow: 0 0 0 0 rgba(242, 197, 0, 0.7); }
@@ -465,7 +474,12 @@ html.presenter .btn, html.presenter .sidenav a, html.presenter .icon-btn, html.p
 .step.on { box-shadow: 0 0 0 3px var(--brand); }
 .record-actions, .drawer-tools, .composer-tabs, .composer-when, .toast-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .record-grid { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(240px, 0.8fr); gap: 16px; align-items: start; min-width: 0; }
-.composer { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+.composer { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; align-items: flex-start; }
+.composer > .btn, .composer .grow { align-self: stretch; }
+.composer > .btn { align-self: flex-start; }
+.lead-stage { margin-left: 8px; vertical-align: middle; }
+.record-side label { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; margin: 0 0 8px; font-weight: 700; }
+.record-side .text-btn { display: block; margin: 4px 0; }
 .composer-tabs button { border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 6px 10px; font-weight: 700; }
 .composer-tabs button.on { background: var(--ink); color: #fff; }
 .record-side { border: 1px solid var(--line); border-radius: 12px; padding: 0 16px 8px; background: var(--surface); min-width: 0; }

@@ -78,6 +78,10 @@ export default function Portfolio() {
     const total = portfolioRows(data, state, item.key).find((row) => row.total);
     return { occupancy: total?.occupancy, enquiries: total?.paidEnquiries, spend: total?.spend, signed: total?.signed };
   }), [data, state]);
+  const occSeries = useMemo(
+    () => data.months.map((item) => reportBlocks(data, state, item.key).block1.occupancy.current),
+    [data, state],
+  );
   const enquiries = useMemo(() => liveEnquiries(data, state), [data, state]);
   const report = useMemo(() => reportBlocks(data, state, month), [data, state, month]);
   const units = useMemo(() => liveUnits(data, state), [data, state]);
@@ -207,7 +211,7 @@ export default function Portfolio() {
         <Kpi label="Reserved" value={totals.reserved} format={num} testId="kpi-reserved" />
         <Kpi label="Vacant" value={totals.vacant} format={num} testId="kpi-vacant" />
         <Kpi label="Under redevelopment" value={totals.redev} format={num} testId="kpi-redev" />
-        <Kpi label="Occupancy" term="occupancy" value={totals.occupancy} format={pct} sub={<span className="kpi-extra">{changeLine(totals.occupancy, prevTotals?.occupancy, 'pct', prevLabel)}<Sparkline values={series.map((item) => item.occupancy)} /></span>} testId="kpi-occupancy" />
+        <Kpi label="Occupancy" term="occupancy" value={totals.occupancy} format={pct} sub={<span className="kpi-extra">{changeLine(block1.occupancy.current, block1.occupancy.previous, 'pct', prevLabel)}<Sparkline values={occSeries} /></span>} testId="kpi-occupancy" />
         <Kpi label="Paid enquiries" value={totals.paidEnquiries} format={num} sub={<span className="kpi-extra">{changeLine(totals.paidEnquiries, prevTotals?.paidEnquiries, 'num', prevLabel)}<Sparkline values={series.map((item) => item.enquiries)} /></span>} testId="kpi-enquiries" />
         <Kpi label="Ad spend" value={totals.spend} format={rm} sub={<span className="kpi-extra">{changeLine(totals.spend, prevTotals?.spend, 'rm', prevLabel)}<Sparkline values={series.map((item) => item.spend)} /></span>} testId="kpi-spend" />
         <Kpi label="CPL" term="cpl" value={totals.cpl} format={rm2} testId="kpi-cpl" />

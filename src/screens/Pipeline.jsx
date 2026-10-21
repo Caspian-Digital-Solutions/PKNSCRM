@@ -323,24 +323,24 @@ export default function Pipeline() {
                         <span>{enquiry.rent != null ? `${rm(enquiry.rent)}/mo` : '–'}</span>
                         <span className="avatar" title={officer?.name || ''}>{initials(officer?.name)}</span>
                         <span>{waiting || (days == null ? '' : `${num(days)} ${days === 1 ? 'day' : 'days'}`)}</span>
+                        {canEdit && !enquiry.qr && (
+                          <div className="move-menu">
+                            <button type="button" className="btn move-btn" aria-label={`Move ${enquiry.business}`} aria-expanded={moveId === enquiry.id} onClick={() => setMoveId((current) => (current === enquiry.id ? null : enquiry.id))}>
+                              <MoreHorizontal size={18} strokeWidth={1.75} aria-hidden="true" />
+                            </button>
+                            {moveId === enquiry.id && (
+                              <ul className="move-list" role="menu">
+                                {PIPELINE_STAGES.filter((item) => item !== enquiry.stage).map((item) => (
+                                  <li key={item}>
+                                    <button type="button" role="menuitem" onClick={() => { setMoveId(null); requestMove(enquiry, item); }}>{item}</button>
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+                          </div>
+                        )}
                       </span>
                       {enquiry.stage === 'Lost' && enquiry.lostReason && <span className="reason-pill">{enquiry.lostReason}</span>}
-                      {canEdit && !enquiry.qr && (
-                        <div className="move-menu">
-                          <button type="button" className="btn move-btn" aria-label={`Move ${enquiry.business}`} aria-expanded={moveId === enquiry.id} onClick={() => setMoveId((current) => (current === enquiry.id ? null : enquiry.id))}>
-                            <MoreHorizontal size={18} strokeWidth={1.75} aria-hidden="true" />
-                          </button>
-                          {moveId === enquiry.id && (
-                            <ul className="move-list" role="menu">
-                              {PIPELINE_STAGES.filter((item) => item !== enquiry.stage).map((item) => (
-                                <li key={item}>
-                                  <button type="button" role="menuitem" onClick={() => { setMoveId(null); requestMove(enquiry, item); }}>{item}</button>
-                                </li>
-                              ))}
-                            </ul>
-                          )}
-                        </div>
-                      )}
                     </article>
                   );
                 })}

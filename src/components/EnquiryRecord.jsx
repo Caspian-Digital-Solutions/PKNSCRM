@@ -193,7 +193,7 @@ export default function EnquiryRecord({ id, variant = 'page', onClose }) {
       <h1 className="page-title">{enquiry.business}</h1>
       <p className="lead">
         {enquiry.contact || '–'}{enquiry.title ? `, ${enquiry.title}` : ''}
-        <span className="lead-stage">{enquiry.stage}</span>
+        <span className="lead-stage stage-pill">{enquiry.stage}</span>
       </p>
       {campaign && (
         <p className="crumb">
@@ -249,7 +249,7 @@ export default function EnquiryRecord({ id, variant = 'page', onClose }) {
         <div>
           {editable && (
             <form className="composer" onSubmit={addEntry}>
-              <div className="composer-tabs" role="tablist" aria-label="Log type">
+              <div className="composer-tabs" role="tablist" aria-label="Composer">
                 {LOG_TYPES.map((item) => (
                   <button key={item} type="button" role="tab" aria-selected={entryType === item} className={entryType === item ? 'on' : ''} onClick={() => setEntryType(item)}>{item}</button>
                 ))}
