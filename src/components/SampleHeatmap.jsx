@@ -29,7 +29,7 @@ const CARDS = listingCards();
 
 export default function SampleHeatmap() {
   return (
-    <figure className="heatmap" data-testid="sample-heatmap" aria-label="Sample heatmap of a property listing page">
+    <figure className="heatmap" data-testid="sample-heatmap" data-allow-type aria-label="Sample heatmap of a property listing page">
       <svg viewBox="0 0 640 560" role="img">
         <defs>
           <filter id="heat-blur" x="-40%" y="-40%" width="180%" height="180%">
@@ -48,12 +48,12 @@ export default function SampleHeatmap() {
         </defs>
         <rect width="640" height="560" fill="#ffffff" />
         <rect width="640" height="56" fill="#e31b23" />
-        <text x="20" y="36" fill="#ffffff" fontSize="22" fontFamily="Source Sans 3, sans-serif" fontWeight="700">Hartanah untuk Disewa</text>
+        <text x="20" y="36" fill="#ffffff" fontSize="22" fontFamily="Inter, sans-serif" fontWeight="700">Hartanah untuk Disewa</text>
         <rect x="16" y="72" width="608" height="48" rx="8" fill="#ffffff" stroke="#231f20" strokeWidth="2" />
         {['Lokasi', 'Jenis', 'Saiz'].map((label, index) => (
           <g key={label}>
             <rect x={28 + index * 118} y="82" width="104" height="28" rx="6" fill="#f7f6f4" stroke="#e4e1df" strokeWidth="1.5" />
-            <text x={40 + index * 118} y="101" fill="#231f20" fontSize="15" fontFamily="Source Sans 3, sans-serif">{label}</text>
+            <text x={40 + index * 118} y="101" fill="#231f20" fontSize="15" fontFamily="Inter, sans-serif">{label}</text>
           </g>
         ))}
         {CARDS.map((card, index) => {
@@ -66,14 +66,14 @@ export default function SampleHeatmap() {
               <rect x={x} y={y} width="194" height="184" rx="8" fill="#ffffff" stroke="#e4e1df" strokeWidth="2" />
               <rect x={x + 10} y={y + 10} width="174" height="58" rx="4" fill="#d9d6d4" />
               <foreignObject x={x + 10} y={y + 74} width="174" height="40">
-                <div xmlns="http://www.w3.org/1999/xhtml" style={{ fontFamily: 'Source Sans 3, sans-serif', fontSize: '14px', fontWeight: 700, color: '#231f20', lineHeight: 1.2 }}>
+                <div xmlns="http://www.w3.org/1999/xhtml" style={{ fontFamily: 'Source Sans 3, sans-serif', fontSize: '14px', fontWeight: 600, color: '#231f20', lineHeight: 1.2 }}>
                   {card.name}
                 </div>
               </foreignObject>
-              <text x={x + 10} y={y + 128} fill="#4a4546" fontSize="14" fontFamily="Source Sans 3, sans-serif">{card.use}, {num(card.size)} sq ft</text>
-              <text x={x + 10} y={y + 148} fill="#231f20" fontSize="14" fontFamily="Source Sans 3, sans-serif" fontWeight="700">{`Dari ${rm(card.rent)} sebulan`}</text>
+              <text x={x + 10} y={y + 128} fill="#4a4546" fontSize="14" fontFamily="Inter, sans-serif">{card.use}, {num(card.size)} sq ft</text>
+              <text x={x + 10} y={y + 148} fill="#231f20" fontSize="14" fontFamily="Inter, sans-serif" fontWeight="700">{`Dari ${rm(card.rent)} sebulan`}</text>
               <rect x={x + 10} y={y + 156} width="120" height="24" rx="6" fill="#e31b23" />
-              <text x={x + 18} y={y + 173} fill="#ffffff" fontSize="14" fontFamily="Source Sans 3, sans-serif" fontWeight="700">Hubungi Kami</text>
+              <text x={x + 18} y={y + 173} fill="#ffffff" fontSize="14" fontFamily="Inter, sans-serif" fontWeight="700">Hubungi Kami</text>
             </g>
           );
         })}
@@ -85,7 +85,7 @@ export default function SampleHeatmap() {
           <ellipse cx="296" cy="302" rx="48" ry="18" fill="url(#heat-hot)" />
         </g>
         <rect x="16" y="534" width="88" height="12" rx="6" fill="url(#heat-legend)" />
-        <text x="112" y="546" fill="#231f20" fontSize="14" fontFamily="Source Sans 3, sans-serif">Fewer clicks ↔ More clicks</text>
+        <text x="112" y="546" fill="#231f20" fontSize="14" fontFamily="Inter, sans-serif">Fewer clicks ↔ More clicks</text>
       </svg>
       <figcaption>Sample</figcaption>
     </figure>

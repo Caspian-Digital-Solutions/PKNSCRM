@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useStore } from '../store.jsx';
 import { go } from '../router.js';
+import { assetMark } from '../labels.js';
 import DataTable from '../components/DataTable.jsx';
 import Filters from '../components/Filters.jsx';
 import Kpi from '../components/Kpi.jsx';
@@ -38,7 +39,7 @@ function marketingOf(rows) {
 
 function assetName(value, row) {
   if (!row) return value ?? '';
-  const letters = String(row.short || row.name || '').split(/\s+/).slice(0, 2).map((part) => part[0]).join('').toUpperCase();
+  const letters = assetMark(row);
   return (
     <span className="name-cell asset-name">
       <span className="asset-thumb" aria-hidden="true">{letters}</span>
@@ -70,6 +71,7 @@ export default function Portfolio() {
   const [query, setQuery] = useState('');
   const [facet, setFacet] = useState({ type: '', location: '', campaign: '' });
   const [shownCols, setShownCols] = useState(DEFAULT_COLUMNS);
+  const [colsOpen, setColsOpen] = useState(false);
   const rows = useMemo(() => portfolioRows(data, state, month), [data, state, month]);
   const monthIndex = data.months.findIndex((item) => item.key === month);
   const prevMeta = monthIndex > 0 ? data.months[monthIndex - 1] : null;
@@ -315,19 +317,23 @@ export default function Portfolio() {
         )}
       </aside>
       </div>
-      <details className="column-chooser">
-        <summary>Columns</summary>
-        {columns.map((column) => (
-          <label key={column.key}>
-            <input
-              type="checkbox"
-              checked={shownCols.includes(column.key)}
-              onChange={() => setShownCols((current) => (current.includes(column.key) ? current.filter((key) => key !== column.key) : [...current, column.key]))}
-            />
-            {column.label}
-          </label>
-        ))}
-      </details>
+      <div className="table-toolbar">
+        <button type="button" className="btn" aria-expanded={colsOpen} onClick={() => setColsOpen((open) => !open)}>Columns</button>
+        {colsOpen && (
+          <div className="col-pop" role="group" aria-label="Columns">
+            {columns.map((column) => (
+              <label key={column.key}>
+                <input
+                  type="checkbox"
+                  checked={shownCols.includes(column.key)}
+                  onChange={() => setShownCols((current) => (current.includes(column.key) ? current.filter((key) => key !== column.key) : [...current, column.key]))}
+                />
+                {column.label}
+              </label>
+            ))}
+          </div>
+        )}
+      </div>
       {assetFiltered && narrowed.length === 0 && (
         <p className="empty-state">No assets match these filters. Clear filters to see all {num(body.length)}.</p>
       )}

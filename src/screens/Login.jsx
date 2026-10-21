@@ -17,7 +17,7 @@ export default function Login() {
               <span className="avatar" aria-hidden="true">{role.initials}</span>
               <span className="role-card-name">{role.name}</span>
               <span className="role-person">{role.person}</span>
-              <span className="role-card-blurb">{role.title}. Opens on {role.sees}.</span>
+              <span className="role-card-blurb">{role.title}. {role.id === 'marketing' ? 'Opens on the marketing dashboard' : `Opens on ${role.sees}`}.</span>
             </button>
           ))}
         </div>

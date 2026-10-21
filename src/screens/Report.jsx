@@ -28,23 +28,97 @@ function MeasureTable({ title, rows }) {
             </tr>
           </thead>
           <tbody>
-            {rows.map((row) => (
+            {rows.reduce((nodes, row, index) => {
+              const snapshot = row.kind === 'snapshot';
+              const trade = String(row.id).startsWith('trade-');
+              if (snapshot && !rows.slice(0, index).some((item) => item.kind === 'snapshot')) {
+                nodes.push(<tr key="snapshot-head"><td colSpan={4}>Snapshot as at 31 Oct 2026</td></tr>);
+              }
+              if (trade && !rows.slice(0, index).some((item) => String(item.id).startsWith('trade-'))) {
+                nodes.push(<tr key="trade-head"><td colSpan={4}>Retail trade mix</td></tr>);
+              }
+              const label = trade ? String(row.label).split('·').pop().trim() : row.label;
+              nodes.push(
+                <tr key={row.id} className={trade ? 'indent-row' : undefined}>
+                  <td>
+                    {row.term ? <Term id={row.term}>{label}</Term> : label}
+                    {row.note ? <span className="cell-note">{row.note}</span> : null}
+                  </td>
+                  <td className="r" data-testid={`report-${row.id}`}>
+                    <Num value={row.currentText} watch={`report:${row.id}`} />
+                  </td>
+                  <td className="r">{snapshot ? '' : row.previousText}</td>
+                  <td className="r">{snapshot ? '' : row.changeText}</td>
+                </tr>,
+              );
+              return nodes;
+            }, [])}
+          </tbody>
+        </table>
+      </div>
+      )}
+    </section>
+  );
+}
+
+function DigitalReach({ rows }) {
+  const pages = [];
+  for (const row of rows) {
+    const parts = String(row.label).split(' · ');
+    if (parts.length < 3) continue;
+    const [page, platform, metric] = parts;
+    let item = pages.find((entry) => entry.page === page && entry.platform === platform);
+    if (!item) {
+      item = { page, platform, key: `${page}-${platform}` };
+      pages.push(item);
+    }
+    if (/Followers/.test(metric)) {
+      item.followers = row.currentText;
+      item.followersChange = row.changeText;
+      item.followersId = row.id;
+    }
+    if (/Organic reach/.test(metric)) {
+      item.reach = row.currentText;
+      item.reachChange = row.changeText;
+      item.reachId = row.id;
+    }
+  }
+  const extras = rows.filter((row) => String(row.label).split(' · ').length < 3);
+  return (
+    <section>
+      <h2 className="section-title">3. Digital reach</h2>
+      <div className="table-scroll">
+        <table className="table data-table">
+          <thead>
+            <tr>
+              <th>Page</th>
+              <th>Platform</th>
+              <th>Followers</th>
+              <th>Change</th>
+              <th>Organic reach</th>
+              <th>Change</th>
+            </tr>
+          </thead>
+          <tbody>
+            {pages.map((item) => (
+              <tr key={item.key}>
+                <td>{item.page}</td>
+                <td>{item.platform}</td>
+                <td className="r" data-testid={item.followersId ? `report-${item.followersId}` : undefined}>{item.followers}</td>
+                <td className="r">{item.followersChange}</td>
+                <td className="r" data-testid={item.reachId ? `report-${item.reachId}` : undefined}>{item.reach}</td>
+                <td className="r">{item.reachChange}</td>
+              </tr>
+            ))}
+            {extras.map((row) => (
               <tr key={row.id}>
-                <td>
-                  {row.term ? <Term id={row.term}>{row.label}</Term> : row.label}
-                  {row.note ? <span className="cell-note">{row.note}</span> : null}
-                </td>
-                <td className="r" data-testid={`report-${row.id}`}>
-                  <Num value={row.currentText} watch={`report:${row.id}`} />
-                </td>
-                <td className="r">{row.previousText}</td>
-                <td className="r">{row.changeText}</td>
+                <td colSpan={5}>{row.label}</td>
+                <td className="r" data-testid={`report-${row.id}`}>{row.currentText}</td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
-      )}
     </section>
   );
 }
@@ -115,7 +189,7 @@ export default function Report() {
         <p className="report-month">{MONTHS.find((item) => item.key === month)?.label}</p>
         <MeasureTable title="1. Portfolio and leasing" rows={matchRows(model.block1)} />
         <MeasureTable title="2. Marketing to tenancy" rows={matchRows(model.block2)} />
-        <MeasureTable title="3. Digital reach" rows={matchRows(model.block3)} />
+        <DigitalReach rows={matchRows(model.block3)} />
       <details className="definitions" open data-testid="definitions">
         <summary>Definitions</summary>
         <dl>

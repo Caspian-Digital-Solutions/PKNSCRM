@@ -240,7 +240,7 @@ export function reportModel(data, state, month) {
       source: item.source,
       note: item.note || '',
     })),
-    { name: 'Benchmarks', formula: '', source: 'Page 04 §6', note: BENCHMARK_NOTE },
+    { name: 'Benchmarks', formula: '', source: 'CDS calculation', note: BENCHMARK_NOTE },
   ];
   return {
     month,

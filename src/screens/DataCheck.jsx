@@ -13,7 +13,7 @@ export default function DataCheck() {
   return (
     <section>
       <h1 className="page-title">Data check</h1>
-      <p className="muted">Generated dummy data reconciled against Confluence page 06. Internal view; not part of the demo.</p>
+      <p className="muted">Generated dummy data reconciled against the published demo figures. Internal view; not part of the demo.</p>
       <h2 className="section-title">Asset register</h2>
       <table className="table">
         <thead><tr><th>Asset</th><th className="r">Units</th><th className="r">Occupied</th><th className="r">Reserved</th><th className="r">Vacant</th><th className="r">Under redev.</th><th className="r">Occupancy</th></tr></thead>

@@ -169,8 +169,8 @@ export default function Asset({ params }) {
     <section>
       <div className="screen-head">
         <div>
-          <h1 className="page-title">Asset detail</h1>
-          <p className="lead">{asset.name}</p>
+          <h1 className="page-title"><span className="sr-only">Asset detail </span>{asset.name}</h1>
+          <p className="lead">{asset.type}</p>
         </div>
         <label className="month-select">
           Asset

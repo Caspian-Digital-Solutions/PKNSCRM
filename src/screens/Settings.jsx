@@ -103,7 +103,10 @@ export default function Settings() {
   const save = (event) => {
     event.preventDefault();
     const name = form.name.trim();
-    if (!name) return;
+    if (!name) {
+      setNotice({ kind: 'invalid' });
+      return;
+    }
     const id = fromSitc ? SITC_TEMPLATE.id : slug(name, assets);
     if (assets.some((asset) => asset.id === id)) {
       setNotice({ kind: 'exists', name });
@@ -172,12 +175,16 @@ export default function Settings() {
         <button type="submit" className="btn">Add type</button>
       </form>
 
-      <h2 className="section-title">Add asset</h2>
-      <form onSubmit={save}>
+      <div className="section-row">
+        <h2 className="section-title">Add asset</h2>
+        <button type="button" className="btn" data-testid="fill-sitc" onClick={fillSitc}>Fill SITC sample</button>
+      </div>
+      <form noValidate onSubmit={save}>
         <div className="settings-form">
           <label>
             Name
-            <input value={form.name} onChange={(event) => set({ name: event.target.value })} required />
+            <input className="name-field" value={form.name} onChange={(event) => set({ name: event.target.value })} />
+            {!form.name.trim() && notice?.kind === 'invalid' ? <span className="field-error">Enter the asset name</span> : null}
           </label>
           <label>
             Type
@@ -205,7 +212,7 @@ export default function Settings() {
           </label>
           <label>
             Image
-            <input type="file" accept="image/*" onChange={onFile} />
+            <span className="btn file-btn">Upload image<input type="file" accept="image/*" onChange={onFile} /></span>
           </label>
         </div>
         {preview ? <img className="image-preview" src={preview} alt="Preview of the selected asset image" /> : null}
@@ -243,7 +250,6 @@ export default function Settings() {
         ))}
         <div className="stage-actions">
           <button type="button" className="btn" onClick={() => set({ spaces: [...form.spaces, emptySpace()] })}>Add space</button>
-          <button type="button" className="btn" data-testid="fill-sitc" onClick={fillSitc}>Fill SITC sample</button>
           <button type="submit" className="btn btn-primary" data-testid="save-asset">Save asset</button>
         </div>
       </form>

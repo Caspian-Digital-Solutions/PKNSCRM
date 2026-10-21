@@ -24,14 +24,19 @@ export function UiProvider({ children }) {
   const prevHero = useRef(state.heroStage);
   const prevRole = useRef(state.role);
 
-  const notify = useCallback((event) => {
-    const item = { id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, ...event };
-    setEvents((list) => [item, ...list].slice(0, 10));
+  const pushToast = useCallback((item) => {
     setToasts((list) => [...list, item].slice(-3));
-    window.setTimeout(() => {
-      setToasts((list) => list.filter((toast) => toast.id !== item.id));
-    }, 5000);
   }, []);
+
+  const notify = useCallback((event) => {
+    const item = { id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, read: false, ...event };
+    if (event.bell !== false) setEvents((list) => [item, ...list].slice(0, 10));
+    pushToast(item);
+  }, [pushToast]);
+
+  const toastOnly = useCallback((event) => {
+    notify({ ...event, bell: false });
+  }, [notify]);
 
   const dismissToast = useCallback((id) => {
     setToasts((list) => list.filter((toast) => toast.id !== id));
@@ -40,6 +45,10 @@ export function UiProvider({ children }) {
   const clearEvents = useCallback(() => {
     setEvents([]);
     setToasts([]);
+  }, []);
+
+  const markAllRead = useCallback(() => {
+    setEvents((list) => list.map((item) => ({ ...item, read: true })));
   }, []);
 
   const setDraft = useCallback((id, draft) => {
@@ -60,7 +69,7 @@ export function UiProvider({ children }) {
   }, [collapsed]);
 
   useEffect(() => {
-    const onToast = (event) => { if (event.detail) notify(event.detail); };
+    const onToast = (event) => { if (event.detail) notify({ ...event.detail, bell: event.detail.bell !== false ? event.detail.bell : false }); };
     window.addEventListener('pkns-toast', onToast);
     return () => window.removeEventListener('pkns-toast', onToast);
   }, [notify]);
@@ -70,8 +79,8 @@ export function UiProvider({ children }) {
     prevRole.current = state.role;
     if (!from || !state.role || from === state.role) return;
     const next = ROLES[state.role];
-    notify({ title: `Viewing as ${next.person}, ${next.name}` });
-  }, [state.role, notify]);
+    toastOnly({ title: `Viewing as ${next.person}, ${next.name}` });
+  }, [state.role, toastOnly]);
 
   useEffect(() => {
     const from = prevHero.current;
@@ -99,8 +108,10 @@ export function UiProvider({ children }) {
     toasts,
     events,
     notify,
+    toastOnly,
     dismissToast,
     clearEvents,
+    markAllRead,
     palette,
     setPalette,
     drawerId,
@@ -117,7 +128,7 @@ export function UiProvider({ children }) {
     collapsed,
     setCollapsed,
   }), [
-    toasts, events, notify, dismissToast, clearEvents, palette, drawerId, drafts, setDraft,
+    toasts, events, notify, toastOnly, dismissToast, clearEvents, markAllRead, palette, drawerId, drafts, setDraft,
     resetOpen, shortcuts, presenter, collapsed,
   ]);
 

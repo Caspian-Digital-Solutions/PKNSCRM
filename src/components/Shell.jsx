@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Bell, Building2, ChevronDown, Clock, FileText, Home, Inbox, LayoutGrid, Megaphone,
-  PanelLeft, Settings, Target,
+  PanelLeft, Settings, Target, X,
 } from 'lucide-react';
 import logo from '../assets/pkns-logo.png';
 import { useStore, ROLES, SCREENS } from '../store.jsx';
@@ -9,6 +9,7 @@ import { go, useRoute } from '../router.js';
 import { useUi } from '../ui.jsx';
 import { liveEnquiries, pipelineSummary } from '../data/selectors.js';
 import { num } from '../format.js';
+import { Tip } from './Term.jsx';
 import Modal from './Modal.jsx';
 import CommandPalette from './CommandPalette.jsx';
 import EnquiryRecord from './EnquiryRecord.jsx';
@@ -28,6 +29,49 @@ function openHref(href) {
   if (!href) return;
   const [screen, ...params] = href.split('/');
   go(screen, ...params);
+  window.scrollTo(0, 0);
+  document.querySelectorAll('.content, .main-col').forEach((node) => { node.scrollTop = 0; });
+}
+
+function ToastCard({ toast, onDismiss }) {
+  const [paused, setPaused] = useState(false);
+  const remaining = useRef(5000);
+  const started = useRef(0);
+  useEffect(() => {
+    if (paused) {
+      remaining.current -= Date.now() - started.current;
+      return undefined;
+    }
+    started.current = Date.now();
+    const timer = window.setTimeout(() => onDismiss(toast.id), Math.max(200, remaining.current));
+    return () => window.clearTimeout(timer);
+  }, [paused, toast.id, onDismiss]);
+  return (
+    <div className="toast" role="status" onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)}>
+      <Bell size={16} strokeWidth={1.75} aria-hidden="true" />
+      <div>
+        <p className="toast-title">{toast.title}</p>
+        {toast.detail && <p className="toast-detail">{toast.detail}</p>}
+        {toast.href && (
+          <a
+            className="toast-action"
+            href={`#/${toast.href}`}
+            onClick={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              onDismiss(toast.id);
+              openHref(toast.href);
+            }}
+          >
+            {toast.action || 'Open'}
+          </a>
+        )}
+      </div>
+      <button type="button" className="icon-btn" aria-label="Dismiss" onClick={() => onDismiss(toast.id)}>
+        <X size={16} strokeWidth={1.75} aria-hidden="true" />
+      </button>
+    </div>
+  );
 }
 
 export default function Shell({ current, children }) {
@@ -50,26 +94,60 @@ export default function Shell({ current, children }) {
     ui.setResetOpen(false);
     ui.clearEvents();
     dispatch({ type: 'reset' });
-    ui.notify({ title: 'Demo reset' });
+    ui.toastOnly({ title: 'Demo reset' });
     go(role.landing);
   };
 
   const resetNow = () => {
     ui.clearEvents();
     dispatch({ type: 'reset' });
-    ui.notify({ title: 'Demo reset' });
+    ui.toastOnly({ title: 'Demo reset' });
     go(role.landing);
   };
 
   const switchRole = (id) => {
     dispatch({ type: 'role', role: id });
     setMenu(false);
-    go(ROLES[id].landing);
+    const def = SCREENS.find((item) => item.id === route.screen);
+    const hasParam = route.params.length > 0;
+    if (def && hasParam && def.roles.includes(id)) go(route.screen, ...route.params, route.search);
+    else go(ROLES[id].landing);
   };
 
   useEffect(() => {
     if (route.screen === 'enquiry') ui.closeRecord();
+    setBell(false);
+    setMenu(false);
+    window.scrollTo(0, 0);
+    document.querySelectorAll('.content, .main-col').forEach((node) => { node.scrollTop = 0; });
   }, [route.screen, route.params, ui]);
+
+  useEffect(() => {
+    if ((current === 'pipeline' || current === 'enquiries' || current === 'enquiry') && window.innerWidth < 1600) {
+      ui.setCollapsed(true);
+    }
+  }, [current]);
+
+  useEffect(() => {
+    if (!bell && !menu) return undefined;
+    const onPointer = (event) => {
+      if (event.target instanceof Element && event.target.closest('.bell-wrap, .user-card')) return;
+      setBell(false);
+      setMenu(false);
+    };
+    const onKey = (event) => {
+      if (event.key === 'Escape') {
+        setBell(false);
+        setMenu(false);
+      }
+    };
+    window.addEventListener('pointerdown', onPointer);
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('pointerdown', onPointer);
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [bell, menu]);
 
   useEffect(() => {
     const onKey = (event) => {
@@ -140,8 +218,8 @@ export default function Shell({ current, children }) {
               <span className="demo-pill">Demo data</span>
               {ui.presenter && <span className="demo-pill">Presenter mode</span>}
             </div>
-            <button type="button" className="text-btn" onClick={() => ui.setResetOpen(true)}>Reset demo</button>
-            <button type="button" className="text-btn icon-btn" onClick={() => ui.setCollapsed((on) => !on)} aria-label={ui.collapsed ? 'Expand navigation' : 'Collapse navigation'}>
+            <button type="button" className="icon-btn nav-quiet" onClick={() => ui.setResetOpen(true)}>Reset demo</button>
+            <button type="button" className="icon-btn nav-quiet" onClick={() => ui.setCollapsed((on) => !on)} aria-label={ui.collapsed ? 'Expand navigation' : 'Collapse navigation'}>
               <PanelLeft size={18} strokeWidth={1.75} aria-hidden="true" />
               <span className="nav-label">{ui.collapsed ? 'Expand' : 'Collapse'}</span>
             </button>
@@ -179,20 +257,24 @@ export default function Shell({ current, children }) {
             </p>
             <button type="button" className="search-btn" onClick={() => ui.setPalette(true)}>
               <span>Search or jump to…</span>
-              <kbd>⌘K</kbd>
+              <kbd>{typeof navigator !== 'undefined' && /Mac/i.test(navigator.platform) ? '⌘K' : 'Ctrl K'}</kbd>
             </button>
             <div className="topbar-right">
-              <button type="button" className="icon-btn" title="Data as at 31 Oct 2026" aria-label="Data as at 31 Oct 2026">
-                <Clock size={18} strokeWidth={1.75} aria-hidden="true" />
-              </button>
-              <div className="bell-wrap">
-                <button type="button" className="icon-btn" aria-label="Notifications" aria-expanded={bell} onClick={() => setBell((open) => !open)}>
-                  <Bell size={18} strokeWidth={1.75} aria-hidden="true" />
-                  {ui.events.length > 0 && <span className="nav-badge" aria-hidden="true">{ui.events.length}</span>}
+              <Tip label="Data as at 31 Oct 2026">
+                <button type="button" className="icon-btn" aria-label="Data as at 31 Oct 2026">
+                  <Clock size={18} strokeWidth={1.75} aria-hidden="true" />
                 </button>
+              </Tip>
+              <div className="bell-wrap">
+                <Tip label="Notifications">
+                  <button type="button" className="icon-btn" aria-label="Notifications" aria-expanded={bell} onClick={() => { setBell((open) => !open); ui.markAllRead(); }}>
+                    <Bell size={18} strokeWidth={1.75} aria-hidden="true" />
+                    {ui.events.some((event) => !event.read) && <span className="nav-badge" aria-hidden="true">{ui.events.filter((event) => !event.read).length}</span>}
+                  </button>
+                </Tip>
                 {bell && (
                   <div className="role-menu bell-menu" role="menu">
-                    {ui.events.length === 0 && <p className="menu-empty">No notifications yet.</p>}
+                    {ui.events.length === 0 && <p className="menu-empty">New enquiries, viewings and signed tenancies appear here.</p>}
                     {ui.events.map((event) => (
                       <button
                         key={event.id}
@@ -217,18 +299,7 @@ export default function Shell({ current, children }) {
       <CommandPalette />
       <div className="toaster" aria-live="polite">
         {ui.toasts.map((toast) => (
-          <div className="toast" key={toast.id} role="status">
-            <p>{toast.title}</p>
-            {toast.detail && <p className="toast-detail">{toast.detail}</p>}
-            <div className="toast-actions">
-              {toast.href && (
-                <button type="button" className="btn btn-primary" onClick={() => { ui.dismissToast(toast.id); openHref(toast.href); }}>
-                  {toast.action || 'Open'}
-                </button>
-              )}
-              <button type="button" className="btn" onClick={() => ui.dismissToast(toast.id)}>Dismiss</button>
-            </div>
-          </div>
+          <ToastCard key={toast.id} toast={toast} onDismiss={ui.dismissToast} />
         ))}
       </div>
       {ui.drawerId && (
@@ -246,7 +317,7 @@ export default function Shell({ current, children }) {
       </Modal>
       <Modal open={ui.shortcuts} title="Keyboard shortcuts" onClose={() => ui.setShortcuts(false)}>
         <ul className="shortcut-list">
-          <li><kbd>⌘K</kbd> Search or jump to</li>
+          <li><kbd>{typeof navigator !== 'undefined' && /Mac/i.test(navigator.platform) ? '⌘K' : 'Ctrl K'}</kbd> Search or jump to</li>
           <li><kbd>Alt</kbd> + <kbd>Shift</kbd> + <kbd>E</kbd> Simulate enquiry</li>
           <li><kbd>Alt</kbd> + <kbd>Shift</kbd> + <kbd>R</kbd> Reset demo</li>
           <li><kbd>Alt</kbd> + <kbd>Shift</kbd> + <kbd>P</kbd> Presenter mode</li>

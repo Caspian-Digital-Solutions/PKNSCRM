@@ -223,11 +223,7 @@ function heroRecord(data, s) {
     contactDetails: { phone: HERO.phone, email: HERO.email },
     consent: { given: true, via: 'Lead form', at: receivedAt },
     attribution: { adSet: AD_CREATIVES.sa.fb.adSet, ad: HERO.ad },
-    whatsapp: noteTimes[0] ? [
-      { from: 'officer', at: noteTimes[0], text: 'Encik Faizal, saya Aina. Lot 4-07 di SA Sentral masih kosong.' },
-      { from: 'enquirer', at: noteTimes[0], text: 'Saya mencari pejabat sekitar 1,200 kaki persegi di Shah Alam untuk 8 staf. Boleh atur lawatan minggu ini?' },
-      { from: 'officer', at: noteTimes[0], text: 'Boleh. Saya cadangkan lawatan minggu ini.' },
-    ] : [],
+    whatsapp: [],
   };
 }
 

@@ -1,5 +1,10 @@
+import { useState } from 'react';
 import Modal from './Modal.jsx';
+import Field from './Field.jsx';
+import { DescriptionList } from './DescriptionList.jsx';
 import { HERO, LOST_REASONS } from '../data/config.js';
+import { spaceLabel } from '../labels.js';
+import { rm } from '../format.js';
 
 export const LOST_OPTIONS = [...LOST_REASONS.map(([name]) => name), 'Other'];
 export const SIGNED_START = HERO.signedTerms.start;
@@ -24,27 +29,42 @@ export function commitStage(dispatch, enquiry, stage, extra = {}) {
   dispatch(action);
 }
 
-export function SignedDialog({ open, enquiry, onClose, onConfirm }) {
-  const submit = (e) => {
-    e.preventDefault();
-    const data = new FormData(e.target);
-    const value = Number(data.get('rent'));
+export function SignedDialog({ open, enquiry, assetName, onClose, onConfirm }) {
+  const [rentError, setRentError] = useState('');
+  const [startError, setStartError] = useState('');
+  const submit = (event) => {
+    event.preventDefault();
+    const data = new FormData(event.target);
+    const raw = String(data.get('rent') || '').replace(/,/g, '');
+    const value = Number(raw);
     const start = String(data.get('start') || '');
-    if (!Number.isFinite(value) || !start) return;
+    const nextRent = Number.isFinite(value) && value > 0 ? '' : 'Enter the monthly rent';
+    const nextStart = start ? '' : 'Enter the start date';
+    setRentError(nextRent);
+    setStartError(nextStart);
+    if (nextRent || nextStart) return;
     onConfirm({ rent: value, start });
   };
 
   return (
     <Modal open={open} title="Mark as signed" onClose={onClose}>
-      <form className="dialog-form" onSubmit={submit} key={enquiry?.id || 'signed'}>
-        <label>
-          Confirmed monthly rent (RM)
-          <input name="rent" type="number" min="0" step="1" defaultValue={enquiry?.rent ?? ''} required />
-        </label>
-        <label>
-          Start date
-          <input name="start" type="date" defaultValue={SIGNED_START} required />
-        </label>
+      <form className="dialog-form" noValidate onSubmit={submit} key={enquiry?.id || 'signed'}>
+        <DescriptionList
+          rows={[
+            { label: 'Lot', value: spaceLabel(enquiry?.use, enquiry?.lot) },
+            { label: 'Asset', value: assetName || '–' },
+            { label: 'Term', value: '2 years' },
+          ]}
+        />
+        <Field label="Confirmed monthly rent" error={rentError}>
+          <span className="affix">
+            <span className="affix-prefix">RM</span>
+            <input name="rent" inputMode="numeric" defaultValue={enquiry?.rent ?? ''} />
+          </span>
+        </Field>
+        <Field label="Start date" error={startError}>
+          <input name="start" type="date" defaultValue={SIGNED_START} />
+        </Field>
         <div className="dialog-actions">
           <button type="button" className="btn" onClick={onClose}>Cancel</button>
           <button type="submit" className="btn btn-primary">Mark as signed</button>
@@ -54,28 +74,34 @@ export function SignedDialog({ open, enquiry, onClose, onConfirm }) {
   );
 }
 
-export function LostDialog({ open, onClose, onConfirm }) {
-  const submit = (e) => {
-    e.preventDefault();
-    const reason = String(new FormData(e.target).get('reason') || '');
+export function LostDialog({ open, enquiry, onClose, onConfirm }) {
+  const [reason, setReason] = useState('');
+  const submit = (event) => {
+    event.preventDefault();
     if (!reason) return;
     onConfirm({ lostReason: reason });
+    setReason('');
   };
 
   return (
-    <Modal open={open} title="Mark as lost" onClose={onClose}>
-      <form className="dialog-form" onSubmit={submit}>
-        <label>
-          Reason
-          <select name="reason" defaultValue={LOST_OPTIONS[0]}>
-            {LOST_OPTIONS.map((item) => <option key={item} value={item}>{item}</option>)}
-          </select>
-        </label>
+    <Modal open={open} title={enquiry?.business ? `Mark ${enquiry.business} as lost?` : 'Mark as lost?'} onClose={onClose}>
+      <form className="dialog-form" noValidate onSubmit={submit}>
+        <fieldset className="reason-list">
+          <legend>Reason</legend>
+          {LOST_OPTIONS.map((item) => (
+            <label key={item}>
+              <input type="radio" name="reason" value={item} checked={reason === item} onChange={() => setReason(item)} />
+              {item}
+            </label>
+          ))}
+        </fieldset>
         <div className="dialog-actions">
           <button type="button" className="btn" onClick={onClose}>Cancel</button>
-          <button type="submit" className="btn btn-primary">Mark as lost</button>
+          <button type="submit" className="btn btn-primary" disabled={!reason}>Mark as lost</button>
         </div>
       </form>
     </Modal>
   );
 }
+
+export { rm };

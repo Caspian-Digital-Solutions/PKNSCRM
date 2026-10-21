@@ -8,7 +8,7 @@ import { num, rm, pct, dayMonth } from '../format.js';
 
 function VisitorDot({ cx, cy, payload }) {
   if (cx == null || cy == null) return null;
-  return <circle cx={cx} cy={cy} r={4} fill={payload.weekend ? 'var(--s4)' : 'var(--s2)'} />;
+  return <circle cx={cx} cy={cy} r={4} fill={payload.weekend ? 'var(--crest)' : 'var(--s1)'} />;
 }
 
 export default function Visitors({ params }) {
@@ -57,12 +57,20 @@ export default function Visitors({ params }) {
             <YAxis yAxisId="visitors" stroke="var(--ink)" strokeWidth={2} tick={{ fontSize: 14, fill: 'var(--ink)' }} tickFormatter={(value) => num(value)} />
             <YAxis yAxisId="spend" orientation="right" stroke="var(--ink)" strokeWidth={2} tick={{ fontSize: 14, fill: 'var(--ink)' }} tickFormatter={(value) => num(value)} />
             <Tooltip
-              formatter={(value, name) => (name === 'SA Sentral spend (RM)' ? rm(value) : num(value))}
-              contentStyle={{ fontSize: 16, color: 'var(--ink)' }}
+              content={({ active, payload }) => {
+                if (!active || !payload?.length) return null;
+                const row = payload[0]?.payload || {};
+                return (
+                  <div className="chart-tip">
+                    <p>Visitors {num(row.visitors)}</p>
+                    <p>SA Sentral spend {rm(row.spend)}</p>
+                  </div>
+                );
+              }}
             />
-            <Legend wrapperStyle={{ fontSize: 14, color: 'var(--ink)' }} />
+            <Legend wrapperStyle={{ fontSize: 14, color: 'var(--ink-2)' }} />
             <Line yAxisId="visitors" dataKey="visitors" name="Visitors" stroke="var(--s1)" strokeWidth={2} dot={<VisitorDot />} />
-            <Bar yAxisId="spend" dataKey="spend" name="SA Sentral spend (RM)" fill="var(--s2)" maxBarSize={18} />
+            <Bar yAxisId="spend" dataKey="spend" name="SA Sentral spend" fill="var(--s2)" fillOpacity={0.5} maxBarSize={18} />
           </ComposedChart>
         </ResponsiveContainer>
       </div>

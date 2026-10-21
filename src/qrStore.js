@@ -23,8 +23,7 @@ export function qrStoreConfigured() {
 }
 
 export function qrPageUrl() {
-  const configured = envText(import.meta.env && import.meta.env.VITE_HOSTED_URL).replace(/\/$/, '');
-  const origin = configured || (typeof window !== 'undefined' ? window.location.origin : '');
+  const origin = typeof window !== 'undefined' ? window.location.origin : '';
   return `${origin}/#/qr`;
 }
 

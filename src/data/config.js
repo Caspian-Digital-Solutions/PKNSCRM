@@ -75,7 +75,7 @@ export const CHANNELS = [
 
 // Ad names only. No figures. The hero keeps HERO.ad exactly.
 export const AD_CREATIVES = {
-  sa:    { fb: { adSet: 'SA Sentral – Pemilik Perniagaan 25–55, Shah Alam 15km', ads: ['Ruang Pejabat di SA Sentral – Sewa dari RM2.80 sk', 'Lot Kedai Kompleks PKNS – Lokasi Strategik Seksyen 14'] },
+  sa:    { fb: { adSet: 'SA Sentral – Pemilik Perniagaan 25–55, Shah Alam 15km', ads: ['Ruang Pejabat di SA Sentral – Sewa dari RM2.80 sk', 'Lot Kedai Kompleks PKNS – Lokasi Strategik Seksyen 14', 'Ruang Niaga di Plaza Alam Sentral – Lokasi Utama Seksyen 14'] },
            ig: { adSet: 'SA Sentral – Usahawan Muda, Klang Valley', ads: ['Mulakan Perniagaan Anda di SA Sentral'] },
            gads:{ adSet: 'Sewa pejabat Shah Alam', ads: ['Sewa Pejabat Shah Alam | Dari RM2.80 sk | Kompleks PKNS'] },
            boost:{ adSet: 'Boosted – SA Sentral', ads: ['SA Sentral: Wajah Baharu Seksyen 14'] } },
@@ -92,19 +92,19 @@ export const CAMPAIGNS = [
     googleByMonth: { '2026-07': 3800, '2026-08': 4000, '2026-09': 4200, '2026-10': 4800 },
     unpaid: { 'Website form': 34, 'Walk-in': 15, Referral: 9 } },
   { id: 'mpk', name: 'Ruang Pejabat Menara PKNS – Sewa Sekarang', short: 'Menara PKNS', start: '2026-08-01', end: '2026-10-31', assets: { mpkns: 1 },
-    channels: { fb: [5000, 225000, 3240, 40, 8, 1], ig: [1500, 87000, 870, 10, 2, 0], gads: [7500, 138750, 5270, 60, 14, 3], boost: [1000, 106000, 600, 8, 2, 0] },
+    channels: { fb: [5000, 225000, 3510, 40, 8, 1], ig: [1500, 87000, 960, 10, 2, 0], gads: [7500, 138750, 4580, 60, 14, 3], boost: [1000, 106000, 660, 8, 2, 0] },
     googleByMonth: { '2026-08': 2100, '2026-09': 2400, '2026-10': 3000 },
     unpaid: { 'Website form': 9, 'Walk-in': 4, Referral: 3 } },
   { id: 'bangi', name: 'Lot Kedai untuk Disewa – Kompleks PKNS Bangi', short: 'Kompleks PKNS Bangi', start: '2026-08-15', end: '2026-10-31', assets: { bangi: 1 },
-    channels: { fb: [4500, 202500, 2920, 55, 10, 2], ig: [1500, 87000, 870, 14, 3, 0], gads: [2500, 46250, 1760, 22, 5, 1], boost: [500, 53000, 300, 5, 1, 0] },
+    channels: { fb: [4500, 202500, 2650, 55, 10, 2], ig: [1500, 87000, 790, 14, 3, 0], gads: [2500, 46250, 1980, 22, 5, 1], boost: [500, 53000, 270, 5, 1, 0] },
     googleByMonth: { '2026-08': 500, '2026-09': 900, '2026-10': 1100 },
     unpaid: { 'Website form': 7, 'Walk-in': 5, Referral: 2 } },
   { id: 'kl', name: 'Pejabat Strategik di Kuala Lumpur', short: 'Pejabat KL', start: '2026-09-01', end: '2026-10-31', assets: { mww: 0.6, wy: 0.4 },
-    channels: { fb: [3000, 135000, 1940, 20, 4, 0], ig: [1000, 58000, 580, 6, 1, 0], gads: [7000, 129500, 4920, 44, 9, 2], boost: [1000, 106000, 600, 4, 1, 0] },
+    channels: { fb: [3000, 135000, 2080, 20, 4, 0], ig: [1000, 58000, 640, 6, 1, 0], gads: [7000, 129500, 5110, 44, 9, 2], boost: [1000, 106000, 560, 4, 1, 0] },
     googleByMonth: { '2026-09': 3300, '2026-10': 3700 },
     unpaid: { 'Website form': 5, 'Walk-in': 2, Referral: 2 } },
   { id: 's13', name: 'Ruang Niaga Seksyen 13 – Menara U & U2', short: 'Seksyen 13', start: '2026-09-01', end: '2026-10-31', assets: { mu: 0.55, mu2: 0.45 },
-    channels: { fb: [3500, 157500, 2270, 30, 6, 1], ig: [1000, 58000, 580, 8, 2, 0], gads: [3000, 55500, 2110, 22, 4, 1], boost: [500, 53000, 300, 4, 1, 0] },
+    channels: { fb: [3500, 157500, 2120, 30, 6, 1], ig: [1000, 58000, 530, 8, 2, 0], gads: [3000, 55500, 2260, 22, 4, 1], boost: [500, 53000, 330, 4, 1, 0] },
     googleByMonth: { '2026-09': 1100, '2026-10': 1900 },
     unpaid: { 'Website form': 4, 'Walk-in': 2, Referral: 2 } },
 ];
