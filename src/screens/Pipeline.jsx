@@ -22,6 +22,7 @@ export default function Pipeline() {
   const [pulse, setPulse] = useState(false);
   const [showQr, setShowQr] = useState(false);
   const [freshQr, setFreshQr] = useState(() => new Set());
+  const [moveId, setMoveId] = useState(null);
   const seenQr = useRef(new Set());
   const qrReady = useRef(false);
   const pulseTimer = useRef(null);
@@ -165,6 +166,7 @@ export default function Pipeline() {
                 const asset = assets.find((item) => item.id === enquiry.asset);
                 const officer = data.officers[enquiry.officer];
                 const campaign = data.campaigns.find((item) => item.id === enquiry.campaign);
+                const days = daysInStage(enquiry);
                 return (
                   <article
                     key={enquiry.id}
@@ -189,26 +191,39 @@ export default function Pipeline() {
                         <span>{enquiry.source || '–'}{campaign ? ` · ${campaign.short}` : ''}</span>
                       </span>
                       <span>{officer?.name || '–'}</span>
-                      <span>{num(daysInStage(enquiry))} days in stage</span>
+                      <span>{num(days)} {days === 1 ? 'day' : 'days'} in stage</span>
                       <span>Follow-up {date(enquiry.nextFollowUp)}</span>
                     </a>
                     {canEdit && !enquiry.qr && (
-                      <label className="move-to">
-                        Move to
-                        <select
+                      <div className="move-menu">
+                        <button
+                          type="button"
+                          className="btn move-btn"
                           aria-label={`Move ${enquiry.business}`}
-                          value=""
-                          onChange={(e) => {
-                            const next = e.target.value;
-                            if (next) requestMove(enquiry, next);
-                          }}
+                          aria-expanded={moveId === enquiry.id}
+                          onClick={() => setMoveId((current) => (current === enquiry.id ? null : enquiry.id))}
                         >
-                          <option value="">Move to…</option>
-                          {PIPELINE_STAGES.filter((item) => item !== enquiry.stage).map((item) => (
-                            <option key={item} value={item}>{item}</option>
-                          ))}
-                        </select>
-                      </label>
+                          Move ▾
+                        </button>
+                        {moveId === enquiry.id && (
+                          <ul className="move-list" role="menu">
+                            {PIPELINE_STAGES.filter((item) => item !== enquiry.stage).map((item) => (
+                              <li key={item}>
+                                <button
+                                  type="button"
+                                  role="menuitem"
+                                  onClick={() => {
+                                    setMoveId(null);
+                                    requestMove(enquiry, item);
+                                  }}
+                                >
+                                  {item}
+                                </button>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
                     )}
                   </article>
                 );

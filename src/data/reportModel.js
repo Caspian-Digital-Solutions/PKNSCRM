@@ -1,10 +1,10 @@
-// Turns reportBlocks into the rows Screens 10's table, Excel workbook and PDF all share.
-// No new arithmetic: source and page changes are the same subtraction pair() uses.
+// Turns reportBlocks into the rows Screen 10, the Excel workbook and the PDF all share.
+// The change column subtracts the rounded values as displayed.
 
 import { MONTHS } from './config.js';
 import { DEFINITIONS } from './definitions.js';
 import { reportBlocks } from './selectors.js';
-import { num, rm, rm2, pct, x, ratio, years, hours, pctStored, signedChange } from '../format.js';
+import { num, rm, rm2, pct, x, ratio, years, hours, pctStored, delta, displayedDelta } from '../format.js';
 
 const FORMATS = { num, rm, rm2, pct, x, ratio, years, hours, pctStored };
 
@@ -19,10 +19,11 @@ function text(value, format) {
 }
 
 function measure({
-  id, label, term = null, current = null, previous = null, change = null, format = 'num', kind = 'pair', note = null,
+  id, label, term = null, current = null, previous = null, format = 'num', kind = 'pair', note = null,
 }) {
   let previousText = '–';
   let changeText = '–';
+  let changeValue = null;
   if (kind === 'snapshot') {
     previousText = 'Snapshot';
     changeText = '';
@@ -34,7 +35,8 @@ function measure({
     changeText = '–';
   } else {
     previousText = text(previous, format);
-    changeText = signedChange(change, FORMATS[format] || num);
+    changeValue = displayedDelta(current, previous, format);
+    changeText = delta(current, previous, format);
   }
   return {
     id,
@@ -42,7 +44,7 @@ function measure({
     term,
     current: kind === 'future' ? null : current,
     previous: kind === 'pair' ? previous : null,
-    change: kind === 'pair' ? change : null,
+    change: kind === 'pair' ? changeValue : null,
     format,
     kind,
     note,
@@ -68,7 +70,7 @@ const NUMBER_COLUMNS = [
   { key: 'label', label: 'Measure' },
   { key: 'current', label: 'This month' },
   { key: 'previous', label: 'Last month' },
-  { key: 'change', label: 'Change' },
+  { key: 'changeText', label: 'Change' },
 ];
 
 const DEFINITION_COLUMNS = [

@@ -76,7 +76,7 @@ test('storyline figures from portfolio through reset', async ({ page }) => {
   await expectKpi(page, 'campaign-cpl', 'RM114.29');
   await expectKpi(page, 'campaign-roas', '12.6x');
   const facebook = page.locator('tr', { hasText: 'Facebook lead ads' });
-  const google = page.locator('tr', { hasText: 'Google Ads (Search)' });
+  const google = page.locator('tr', { hasText: 'Google Ads' });
   await expect(facebook).toContainText('210');
   await expect(facebook).toContainText('RM3,200.00');
   await expect(google).toContainText('RM3,360.00');
@@ -237,14 +237,33 @@ test('layout, reload and the reset shortcut', async ({ page }) => {
   expect(Math.abs(stuck.after - stuck.before)).toBeLessThanOrEqual(1);
   expect(await pageOverflow(page)).toBe(0);
 
+  await openNav(page, 'Campaigns');
+  for (const width of [1440, 1512]) {
+    await page.setViewportSize({ width, height: 900 });
+    const channel = page.locator('.channel-fit');
+    const channelFits = await channel.evaluate((el) => el.scrollWidth <= el.clientWidth + 1);
+    expect(channelFits, `channel table at ${width}`).toBe(true);
+    const roas = await channel.getByRole('columnheader', { name: 'ROAS' }).boundingBox();
+    expect(roas.x + roas.width).toBeLessThanOrEqual(width + 1);
+    expect(await pageOverflow(page), `campaigns page at ${width}`).toBe(0);
+  }
+
+  await page.setViewportSize({ width: 1440, height: 900 });
   await openNav(page, 'Enquiry pipeline');
-  const boardScrollsInside = await page.locator('.board').evaluate((el) => el.scrollWidth > el.clientWidth + 1);
-  expect(boardScrollsInside).toBe(true);
+  const boardFits = await page.locator('.board').evaluate((el) => el.scrollWidth <= el.clientWidth + 1);
+  expect(boardFits).toBe(true);
+  const lost = await page.getByTestId('column-Lost').boundingBox();
+  expect(lost.x + lost.width).toBeLessThanOrEqual(1440 + 1);
   expect(await pageOverflow(page)).toBe(0);
 
   await openNav(page, 'Asset detail');
-  const lotsScrollInside = await page.getByTestId('lot-grid').evaluate((el) => el.scrollWidth > el.clientWidth + 1);
-  expect(lotsScrollInside).toBe(true);
+  const lotsFit = await page.getByTestId('lot-grid').evaluate((el) => el.scrollWidth <= el.clientWidth + 1);
+  expect(lotsFit).toBe(true);
+  await expect(page.locator('.lot')).toHaveCount(120);
+  await page.getByTestId('asset-select').selectOption('pas');
+  await expect(page.locator('.lot')).toHaveCount(180);
+  const pasLotsFit = await page.getByTestId('lot-grid').evaluate((el) => el.scrollWidth <= el.clientWidth + 1);
+  expect(pasLotsFit).toBe(true);
   expect(await pageOverflow(page)).toBe(0);
 
   await switchRole(page, 'Leasing');

@@ -6,7 +6,7 @@ import { liveAssets } from '../data/selectors.js';
 import { ASSETS, OFFICERS, SITC_TEMPLATE } from '../data/config.js';
 
 const EXTRA_TYPES = ['Event space', 'Land', 'Residential', 'Township'];
-const STATUSES = ['', 'Occupied', 'Reserved', 'Vacant', 'Under redevelopment'];
+const STATUSES = ['', 'Available', 'Occupied', 'Reserved', 'Vacant', 'Under redevelopment'];
 
 function emptySpace() {
   return { name: '', size: '', rate: '', basis: 'per month', status: '' };
@@ -77,7 +77,7 @@ export default function Settings() {
         size: space.size,
         rate: String(space.rate),
         basis: space.basis,
-        status: '',
+        status: 'Available',
       })),
     });
   };

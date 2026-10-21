@@ -90,6 +90,17 @@ export default function Enquiry({ params }) {
       </p>
       <h1 className="page-title">{enquiry.business}</h1>
       <p className="lead">{text(enquiry.contact)} · {enquiry.stage}</p>
+      {editable && (
+        <div className="stage-actions">
+          {PIPELINE_STAGES.map((stage) => (stage === enquiry.stage ? (
+            <span key={stage} className="btn on" aria-current="true">{stage}</span>
+          ) : (
+            <button key={stage} type="button" className="btn" onClick={() => requestStage(stage)}>
+              {stage}
+            </button>
+          )))}
+        </div>
+      )}
 
       <h2 className="section-title">Enquirer</h2>
       <div className="fact-grid">
@@ -203,21 +214,6 @@ export default function Enquiry({ params }) {
           <Fact label="Next follow-up">{date(enquiry.nextFollowUp)}</Fact>
           <Fact label="Assigned officer">{officer?.name || '–'}</Fact>
         </div>
-      )}
-
-      {editable && (
-        <>
-          <h2 className="section-title">Stage</h2>
-          <div className="stage-actions">
-            {PIPELINE_STAGES.map((stage) => (stage === enquiry.stage ? (
-              <span key={stage} className="btn on" aria-current="true">{stage}</span>
-            ) : (
-              <button key={stage} type="button" className="btn" onClick={() => requestStage(stage)}>
-                {stage}
-              </button>
-            )))}
-          </div>
-        </>
       )}
 
       <SignedDialog

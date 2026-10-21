@@ -21,6 +21,13 @@ const check = (label, got, want) => {
   console.log(`${ok ? 'PASS' : 'FAIL'}  ${label}: ${got}${ok ? '' : `  (expected ${want})`}`);
 };
 
+const businessNames = D.enquiries.map((enquiry) => enquiry.business);
+check('Enquiry count stays 120', D.enquiries.length, 120);
+check('All 120 business names are unique', new Set(businessNames).size, 120);
+const negotiations = D.enquiries.filter((enquiry) => enquiry.stage === 'Negotiation');
+check('No two Negotiation enquiries share a unit', new Set(negotiations.map((enquiry) => enquiry.unitId)).size, negotiations.length);
+check('Every Negotiation unit is Reserved', negotiations.every((enquiry) => D.units.find((unit) => unit.id === enquiry.unitId)?.status === 'Reserved'), true);
+
 for (const a of ASSETS) {
   const c = statusCounts(D.units.filter((u) => u.asset === a.id));
   check(`${a.short} units`, c.total, a.mix.reduce((s, g) => s + g.n, 0));

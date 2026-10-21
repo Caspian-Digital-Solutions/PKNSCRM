@@ -188,6 +188,7 @@ function heroRecord(data, s) {
     email: HERO.email,
     source: HERO.source,
     channel: HERO.channel,
+    contactChannel: 'Facebook lead form',
     campaign: HERO.campaign,
     asset: HERO.asset,
     unitId: unit?.id || `${HERO.asset}:${HERO.lot}`,
