@@ -28,7 +28,9 @@ function waitingText(enquiry) {
   if (enquiry.firstResponseAt || enquiry.stage === 'Lost' || enquiry.stage === 'Signed' || !enquiry.receivedAt) return null;
   const minutes = Math.round((new Date(`${AS_AT}T18:00:00+08:00`) - new Date(enquiry.receivedAt)) / 60000);
   if (!Number.isFinite(minutes) || minutes < 0) return 'No contact yet';
-  return `No contact yet, ${duration(minutes)}`;
+  if (minutes < 60) return 'Waiting under 1 h';
+  const hours = Math.round(minutes / 60);
+  return `Waiting ${hours} h`;
 }
 
 function matchesView(enquiry, view, role) {
@@ -36,7 +38,10 @@ function matchesView(enquiry, view, role) {
   if (view === 'open') return OPEN.includes(enquiry.stage);
   if (view === 'mine') return role === 'leasing' && enquiry.officer === 'aina';
   if (view === 'awaiting') return !enquiry.firstResponseAt && enquiry.stage !== 'Lost' && enquiry.stage !== 'Signed';
-  if (view === 'viewings') return enquiry.stage === 'Viewing Scheduled' && enquiry.nextFollowUp >= AS_AT && enquiry.nextFollowUp <= WEEK_END;
+  if (view === 'viewings') {
+    const when = String(enquiry.nextFollowUp || '').slice(0, 10);
+    return Boolean(when) && when >= '2026-10-26' && when <= '2026-11-01';
+  }
   if (view === 'signed') return enquiry.stage === 'Signed';
   return true;
 }
@@ -238,9 +243,11 @@ export default function Pipeline() {
             <button type="button" className={!listView ? 'on' : ''} onClick={() => go('pipeline', { asset: filters.asset, campaign: filters.campaign, source: filters.source, officer: filters.officer, month, view })}>Board</button>
             <button type="button" className={listView ? 'on' : ''} onClick={() => go('enquiries', { asset: filters.asset, campaign: filters.campaign, source: filters.source, officer: filters.officer, month, view })}>List</button>
           </div>
-          <button type="button" className="btn" data-testid="qr-toggle" aria-expanded={showQr} onClick={() => setShowQr((open) => !open)}>
-            {showQr ? 'Hide QR code' : 'Show QR code'}
-          </button>
+          {canEdit && (
+            <button type="button" className="btn" data-testid="qr-toggle" aria-expanded={showQr} onClick={() => setShowQr((open) => !open)}>
+              {showQr ? 'Hide QR code' : 'Show QR code'}
+            </button>
+          )}
           {canEdit && (
             <button type="button" className="btn btn-primary" data-testid="simulate-enquiry" onClick={simulate}>Simulate enquiry</button>
           )}
@@ -250,8 +257,7 @@ export default function Pipeline() {
         <div className="qr-panel" data-testid="qr-panel">
           <QRCodeSVG value={qrPageUrl()} size={300} title="Send an enquiry" data-testid="qr-code" />
           <div>
-            <p className="qr-panel-title">Scan to send a live enquiry</p>
-            <p className="qr-panel-url">{qrPageUrl()}</p>
+            <p className="qr-panel-title">Scan with your phone camera</p>
           </div>
         </div>
       )}
@@ -334,7 +340,7 @@ export default function Pipeline() {
                       } : undefined}
                     >
                       {fresh && <span className="crest-dot" aria-hidden="true" />}
-                      <a href={`#/enquiry/${enquiry.id}`} onClick={(event) => { event.preventDefault(); go('enquiry', enquiry.id); }}>{enquiry.business}</a>
+                      <a className="card-title" href={`#/enquiry/${enquiry.id}`} onClick={(event) => { event.preventDefault(); go('enquiry', enquiry.id); }}>{enquiry.business}</a>
                       <span className="card-contact">{enquiry.contact || '–'}</span>
                       <span className="card-lot"><span className="lot-chip">{enquiry.lot || '–'}</span> {asset?.short || ''}</span>
                       <span className="source-line">
@@ -479,6 +485,7 @@ export default function Pipeline() {
       />
       <LostDialog
         open={pending?.stage === 'Lost'}
+        enquiry={pending?.enquiry}
         onClose={() => setPending(null)}
         onConfirm={(extra) => {
           commitStage(dispatch, pending.enquiry, 'Lost', extra);

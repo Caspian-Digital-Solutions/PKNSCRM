@@ -8,8 +8,54 @@ export const rm2 = (v) => (v == null ? '–' : 'RM' + nf2.format(v));
 const round = (v, d) => Math.round(v * 10 ** d + 1e-9) / 10 ** d;
 export const pct = (v, d = 1) => (v == null ? '–' : round(v * 100, d).toFixed(d) + '%');
 export const x = (v) => (v == null ? '–' : round(v, 1).toFixed(1) + 'x');
-export const date = (iso) => (iso ? new Date(iso.length === 10 ? iso + 'T00:00:00+08:00' : iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Asia/Kuala_Lumpur' }) : '–');
-export const dayMonth = (iso) => (iso ? new Date(iso.length === 10 ? iso + 'T00:00:00+08:00' : iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'Asia/Kuala_Lumpur' }) : '–');
+const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+function klParts(iso) {
+  const date = new Date(iso.length === 10 ? `${iso}T00:00:00+08:00` : iso);
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Asia/Kuala_Lumpur',
+    weekday: 'short',
+    day: 'numeric',
+    month: 'numeric',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(date);
+  const get = (type) => parts.find((part) => part.type === type)?.value || '';
+  const hour = get('hour') === '24' ? '00' : get('hour');
+  return {
+    weekday: get('weekday'),
+    day: get('day'),
+    month: MONTHS_SHORT[Number(get('month')) - 1] || '',
+    year: get('year'),
+    hour,
+    minute: get('minute'),
+  };
+}
+
+export const date = (iso) => {
+  if (!iso) return '–';
+  const part = klParts(iso);
+  return `${part.day} ${part.month} ${part.year}`;
+};
+export const dayMonth = (iso) => {
+  if (!iso) return '–';
+  const part = klParts(iso);
+  return `${part.day} ${part.month}`;
+};
+export const dateTime = (iso) => {
+  if (!iso) return '–';
+  const part = klParts(iso);
+  if (iso.length === 10) return `${part.day} ${part.month}`;
+  return `${part.day} ${part.month}, ${part.hour}:${part.minute}`;
+};
+export const tooltipDate = (iso) => {
+  if (!iso) return '–';
+  const part = klParts(iso);
+  if (iso.length === 10) return `${part.weekday} ${part.day} ${part.month} ${part.year}`;
+  return `${part.weekday} ${part.day} ${part.month} ${part.year}, ${part.hour}:${part.minute}`;
+};
 export const time = (iso) => {
   if (!iso || iso.length === 10) return '–';
   return new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: 'Asia/Kuala_Lumpur' });
@@ -27,15 +73,20 @@ export const pctStored = (v, d = 1) => {
   return n > 0 ? `+${body}` : body;
 };
 
+const MINUS = '\u2212';
+
+function withMinus(text) {
+  return String(text).replace(/-/g, MINUS);
+}
+
 export function signedChange(value, format) {
   if (value == null || !Number.isFinite(Number(value))) return '–';
-  const text = format(value);
-  if (Number(value) > 0 && text[0] !== '+' && text[0] !== '-') return `+${text}`;
+  const text = withMinus(format(value));
+  if (Number(value) > 0 && text[0] !== '+' && text[0] !== MINUS) return `+${text}`;
   return text;
 }
 
 const VALUE_FORMATS = { num, rm, rm2, pct, x, ratio, years, hours, pctStored };
-const MINUS = '\u2212';
 
 function shownNumber(value, format) {
   const fn = VALUE_FORMATS[format] || num;
@@ -85,6 +136,7 @@ export function delta(current, previous, format) {
 export function duration(minutes) {
   if (minutes == null || !Number.isFinite(Number(minutes))) return '–';
   const m = Math.max(0, Math.round(Number(minutes)));
+  if (m < 1) return 'under 1 min';
   const h = Math.floor(m / 60);
   const rem = m % 60;
   if (!h) return `${m} min`;

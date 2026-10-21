@@ -115,6 +115,28 @@ export const DEFINITIONS = [
   },
 ];
 
+const PLAIN_SOURCE = {
+  cpl: 'CDS calculation',
+  'cost-per-viewing': 'CDS calculation',
+  'cost-per-signed': 'CDS calculation',
+  roas: 'CDS calculation',
+  occupancy: 'Reported by Malaysian mall REITs, for example CapitaLand Malaysia Trust',
+  'rental-reversion': 'Reported by Malaysian mall REITs, for example CapitaLand Malaysia Trust',
+  'lease-expiry': 'Reported by Malaysian mall REITs, for example CapitaLand Malaysia Trust',
+  wale: 'Reported by Malaysian mall REITs, for example CapitaLand Malaysia Trust',
+  'renewal-rate': 'Leasing industry practice',
+  'days-vacant': 'Leasing industry practice',
+  'enquiry-to-viewing': 'Leasing industry practice',
+  'viewing-to-signed': 'Leasing industry practice',
+  'enquiry-to-lease': 'Leasing industry practice',
+  'first-response': 'Leasing industry practice',
+  'owned-to-paid': 'Leasing industry practice',
+  engagements: 'CDS calculation',
+  'follower-change': 'CDS calculation',
+  'new-leases': 'CDS calculation',
+};
+for (const item of DEFINITIONS) item.source = PLAIN_SOURCE[item.id] || 'CDS calculation';
+
 const BY_ID = Object.fromEntries(DEFINITIONS.map((d) => [d.id, d]));
 
 export function definitionById(id) {

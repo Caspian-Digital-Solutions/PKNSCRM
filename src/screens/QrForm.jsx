@@ -4,13 +4,14 @@ import { ASSETS } from '../data/config.js';
 import { SPACE_TYPES } from '../qrEnquiry.js';
 import { insertQrEnquiry, qrStoreConfigured } from '../qrStore.js';
 
-const EMPTY = { name: '', business: '', spaceType: '', asset: '', phone: '' };
+const EMPTY = { name: '', business: '', spaceType: '', asset: '', phone: '', consent: false };
 
 export default function QrForm() {
   const [fields, setFields] = useState(EMPTY);
   const [sending, setSending] = useState(false);
   const [done, setDone] = useState(false);
   const [problem, setProblem] = useState('');
+  const [errors, setErrors] = useState({});
 
   const set = (key) => (event) => setFields((cur) => ({ ...cur, [key]: event.target.value }));
 
@@ -18,6 +19,15 @@ export default function QrForm() {
     event.preventDefault();
     if (sending) return;
     setProblem('');
+    const next = {};
+    if (!fields.name.trim()) next.name = 'Enter the name';
+    if (!fields.business.trim()) next.business = 'Enter the business';
+    if (!fields.spaceType) next.spaceType = 'Choose a space type';
+    if (!fields.asset) next.asset = 'Choose an asset';
+    if (!fields.phone.trim()) next.phone = 'Enter a phone number';
+    if (!fields.consent) next.consent = 'Agree to be contacted about this enquiry';
+    setErrors(next);
+    if (Object.keys(next).length) return;
     if (!qrStoreConfigured()) {
       setProblem('This demo form is not connected yet. Nothing was sent.');
       return;
@@ -46,7 +56,7 @@ export default function QrForm() {
       {done ? (
         <p className="qr-thanks" data-testid="qr-thanks">Sent. It will show on the enquiry pipeline under New.</p>
       ) : (
-        <form onSubmit={submit}>
+        <form noValidate onSubmit={submit}>
           <label>
             Name
             <input name="name" autoComplete="name" required value={fields.name} onChange={set('name')} />
@@ -73,6 +83,11 @@ export default function QrForm() {
             Phone
             <input name="phone" type="tel" autoComplete="tel" required value={fields.phone} onChange={set('phone')} />
           </label>
+          <label className="check-line">
+            <input type="checkbox" checked={fields.consent} onChange={(event) => setFields((cur) => ({ ...cur, consent: event.target.checked }))} />
+            I agree to be contacted by PKNS about this enquiry
+          </label>
+          {errors.consent ? <p className="field-error">{errors.consent}</p> : null}
           {problem ? <p className="qr-problem" role="status">{problem}</p> : null}
           <button type="submit" className="btn btn-primary" disabled={sending}>
             {sending ? 'Sending…' : 'Send enquiry'}

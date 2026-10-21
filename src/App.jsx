@@ -44,7 +44,10 @@ export default function App() {
   const { screen, params } = useRoute();
   useEffect(() => {
     window.scrollTo(0, 0);
-  }, [screen]);
+    document.querySelectorAll('.content, .main-col').forEach((node) => { node.scrollTop = 0; });
+    const name = SCREENS.find((item) => item.id === screen)?.name;
+    document.title = name ? `${name} – PKNS Asset Marketing Hub` : 'PKNS Asset Marketing Hub';
+  }, [screen, params]);
   if (screen === 'qr') return <QrForm />;
   if (!state.role) return <Login />;
   const role = ROLES[state.role];

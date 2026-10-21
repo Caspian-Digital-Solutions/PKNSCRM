@@ -13,6 +13,8 @@ import {
   campaignRows, campaignWeeks, assetMarketing, unpaidInRange, filteredEnquiries, liveAssets, marketingSummary,
 } from '../data/selectors.js';
 import { CHANNELS } from '../data/config.js';
+import { displaySource, spaceLabel } from '../labels.js';
+import { dateTime } from '../format.js';
 import { totalRow } from '../data/metrics.js';
 import { num, rm, rm2, pct, x, date, dayMonth, ratio } from '../format.js';
 
@@ -57,8 +59,8 @@ function JourneyRail({ totals }) {
         return (
           <li key={step.id} className="reached">
             <span className="journey-label">{step.label}</span>
-            <span className="journey-value"><Num value={step.value} format={step.format} watch={`funnel:${step.id}`} /></span>
-            {rate != null && <span className="journey-gap"><Num value={rate} format={pct} watch={`funnel-rate:${step.id}`} /></span>}
+            <span className="journey-value" data-testid={step.id === 'enquiries' ? 'campaign-enquiries' : step.id === 'viewings' ? 'campaign-viewings' : step.id === 'signed' ? 'campaign-signed' : undefined}><Num value={step.value} format={step.format} watch={`funnel:${step.id}`} /></span>
+            {rate != null && <span className="journey-gap">{step.id === 'clicks' ? 'CTR' : step.id === 'enquiries' ? 'Click to enquiry' : step.id === 'viewings' ? 'Enquiry to viewing' : step.id === 'signed' ? 'Viewing to signed' : 'Conversion'} <Num value={rate} format={pct} watch={`funnel-rate:${step.id}`} /></span>}
             {step.id === 'fyv' && <span className="journey-roas">ROAS <Num value={totals.roas} format={x} watch="funnel:roas" /></span>}
           </li>
         );
@@ -249,7 +251,7 @@ export default function Campaign({ params }) {
         periodDefault="full"
       />
       <header className="campaign-head">
-        <h2>{campaign.name}</h2>
+        <h1 className="page-title">{campaign.name}</h1>
         <p>
           {date(filters.from)} to {date(filters.to)}
           {filters.preset !== 'full' ? <span className="muted"> Campaign period {date(campaign.start)} to {date(campaign.end)}</span> : null}
@@ -269,14 +271,9 @@ export default function Campaign({ params }) {
         <p>Managing area: {managingArea(campaign, assets, data.officers)}</p>
       </header>
       <div className="kpi-row">
-        <Kpi label="Spend" value={totals.spend} format={rm} testId="campaign-spend" />
-        <Kpi label="Paid enquiries" value={totals.enquiries} format={num} testId="campaign-enquiries" />
-        <Kpi label="Viewings" value={totals.viewings} format={num} testId="campaign-viewings" />
-        <Kpi label="Signed" value={totals.signed} format={num} testId="campaign-signed" />
         <Kpi label="CPL" term="cpl" value={totals.cpl} format={rm2} testId="campaign-cpl" />
         <Kpi label="Cost per viewing" term="cost-per-viewing" value={totals.costPerViewing} format={rm2} testId="campaign-cpv" />
         <Kpi label="Cost per signed tenant" term="cost-per-signed" value={totals.costPerSigned} format={rm2} testId="campaign-cps" />
-        <Kpi label="First-year rental value" value={totals.firstYearValue} format={rm} testId="campaign-fyv" />
         <Kpi label="ROAS" term="roas" value={totals.roas} format={x} testId="campaign-roas" />
       </div>
       <h2 className="section-title">Journey</h2>
@@ -312,8 +309,23 @@ export default function Campaign({ params }) {
             <Legend wrapperStyle={{ fontSize: 14, color: 'var(--ink)' }} />
             <Bar yAxisId="spend" dataKey="spend" name="Spend (RM)" fill="var(--s1)" maxBarSize={28} />
             <Line yAxisId="enquiries" dataKey="enquiries" name="Paid enquiries" stroke="var(--s3)" strokeWidth={2} dot={{ r: 3, strokeWidth: 2 }} />
-            {state.heroStage === 'Signed' && weeks.length > 0 && (
-              <ReferenceLine yAxisId="enquiries" x={weeks[weeks.length - 1].label} stroke="var(--crest)" strokeWidth={2} label={{ value: 'Suite 4-07 signed', fill: 'var(--ink)', fontSize: 14 }} />
+            {state.heroStage === 'Signed' && campaign.id === 'sa' && weeks.length > 0 && (
+                <ReferenceLine
+                  yAxisId="enquiries"
+                  x={weeks[weeks.length - 1].label}
+                  stroke="var(--crest)"
+                  strokeWidth={2}
+                  label={({ viewBox }) => {
+                    const x = (viewBox?.x ?? 0) - 8;
+                    const y = (viewBox?.y ?? 24) + 18;
+                    return (
+                      <g>
+                        <rect x={x - 132} y={y - 14} width="128" height="20" rx="8" fill="#ffffff" stroke="#E2E5EA" />
+                        <text x={x - 126} y={y} fill="#231F20" fontSize="14" fontFamily="Inter, sans-serif">Suite 4-07 signed</text>
+                      </g>
+                    );
+                  }}
+                />
             )}
           </ComposedChart>
         </ResponsiveContainer>
@@ -343,22 +355,20 @@ export default function Campaign({ params }) {
       </p>
       <h2 className="section-title">Recent enquiries</h2>
       <ul className="recent" data-testid="recent-enquiries">
-        {recent.map((enquiry) => {
-          const asset = assets.find((item) => item.id === enquiry.asset);
-          return (
-            <li key={enquiry.id}>
+        {recent.map((enquiry) => (
+            <li key={enquiry.id} className="list-row">
               <a href={`#/enquiry/${enquiry.id}`} onClick={(e) => { e.preventDefault(); ui.openRecord(enquiry.id); }}>
                 <SourceIcon source={enquiry.source} />
                 <span>
                   <strong>{enquiry.business}</strong>
-                  <span className="cell-note">
-                    {[enquiry.source, campaign.short, asset?.short, enquiry.lot].filter(Boolean).join(', ')}. {enquiry.stage}. Received {date(enquiry.receivedAt)}.
-                  </span>
+                  <span className="cell-note">{displaySource(enquiry.source)}</span>
                 </span>
+                <span className="lot-chip">{spaceLabel(enquiry.use, enquiry.lot)}</span>
+                <span className="stage-pill">{enquiry.stage}</span>
+                <span>{dateTime(enquiry.receivedAt)}</span>
               </a>
             </li>
-          );
-        })}
+        ))}
         {recent.length === 0 && <li className="empty-state">No enquiries match these filters. Clear filters to see this campaign.</li>}
       </ul>
     </section>

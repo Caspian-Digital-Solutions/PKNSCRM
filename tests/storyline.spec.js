@@ -94,9 +94,9 @@ test('storyline figures from portfolio through reset', async ({ page }) => {
   await expect(page.getByTestId('hero-card')).toContainText('4-07');
   await page.getByTestId('hero-card').getByRole('link').click();
 
-  await page.getByLabel('Type').selectOption('Call');
+  await page.getByRole('tab', { name: 'Call' }).click();
   await page.getByRole('textbox', { name: 'Entry' }).fill(CALL);
-  await page.getByRole('button', { name: 'Add to log' }).click();
+  await page.locator('.composer').getByRole('button', { name: 'Log call' }).click();
   await expect(page.locator('.log')).toContainText(CALL);
   await page.getByRole('button', { name: 'Contacted', exact: true }).click();
   await expect(page.getByTestId('first-response')).not.toContainText('–');
@@ -107,9 +107,9 @@ test('storyline figures from portfolio through reset', async ({ page }) => {
   await expect(page.locator('.lead')).toContainText('Contacted');
 
   await page.getByRole('button', { name: 'Qualified', exact: true }).click();
-  await page.getByLabel('Type').selectOption('Viewing');
+  await page.getByRole('tab', { name: 'Viewing' }).click();
   await page.getByRole('textbox', { name: 'Entry' }).fill('Viewing booked for this week.');
-  await page.getByRole('button', { name: 'Add to log' }).click();
+  await page.locator('.composer').getByRole('button', { name: 'Schedule viewing' }).click();
   await page.getByRole('button', { name: 'Viewing Scheduled', exact: true }).click();
   await page.getByRole('button', { name: 'Negotiation', exact: true }).click();
   await expect(page.getByTestId('unit-status')).toHaveText('Reserved');
@@ -275,7 +275,7 @@ test('layout, reload and the reset shortcut', async ({ page }) => {
   await page.getByTestId('simulate-enquiry').click();
   await page.getByTestId('hero-card').getByRole('link').click();
   await page.getByRole('textbox', { name: 'Entry' }).fill('Shortcut note');
-  await page.getByRole('button', { name: 'Add to log' }).click();
+  await page.locator('.composer').getByRole('button', { name: 'Log call' }).click();
   await expect(page.locator('.log')).toContainText('Shortcut note');
   const enquiryUrl = page.url();
   await page.reload();

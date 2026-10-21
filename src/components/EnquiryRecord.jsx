@@ -1,19 +1,43 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Calendar, Mail, MessageCircle, Phone } from 'lucide-react';
+import { Calendar, Check, ChevronDown, FileText, Mail, MessageCircle, Phone, StickyNote } from 'lucide-react';
 import { useStore } from '../store.jsx';
 import { useUi } from '../ui.jsx';
 import { go } from '../router.js';
 import Num from './Num.jsx';
-import SourceIcon from './SourceIcon.jsx';
+import { SourceBadge } from './SourceIcon.jsx';
+import { DescriptionList } from './DescriptionList.jsx';
+import Field from './Field.jsx';
 import { LostDialog, SignedDialog, commitStage } from './MoveDialogs.jsx';
 import { AS_AT, PIPELINE_STAGES } from '../data/config.js';
 import { contactLog, firstResponseMinutes, liveAssets, liveEnquiries, liveUnits } from '../data/selectors.js';
 import { useQrEnquiries } from '../qrStore.js';
-import { date, dayMonth, duration, num, rm, rm2, time } from '../format.js';
+import { date, dayMonth, duration, num, rm, time } from '../format.js';
 import { addDays, dateUTC, ymd } from '../data/rng.js';
+import { displaySource, spaceLabel } from '../labels.js';
 
 const LOG_TYPES = ['Call', 'WhatsApp', 'Email', 'Viewing', 'Note'];
+const STEPS = PIPELINE_STAGES.filter((stage) => stage !== 'Lost');
 const OPEN = PIPELINE_STAGES.filter((stage) => stage !== 'Signed' && stage !== 'Lost');
+const PLACEHOLDER = {
+  Call: 'What was discussed on the call?',
+  WhatsApp: 'Message sent on WhatsApp',
+  Email: 'What did the email say?',
+  Viewing: 'Notes for the viewing',
+  Note: 'Add a note',
+};
+const SUBMIT = {
+  Call: 'Log call',
+  WhatsApp: 'Log WhatsApp',
+  Email: 'Log email',
+  Viewing: 'Schedule viewing',
+  Note: 'Add note',
+};
+
+function nextWorkingDay() {
+  let day = addDays(dateUTC(AS_AT), 1);
+  while (day.getUTCDay() === 0 || day.getUTCDay() === 6) day = addDays(day, 1);
+  return ymd(day);
+}
 
 function atOf(enquiry, stage) {
   return (enquiry.history || []).find((entry) => entry[0] === stage)?.[1] || null;
@@ -23,6 +47,7 @@ function elapsed(from, to) {
   if (!from || !to) return null;
   const minutes = Math.round((new Date(to) - new Date(from)) / 60000);
   if (!Number.isFinite(minutes) || minutes < 0) return null;
+  if (minutes < 1) return 'under 1 min';
   if (minutes < 60) return `+${minutes} min`;
   const hours = Math.round(minutes / 60);
   if (hours < 48) return `+${hours} h`;
@@ -37,8 +62,10 @@ function dayGroup(iso) {
   return date(iso);
 }
 
-function paidSource(source) {
-  return ['Facebook Lead Ad', 'Instagram', 'Google Ads', 'Boosted post'].includes(source);
+function docStatus(stage) {
+  if (stage === 'Signed') return 'Ready';
+  if (stage === 'Negotiation') return 'Draft';
+  return 'Not started';
 }
 
 export default function EnquiryRecord({ id, variant = 'page', onClose }) {
@@ -46,6 +73,8 @@ export default function EnquiryRecord({ id, variant = 'page', onClose }) {
   const ui = useUi();
   const canEdit = state.role === 'leasing';
   const [pending, setPending] = useState(null);
+  const [menu, setMenu] = useState(false);
+  const [openThread, setOpenThread] = useState(false);
   const [viewDate, setViewDate] = useState('');
   const [viewTime, setViewTime] = useState('');
   const stored = ui.drafts[id] || { type: 'Call', text: '' };
@@ -73,6 +102,12 @@ export default function EnquiryRecord({ id, variant = 'page', onClose }) {
     if (!id) return;
     ui.setDraft(id, { type: entryType, text: entryText, viewDate, viewTime });
   }, [id, entryType, entryText, viewDate, viewTime, ui.setDraft]);
+
+  useEffect(() => {
+    if (entryType !== 'Viewing') return;
+    setViewDate((current) => current || nextWorkingDay());
+    setViewTime((current) => current || '11:00');
+  }, [entryType]);
 
   useEffect(() => {
     if (!enquiry) return undefined;
@@ -107,24 +142,22 @@ export default function EnquiryRecord({ id, variant = 'page', onClose }) {
   const form = enquiry.leadForm || {};
   const others = enquiries.filter((item) => item.id !== enquiry.id && item.unitId && item.unitId === enquiry.unitId && OPEN.includes(item.stage));
   const firstYear = (enquiry.confirmedRent ?? enquiry.rent) != null ? (enquiry.confirmedRent ?? enquiry.rent) * 12 : null;
+  const phone = enquiry.contactDetails?.phone || enquiry.phone || '';
+  const email = enquiry.contactDetails?.email || enquiry.email || '';
+  const signedStart = enquiry.stage === 'Signed' ? (state.heroSigned?.start || enquiry.leaseStart || '2026-12-01') : null;
+  const currentIndex = STEPS.indexOf(enquiry.stage);
   const nodes = [
-    {
-      id: 'ad',
-      label: paidSource(enquiry.source) ? 'Ad' : (enquiry.source || 'Source'),
-      at: null,
-      reached: true,
-      body: paidSource(enquiry.source) ? (enquiry.ad || enquiry.attribution?.ad || 'Ad') : (enquiry.attribution?.utm || enquiry.source || 'Source'),
-    },
+    { id: 'ad', label: 'Source', at: null, reached: true, body: displaySource(enquiry.source) },
     { id: 'received', label: 'Enquiry received', at: enquiry.receivedAt, reached: Boolean(enquiry.receivedAt), pending: 'Not received' },
     { id: 'contact', label: 'First contact', at: enquiry.firstResponseAt, reached: Boolean(enquiry.firstResponseAt), pending: 'Not contacted' },
-    { id: 'viewing', label: 'Viewing', at: atOf(enquiry, 'Viewing Scheduled'), reached: Boolean(atOf(enquiry, 'Viewing Scheduled')), pending: 'Viewing: not scheduled' },
-    { id: 'offer', label: 'Offer', at: atOf(enquiry, 'Negotiation'), reached: Boolean(atOf(enquiry, 'Negotiation')), pending: 'Offer: not sent' },
+    { id: 'viewing', label: 'Viewing', at: atOf(enquiry, 'Viewing Scheduled'), reached: Boolean(atOf(enquiry, 'Viewing Scheduled')), pending: 'Viewing not scheduled' },
+    { id: 'offer', label: 'Offer', at: atOf(enquiry, 'Negotiation'), reached: Boolean(atOf(enquiry, 'Negotiation')), pending: 'Offer not sent' },
     {
       id: 'tenancy',
       label: enquiry.stage === 'Lost' ? 'Lost' : 'Tenancy',
       at: enquiry.stage === 'Lost' ? atOf(enquiry, 'Lost') : atOf(enquiry, 'Signed'),
       reached: enquiry.stage === 'Signed' || enquiry.stage === 'Lost',
-      pending: 'Tenancy: not signed',
+      pending: 'Tenancy not signed',
     },
   ];
   let previousAt = null;
@@ -135,17 +168,16 @@ export default function EnquiryRecord({ id, variant = 'page', onClose }) {
   });
 
   const feed = [];
-  if (enquiry.receivedAt) {
-    feed.push({ at: enquiry.receivedAt, kind: 'system', text: `Enquiry received from ${enquiry.source || 'an unknown source'}` });
-  }
+  if (enquiry.receivedAt) feed.push({ at: enquiry.receivedAt, kind: 'received', text: `Enquiry received from ${displaySource(enquiry.source)}` });
   for (const [stage, at] of enquiry.history || []) {
     if (stage === 'New') continue;
-    feed.push({ at, kind: 'stage', text: `Stage moved to ${stage}` });
+    feed.push({ at, kind: 'stage', stage, text: `Moved to ${stage} at ${time(at)}` });
   }
-  for (const entry of log) {
-    feed.push({ at: entry.at, kind: entry.type || 'Note', text: entry.text, by: entry.by, type: entry.type });
+  for (const entry of log) feed.push({ at: entry.at, kind: entry.type || 'Note', text: entry.text, by: entry.by });
+  if (Array.isArray(enquiry.whatsapp) && enquiry.whatsapp.length) {
+    feed.push({ at: enquiry.whatsapp[0].at, kind: 'WhatsApp', thread: enquiry.whatsapp, text: 'WhatsApp conversation' });
   }
-  feed.sort((a, b) => new Date(b.at || 0) - new Date(a.at || 0));
+  feed.sort((a, b) => new Date(a.at || 0) - new Date(b.at || 0));
   const groups = [];
   for (const item of feed) {
     const label = dayGroup(item.at);
@@ -158,99 +190,136 @@ export default function EnquiryRecord({ id, variant = 'page', onClose }) {
     if (!editable || stage === enquiry.stage) return;
     if (stage === 'Signed' || stage === 'Lost') {
       setPending(stage);
+      setMenu(false);
       return;
     }
     commitStage(dispatch, enquiry, stage);
+    if (stage === 'Viewing Scheduled' && !enquiry.nextFollowUp) {
+      const when = nextWorkingDay();
+      dispatch({ type: 'followUp', id: enquiry.id, date: when });
+      ui.notify({ title: `Viewing scheduled: ${enquiry.business}`, detail: `${dayMonth(when)}, 11:00`, href: `enquiry/${enquiry.id}`, action: 'Open' });
+    }
   };
 
   const addEntry = (event) => {
     event.preventDefault();
+    if (entryType === 'Viewing') {
+      scheduleViewing();
+      return;
+    }
     const note = entryText.trim();
     if (!note) return;
     dispatch({ type: 'note', id: enquiry.id, note: { type: entryType, text: note, by: enquiry.officer } });
     setEntryText('');
-    ui.notify({ title: entryType === 'Viewing' ? 'Viewing noted' : `${entryType} logged` });
+    ui.toastOnly({ title: `${SUBMIT[entryType] || 'Note'} saved` });
   };
 
   const scheduleViewing = () => {
-    setEntryType('Viewing');
-    if (!viewDate) return;
-    const note = entryText.trim() || `Viewing booked for ${viewDate}${viewTime ? ` ${viewTime}` : ''}.`;
+    const note = entryText.trim() || `Viewing booked for ${viewDate || nextWorkingDay()} at ${viewTime || '11:00'}.`;
     dispatch({ type: 'note', id: enquiry.id, note: { type: 'Viewing', text: note, by: enquiry.officer } });
-    if (viewDate) dispatch({ type: 'followUp', id: enquiry.id, date: viewDate });
-    if (enquiry.stage !== 'Viewing Scheduled' && enquiry.stage !== 'Signed' && enquiry.stage !== 'Lost') {
-      commitStage(dispatch, enquiry, 'Viewing Scheduled');
-    }
+    const when = viewDate || nextWorkingDay();
+    dispatch({ type: 'followUp', id: enquiry.id, date: when });
     setEntryText('');
-    ui.notify({ title: 'Viewing scheduled', detail: `${viewDate}${viewTime ? `, ${viewTime}` : ''}` });
+    ui.notify({ title: 'Viewing scheduled', detail: `${dayMonth(when)}, ${viewTime || '11:00'}`, href: `enquiry/${enquiry.id}`, action: 'Open' });
   };
 
-  const offerLabel = ['Negotiation', 'Signed'].includes(enquiry.stage) ? 'Draft' : 'Not started';
-  const tenancyLabel = enquiry.stage === 'Signed' ? 'Generated' : 'Not started';
+  const primary = {
+    New: { label: 'Log first contact', run: () => { setEntryType('Call'); } },
+    Contacted: { label: 'Mark as qualified', run: () => requestStage('Qualified') },
+    Qualified: { label: 'Schedule viewing', run: () => setEntryType('Viewing') },
+    'Viewing Scheduled': { label: 'Send offer', run: () => requestStage('Negotiation') },
+    Negotiation: { label: 'Mark as signed', run: () => requestStage('Signed') },
+    Lost: { label: 'Reopen', run: () => requestStage('Contacted') },
+  }[enquiry.stage];
+
+  const waDigits = phone.replace(/\D/g, '');
 
   return (
-    <section className={`record${variant === 'drawer' ? ' record-drawer' : ''}`}>
+    <section className={`record${variant === 'drawer' ? ' record-drawer' : ''}${crest ? ' crest-flash' : ''}`}>
       {variant === 'drawer' && (
         <div className="drawer-tools">
           <button type="button" className="btn" onClick={() => { onClose?.(); go('enquiry', enquiry.id); }}>Open full page</button>
-          <button type="button" className="btn" onClick={onClose} aria-label="Close">Close</button>
+          <button type="button" className="icon-btn" onClick={onClose} aria-label="Close">Close</button>
         </div>
       )}
       <h1 className="page-title">{enquiry.business}</h1>
       <p className="lead">
         {enquiry.contact || '–'}{enquiry.title ? `, ${enquiry.title}` : ''}
-        <span className="lead-stage stage-pill">{enquiry.stage}</span>
+        <span className="stage-pill">{enquiry.stage}</span>
+        <span data-testid="first-response">{minutes == null ? 'Not contacted' : `First contact ${duration(minutes)}`}</span>
       </p>
       {campaign && (
         <p className="crumb">
           <a href={`#/campaign/${campaign.id}`} onClick={(event) => { event.preventDefault(); go('campaign', campaign.id); }}>Back to campaign</a>
         </p>
       )}
+      {enquiry.stage === 'Lost' && <p className="banner">Lost. {enquiry.lostReason || 'No reason recorded'}.</p>}
+      {enquiry.stage === 'Signed' && <p className="stage-pill">Signed{signedStart ? ` · starts ${date(signedStart)}` : ''}</p>}
       {editable && !pending && (
         <div className="record-actions">
-          <button type="button" className="btn" onClick={() => setEntryType('Call')}><Phone size={18} strokeWidth={1.75} aria-hidden="true" /> Log call</button>
-          <button type="button" className="btn" onClick={() => setEntryType('WhatsApp')}><MessageCircle size={18} strokeWidth={1.75} aria-hidden="true" /> WhatsApp</button>
-          <button type="button" className="btn" onClick={() => setEntryType('Email')}><Mail size={18} strokeWidth={1.75} aria-hidden="true" /> Email</button>
-          <button type="button" className="btn" onClick={scheduleViewing}><Calendar size={18} strokeWidth={1.75} aria-hidden="true" /> Schedule viewing</button>
-          <button type="button" className="btn" onClick={() => followRef.current?.focus()}>Set follow-up</button>
-          <button type="button" className="btn btn-primary" onClick={() => requestStage('Signed')}>Mark as signed</button>
-          <button type="button" className="btn" onClick={() => requestStage('Lost')}>Mark as lost</button>
+          {primary && <button type="button" className="btn btn-primary" onClick={primary.run}>{primary.label}</button>}
+          <button type="button" className="btn" onClick={() => setEntryType('Call')}><Phone size={16} strokeWidth={1.75} aria-hidden="true" /> Log call</button>
+          <button type="button" className="btn" onClick={() => setEntryType('WhatsApp')}><MessageCircle size={16} strokeWidth={1.75} aria-hidden="true" /> WhatsApp</button>
+          <button type="button" className="btn" onClick={() => setEntryType('Email')}><Mail size={16} strokeWidth={1.75} aria-hidden="true" /> Email</button>
+          <button type="button" className="btn" onClick={() => setEntryType('Note')}><StickyNote size={16} strokeWidth={1.75} aria-hidden="true" /> Note</button>
+          <div className="move-menu">
+            <button type="button" className="icon-btn" aria-label="More actions" aria-expanded={menu} onClick={() => setMenu((open) => !open)}>
+              <ChevronDown size={16} strokeWidth={1.75} aria-hidden="true" />
+            </button>
+            {menu && (
+              <ul className="move-list" role="menu">
+                <li><button type="button" role="menuitem" onClick={() => requestStage('Lost')}>Mark as lost</button></li>
+              </ul>
+            )}
+          </div>
         </div>
       )}
-      <div className="stepper" aria-label="Stage">
-        {PIPELINE_STAGES.map((stage) => (stage === enquiry.stage || !editable ? (
-          <span key={stage} className={stage === enquiry.stage ? 'step on' : 'step'}>{stage}</span>
-        ) : (
-          <button key={stage} type="button" className="step" onClick={() => requestStage(stage)}>{stage}</button>
-        )))}
-      </div>
+      <ol className="stepper" aria-label="Stage">
+        {STEPS.map((stage, index) => {
+          const stateName = enquiry.stage === stage ? 'current' : (currentIndex > index ? 'done' : 'future');
+          const body = (
+            <>
+              {stateName === 'done' && <Check size={14} strokeWidth={1.75} aria-hidden="true" />}
+              {stage}
+            </>
+          );
+          return (
+            <li key={stage} className={`step ${stateName}`}>
+              {editable ? (
+                <button type="button" className="step-btn" onClick={() => requestStage(stage)}>{body}</button>
+              ) : <span className="step-btn">{body}</span>}
+            </li>
+          );
+        })}
+      </ol>
       <ol className="journey" data-testid={variant === 'page' ? 'journey' : undefined}>
         {rail.map((node) => (
           <li key={node.id} className={node.reached ? 'reached' : 'waiting'}>
             <span className="journey-label">{node.label}</span>
-            {node.id === 'ad' && paidSource(enquiry.source) ? (
-              <div className="ad-mock">
-                <div className="ad-image">{asset?.short || 'PKNS'}</div>
-                <p>{enquiry.ad || enquiry.attribution?.ad}</p>
-                <span className="ad-cta">Learn more</span>
-              </div>
-            ) : node.id === 'tenancy' && enquiry.stage === 'Lost' ? null : (
-              <p>{node.reached ? (node.body || (node.at ? `${dayMonth(node.at)} ${time(node.at)}` : 'Reached')) : node.pending}</p>
-            )}
-            {node.id === 'viewing' && enquiry.nextFollowUp && <p>Next follow-up {date(enquiry.nextFollowUp)}</p>}
-            {node.gap && <span className="journey-gap">{node.gap}</span>}
-            {node.id === 'tenancy' && enquiry.stage === 'Lost' && (
-              <div className={crest ? 'journey-end crest-flash' : 'journey-end'}>
+            {node.id === 'ad' ? (
+              <>
+                <p className="journey-value">{node.body}</p>
+                {enquiry.ad && <div className="ad-mock"><p>{enquiry.ad}</p></div>}
+              </>
+            ) : node.id === 'viewing' && node.reached && enquiry.nextFollowUp ? (
+              <p className="journey-value">Viewing {dayMonth(enquiry.nextFollowUp)}, 11:00</p>
+            ) : node.id === 'tenancy' && enquiry.stage === 'Lost' ? (
+              <div className="journey-end">
                 Lost
-                <span className="journey-gap">{enquiry.lostReason || 'No reason recorded'}</span>
+                <span className="journey-caption">{enquiry.lostReason || 'No reason recorded'}</span>
               </div>
-            )}
-            {node.id === 'tenancy' && enquiry.stage === 'Signed' && (
-              <div className={crest ? 'journey-end crest-flash' : 'journey-end'}>
+            ) : node.id === 'tenancy' && enquiry.stage === 'Signed' ? (
+              <div className="journey-end">
                 <Num value={firstYear} format={rm} watch={`journey-fyv:${enquiry.id}`} />
                 <span className="journey-caption">first-year rent</span>
+                <span className="journey-caption">Signed {dayMonth(node.at || AS_AT)}</span>
+                <span className="journey-caption">Starts {date(signedStart || '2026-12-01')}</span>
               </div>
+            ) : (
+              <p className="journey-value">{node.reached ? (node.at ? time(node.at) : node.body) : node.pending}</p>
             )}
+            {node.id === 'contact' && node.reached && minutes != null && <span className="journey-gap">First contact {duration(minutes)}</span>}
+            {node.gap && node.id !== 'contact' && <span className="journey-gap">{node.gap}</span>}
           </li>
         ))}
       </ol>
@@ -263,97 +332,88 @@ export default function EnquiryRecord({ id, variant = 'page', onClose }) {
                   <button key={item} type="button" role="tab" aria-selected={entryType === item} className={entryType === item ? 'on' : ''} onClick={() => setEntryType(item)}>{item}</button>
                 ))}
               </div>
-              <label>
-                Type
-                <select value={entryType} onChange={(event) => setEntryType(event.target.value)}>
-                  {LOG_TYPES.map((item) => <option key={item} value={item}>{item}</option>)}
-                </select>
-              </label>
               <label className="grow">
-                Entry
-                <input value={entryText} onChange={(event) => setEntryText(event.target.value)} />
+                <span className="sr-only">Entry</span>
+                <textarea rows={3} aria-label="Entry" placeholder={PLACEHOLDER[entryType]} value={entryText} onChange={(event) => setEntryText(event.target.value)} />
               </label>
               {entryType === 'Viewing' && (
                 <div className="composer-when">
-                  <label>Date<input type="date" value={viewDate} onChange={(event) => setViewDate(event.target.value)} /></label>
-                  <label>Time<input type="time" value={viewTime} onChange={(event) => setViewTime(event.target.value)} /></label>
+                  <Field label="Date"><input type="date" value={viewDate} onChange={(event) => setViewDate(event.target.value)} /></Field>
+                  <Field label="Time"><input type="time" value={viewTime} onChange={(event) => setViewTime(event.target.value)} /></Field>
                 </div>
               )}
-              <button type="submit" className="btn btn-primary">Add to log</button>
+              <button type="submit" className="btn btn-primary">{SUBMIT[entryType]}</button>
             </form>
           )}
           <div className="timeline">
-            {groups.map((group) => <h2 key={group.label} className="section-title">{group.label}</h2>)}
-            <ol className="log">
-              {feed.map((item, index) => (
-                <li key={`${item.at}-${index}`}>
-                  <div className="log-meta">
-                    <strong>{item.type || item.kind}</strong>
-                    <span>{dayGroup(item.at)}</span>
-                    <span>{date(item.at)} {time(item.at)}</span>
-                    {item.by && <span>{data.officers[item.by]?.name || ''}</span>}
-                  </div>
-                  <p>{item.text}</p>
-                </li>
-              ))}
-            </ol>
-            {Array.isArray(enquiry.whatsapp) && enquiry.whatsapp.length > 0 && (
-              <div className="thread" aria-label="WhatsApp">
-                {enquiry.whatsapp.map((message, index) => (
-                  <p key={index} className={message.from === 'officer' ? 'bubble officer' : 'bubble enquirer'}>{message.text}</p>
-                ))}
-              </div>
-            )}
+            {groups.map((group) => (
+              <section key={group.label}>
+                <h2 className="overline">{group.label}</h2>
+                <ol className="log">
+                  {group.items.map((item, index) => (
+                    <li key={`${item.at}-${index}`} className={item.kind === 'stage' ? 'log-compact' : ''}>
+                      <div className="log-meta">
+                        <strong>{item.kind === 'stage' ? 'Stage change' : (item.kind === 'received' ? 'Enquiry received' : item.kind)}</strong>
+                        <span>{time(item.at)}</span>
+                      </div>
+                      {item.thread ? (
+                        <div>
+                          <button type="button" className="btn" onClick={() => setOpenThread((open) => !open)}>{openThread ? 'Hide WhatsApp' : 'Show WhatsApp'}</button>
+                          {openThread && item.thread.map((message, messageIndex) => (
+                            <p key={messageIndex} className={message.from === 'officer' ? 'bubble officer' : 'bubble enquirer'}>{message.text}</p>
+                          ))}
+                        </div>
+                      ) : <p>{item.text}</p>}
+                    </li>
+                  ))}
+                </ol>
+              </section>
+            ))}
           </div>
-          <p data-testid="first-response">First response time: <Num value={minutes} format={duration} watch={`response:${enquiry.id}`} /></p>
         </div>
         <aside className="record-side">
-          <section>
-            <h2>What they asked for</h2>
-            <p>{form.spaceType || enquiry.use || '–'}{form.preferredSize ? `, ${form.preferredSize}` : ''}</p>
-            <p>{form.budget || enquiry.budget || '–'}</p>
-            <p>Move in: {form.moveIn || '–'}</p>
-            <p>Prefers {form.preferredContact || 'a call'}</p>
-            {form.message && <p className="record-quote">{form.message}</p>}
-          </section>
-          <section>
-            <h2>Unit</h2>
-            <p>
-              {asset ? (
-                <a href={`#/asset/${asset.id}`} onClick={(event) => { event.preventDefault(); go('asset', asset.id); }}>
-                  {enquiry.lot ? `Suite ${enquiry.lot}` : asset.name}
-                </a>
-              ) : '–'}
-              {asset ? `, ${asset.short}` : ''}
-            </p>
-            <p>{unit?.use || enquiry.use || '–'}{unit?.size ? `, ${num(unit.size)} sq ft` : ''}</p>
-            <p>{unit?.psf != null ? `${rm2(unit.psf)} psf` : ''}{enquiry.rent != null ? `, ${rm(enquiry.rent)} a month` : ''}</p>
-            <p>Status: <span data-testid="unit-status"><Num value={unit?.status || '–'} watch={`unit:${enquiry.id}`} /></span></p>
-            <p>{others.length === 0 ? 'No other open enquiries on this unit' : `${num(others.length)} other open enquiries on this unit`}</p>
-            {others.map((item) => (
-              <p key={item.id}><button type="button" className="text-btn" onClick={() => go('enquiry', item.id)}>{item.business}</button></p>
-            ))}
-          </section>
-          <section>
-            <h2>Source</h2>
-            <p className="source-line"><SourceIcon source={enquiry.source} /> {enquiry.contactChannel || enquiry.source || '–'}</p>
-            <p>Campaign: {campaign?.name || '–'}</p>
-            <p>Ad set: {enquiry.attribution?.adSet || '–'}</p>
-            <p>Ad: {enquiry.ad || enquiry.attribution?.ad || '–'}</p>
-            {enquiry.attribution?.utm && <p>{enquiry.attribution.utm}</p>}
-          </section>
-          <section>
-            <h2>Owner and next step</h2>
+          <DescriptionList
+            title="What they asked for"
+            rows={[
+              { label: 'Use', value: form.spaceType || enquiry.use || '–' },
+              { label: 'Size', value: form.preferredSize || '–' },
+              { label: 'Budget', value: form.budget || enquiry.budget || '–' },
+              { label: 'Move in', value: form.moveIn || '–' },
+              { label: 'Contact by', value: form.preferredContact || '–' },
+              { label: 'Message', value: form.message ? <q>{form.message}</q> : '–' },
+            ]}
+          />
+          <DescriptionList
+            title="Unit"
+            rows={[
+              { label: 'Lot', value: asset ? <a href={`#/asset/${asset.id}`} onClick={(event) => { event.preventDefault(); go('asset', asset.id); }}>{spaceLabel(unit?.use || enquiry.use, enquiry.lot)}</a> : '–' },
+              { label: 'Asset', value: asset?.short || '–' },
+              { label: 'Use', value: unit?.use || enquiry.use || '–' },
+              { label: 'Size', value: unit?.size ? `${num(unit.size)} sq ft` : '–' },
+              { label: 'Rent', value: enquiry.rent != null ? `${rm(enquiry.rent)}/mo` : '–' },
+              { label: 'Status', value: <span data-testid="unit-status"><Num value={unit?.status || '–'} watch={`unit:${enquiry.id}`} /></span> },
+              { label: 'Other open', value: others.length === 0 ? 'None on this unit' : `${num(others.length)} on this unit` },
+            ]}
+          />
+          <DescriptionList
+            title="Source"
+            rows={[
+              { label: 'Source', value: <SourceBadge source={enquiry.source} /> },
+              { label: 'Campaign', value: campaign?.name || '–' },
+              { label: 'Ad set', value: enquiry.attribution?.adSet || '–' },
+              { label: 'Ad', value: enquiry.ad || enquiry.attribution?.ad || '–' },
+            ]}
+          />
+          <section className="desc-group">
+            <h2 className="overline">Owner and next step</h2>
             {editable ? (
               <>
-                <label>
-                  Officer
+                <Field label="Officer">
                   <select value={enquiry.officer || ''} onChange={(event) => dispatch({ type: 'reassign', id: enquiry.id, officer: event.target.value })}>
                     {Object.values(data.officers).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
                   </select>
-                </label>
-                <label>
-                  Next follow-up
+                </Field>
+                <Field label="Next follow-up">
                   <input
                     ref={followRef}
                     type="date"
@@ -364,41 +424,48 @@ export default function EnquiryRecord({ id, variant = 'page', onClose }) {
                       if (next) ui.notify({ title: `Follow-up set: ${enquiry.business}, ${date(next)}`, href: `enquiry/${enquiry.id}`, action: 'Open' });
                     }}
                   />
-                </label>
+                </Field>
               </>
-            ) : (
-              <p>{officer?.name || '–'}. Next follow-up {date(enquiry.nextFollowUp)}.</p>
-            )}
+            ) : <p>{officer?.name || '–'}. Next follow-up {date(enquiry.nextFollowUp)}.</p>}
           </section>
-          <section>
-            <h2>Contact</h2>
-            <p>{enquiry.contactDetails?.phone || enquiry.phone || '–'}</p>
-            <p>{enquiry.contactDetails?.email || enquiry.email || '–'}</p>
-            <p>PDPA consent: {enquiry.consent ? `${enquiry.consent.via}, ${date(enquiry.consent.at)}` : '–'}</p>
-          </section>
-          <section>
-            <h2>Documents</h2>
-            <button type="button" className="text-btn" onClick={() => ui.notify({ title: 'Document templates connect in Phase 1' })}>Offer letter ({offerLabel})</button>
-            <button type="button" className="text-btn" onClick={() => ui.notify({ title: 'Document templates connect in Phase 1' })}>Tenancy agreement ({tenancyLabel})</button>
+          <DescriptionList
+            title="Contact"
+            rows={[
+              { label: 'Phone', value: phone ? <span className="contact-line"><a href={`tel:${phone}`}>{phone}</a> {waDigits && <a className="btn" href={`https://wa.me/6${waDigits.replace(/^0/, '')}`} target="_blank" rel="noreferrer">WhatsApp</a>}</span> : '–' },
+              { label: 'Email', value: email ? <a href={`mailto:${email}`}>{email}</a> : '–' },
+              { label: 'Consent', value: enquiry.consent ? `${enquiry.consent.via}, ${date(enquiry.consent.at)}` : '–' },
+            ]}
+          />
+          <section className="desc-group">
+            <h2 className="overline">Documents</h2>
+            {['Offer letter', 'Tenancy agreement'].map((name) => {
+              const status = docStatus(enquiry.stage);
+              return (
+                <button key={name} type="button" className="file-row" onClick={() => ui.toastOnly({ title: 'Document templates connect in Phase 1.' })}>
+                  <FileText size={16} strokeWidth={1.75} aria-hidden="true" />
+                  <span>{name}</span>
+                  <span className={status === 'Not started' ? 'pill muted-pill' : 'pill'}>{status}</span>
+                </button>
+              );
+            })}
           </section>
         </aside>
       </div>
       <SignedDialog
         open={pending === 'Signed'}
         enquiry={enquiry}
+        assetName={asset?.name}
         onClose={() => setPending(null)}
-        onConfirm={(extra) => {
-          commitStage(dispatch, enquiry, 'Signed', extra);
-          setPending(null);
-        }}
+        onConfirm={(extra) => { commitStage(dispatch, enquiry, 'Signed', extra); setPending(null); }}
       />
       <LostDialog
         open={pending === 'Lost'}
+        enquiry={enquiry}
         onClose={() => setPending(null)}
         onConfirm={(extra) => {
           commitStage(dispatch, enquiry, 'Lost', extra);
           ui.notify({
-            title: `Marked as lost: ${enquiry.business}${enquiry.lot ? `, lot ${enquiry.lot}` : ''}`,
+            title: `Marked as lost: ${enquiry.business}`,
             detail: extra.lostReason,
             href: `enquiry/${enquiry.id}`,
             action: 'Open',

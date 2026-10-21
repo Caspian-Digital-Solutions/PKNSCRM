@@ -1,14 +1,15 @@
 import { useMemo, useState } from 'react';
 import SourceIcon from '../components/SourceIcon.jsx';
 import Sparkline from '../components/Sparkline.jsx';
-import { ResponsiveContainer, ComposedChart, BarChart, Bar, Line, XAxis, YAxis, Tooltip, CartesianGrid, Legend } from 'recharts';
+import { ResponsiveContainer, ComposedChart, BarChart, Bar, Line, XAxis, YAxis, Tooltip, CartesianGrid, Legend, LabelList } from 'recharts';
 import { useStore } from '../store.jsx';
 import DataTable from '../components/DataTable.jsx';
 import Filters from '../components/Filters.jsx';
 import Kpi from '../components/Kpi.jsx';
 import Num from '../components/Num.jsx';
 import SampleHeatmap from '../components/SampleHeatmap.jsx';
-import { liveAssets, marketingSummary } from '../data/selectors.js';
+import { campaignRows, liveAssets, marketingSummary } from '../data/selectors.js';
+import { totalRow } from '../data/metrics.js';
 import { CHANNELS } from '../data/config.js';
 import { num, rm, rm2, pct, x, dayMonth, pctPlain, signedChange } from '../format.js';
 
@@ -107,6 +108,15 @@ export default function Marketing() {
     { key: 'costPerConversion', label: 'Cost per conversion', align: 'right', format: (value) => rm2(value) },
   ];
 
+  const campaignTable = useMemo(() => data.campaigns.map((campaign) => {
+    const totals = totalRow(campaignRows(data, state, campaign.id, {
+      from: filters.from,
+      to: filters.to,
+      ...(filters.asset ? { assetId: filters.asset } : {}),
+      ...(filters.channel ? { channels: [filters.channel] } : {}),
+    }));
+    return { id: campaign.id, name: campaign.short, spend: totals.spend, enquiries: totals.enquiries, signed: totals.signed, roas: totals.roas };
+  }), [data, state, filters.asset, filters.channel, filters.from, filters.to]);
   const paid = summary.paid;
   const google = summary.google;
   const matches = (...parts) => {
@@ -156,6 +166,48 @@ export default function Marketing() {
         <Kpi label="Cost per signed tenant" term="cost-per-signed" value={paid.costPerSigned} format={rm2} testId="mkt-cps" />
         <Kpi label="ROAS" term="roas" value={paid.roas} format={x} testId="mkt-roas" />
       </div>
+      <div className="panel-grid">
+        <div>
+          <h2 className="section-title">Spend by channel</h2>
+          <div className="chart-wrap compact">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={summary.byChannel} margin={{ top: 8, right: 8, left: 0, bottom: 8 }}>
+                <CartesianGrid stroke="var(--line)" vertical={false} />
+                <XAxis dataKey="name" tick={{ fontSize: 14, fill: 'var(--ink-2)' }} />
+                <YAxis tick={{ fontSize: 14, fill: 'var(--muted)' }} tickFormatter={(value) => num(value)} />
+                <Tooltip formatter={(value) => rm(value)} />
+                <Bar dataKey="spend" name="Spend" fill="var(--s1)" maxBarSize={28} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+        <div>
+          <h2 className="section-title">Paid enquiries by channel</h2>
+          <div className="chart-wrap compact">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={summary.byChannel} margin={{ top: 8, right: 8, left: 0, bottom: 8 }}>
+                <CartesianGrid stroke="var(--line)" vertical={false} />
+                <XAxis dataKey="name" tick={{ fontSize: 14, fill: 'var(--ink-2)' }} />
+                <YAxis tick={{ fontSize: 14, fill: 'var(--muted)' }} tickFormatter={(value) => num(value)} />
+                <Tooltip formatter={(value) => num(value)} />
+                <Bar dataKey="enquiries" name="Paid enquiries" fill="var(--s2)" maxBarSize={28} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      </div>
+      <h2 className="section-title">Campaigns</h2>
+      <DataTable
+        columns={[
+          { key: 'name', label: 'Campaign' },
+          { key: 'spend', label: 'Spend', align: 'right', format: (value) => rm(value) },
+          { key: 'enquiries', label: 'Paid enquiries', align: 'right', format: (value) => num(value) },
+          { key: 'signed', label: 'Signed', align: 'right', format: (value) => num(value) },
+          { key: 'roas', label: 'ROAS', align: 'right', format: (value) => x(value) },
+        ]}
+        rows={campaignTable}
+        exportName="marketing-campaigns"
+      />
       </>
       )}
 
@@ -177,7 +229,14 @@ export default function Marketing() {
                 <XAxis type="number" stroke="var(--ink)" strokeWidth={2} tick={{ fontSize: 14, fill: 'var(--ink)' }} tickFormatter={(value) => num(value)} />
                 <YAxis type="category" dataKey="name" width={130} stroke="var(--ink)" strokeWidth={2} tick={{ fontSize: 14, fill: 'var(--ink)' }} />
                 <Tooltip formatter={(value) => num(value)} contentStyle={{ fontSize: 16, color: 'var(--ink)' }} />
-                <Bar dataKey="sessions" name="Sessions" fill="var(--s2)" barSize={16} />
+                <Bar dataKey="sessions" name="Sessions" fill="var(--s2)" barSize={16}>
+                  <LabelList
+                    dataKey="sessions"
+                    position="right"
+                    formatter={(value) => `${num(value)} · ${pct((Number(value) || 0) / (summary.website.sessions || 1))}`}
+                    style={{ fontSize: 14, fill: '#4B4F56', fontFamily: 'Inter, sans-serif' }}
+                  />
+                </Bar>
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -210,28 +269,36 @@ export default function Marketing() {
       <>
       <h2 className="section-title">Facebook and Instagram</h2>
       <h3 className="section-title">Organic</h3>
-      <ul className="social-rows">
-        {socialRows.map((row) => {
-          const series = data.social.find((page) => page.id === row.id);
-          const points = series ? data.months.map((month) => series.followersByMonth[month.key]).filter((value) => value != null) : [];
-          return (
-            <li key={row.id}>
-              <SourceIcon source={row.platform === 'Instagram' ? 'Instagram' : 'Facebook Lead Ad'} />
-              <span>
-                <strong>{row.page}</strong>
-                <span className="cell-note">{row.platform}</span>
-              </span>
-              <span data-testid={row.id === 'pkns-fb' || row.id === 'pkns-ig' ? `followers-${row.id}` : undefined}>
-                <Num value={row.followers} format={num} watch={`followers:${row.id}`} />
-              </span>
-              <Sparkline values={points} />
-              <span>{num(row.reach)} reach</span>
-              <span>{num(row.engagements)} engagements</span>
-              <span>{pctPlain(row.er)} ER</span>
-            </li>
-          );
-        })}
-      </ul>
+      <div className="table-scroll">
+        <table className="table data-table">
+          <thead>
+            <tr>
+              <th>Page</th>
+              <th>Platform</th>
+              <th>Followers</th>
+              <th>Change</th>
+              <th>Organic reach</th>
+              <th>Engagements</th>
+              <th>Engagement rate</th>
+            </tr>
+          </thead>
+          <tbody>
+            {socialRows.map((row) => (
+              <tr key={row.id}>
+                <td>{row.page}</td>
+                <td>{row.platform}</td>
+                <td data-testid={row.id === 'pkns-fb' || row.id === 'pkns-ig' ? `followers-${row.id}` : undefined}>
+                  <Num value={row.followers} format={num} watch={`followers:${row.id}`} />
+                </td>
+                <td>{row.followerChange == null ? '–' : signedChange(row.followerChange, num)}</td>
+                <td>{num(row.reach)}</td>
+                <td>{num(row.engagements)}</td>
+                <td>{pctPlain(row.er)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
       <h3 className="section-title">Paid</h3>
       <p className="footnote">Paid social is separate from organic. The two are not added together.</p>
       {query.trim() && socialRows.length === 0 && paidRows.length === 0 && <p className="empty-state">No social rows match this search. Clear filters to see every page and channel.</p>}
@@ -244,11 +311,15 @@ export default function Marketing() {
         <div className="post-grid">
           {postRows.map((post) => (
             <article key={post.caption} className="post-card">
-              <div className="ad-image">{post.type}</div>
-              <p>{post.caption}</p>
+              <div className="ad-image" aria-hidden="true" />
               <span className="stage-pill">{post.type}</span>
-              <p>{num(post.reach)} reach, {num(post.engagements)} engagements, {num(post.clicks)} clicks</p>
-              <p>Boosted spend {rm(post.boosted)}</p>
+              <p>{post.caption}</p>
+              <div className="metric-grid">
+                <span>Reach {num(post.reach)}</span>
+                <span>Engagements {num(post.engagements)}</span>
+                <span>Clicks {num(post.clicks)}</span>
+                <span>Boosted {rm(post.boosted)}</span>
+              </div>
             </article>
           ))}
         </div>

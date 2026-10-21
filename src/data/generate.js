@@ -394,9 +394,10 @@ function businessTypeOf(name) {
 }
 
 function sizeBand(size) {
-  const n = Number(size) || 0;
-  const lo = Math.floor(n / 500) * 500;
-  const hi = lo + 500;
+  const n = Number(size) || 100;
+  let lo = Math.floor(n / 100) * 100;
+  if (lo < 100) lo = 100;
+  const hi = lo + 200;
   const fmt = (value) => value.toLocaleString('en-US');
   return `${fmt(lo)}–${fmt(hi)} sq ft`;
 }
@@ -412,9 +413,53 @@ function moveInLabel(iso, months) {
   return when.toLocaleDateString('en-GB', { month: 'long', year: 'numeric', timeZone: 'UTC' });
 }
 
-function emailFor(business, index) {
-  const slug = String(business || '').toLowerCase().replace(/sdn\.?\s*bhd\.?/g, '').replace(/[^a-z0-9]+/g, '').slice(0, 18) || 'niaga';
-  return `${slug}${index}@${slug}.com.my`;
+function emailLocal(contact) {
+  const cleaned = String(contact || '').replace(/^(encik|puan|cik|mr|ms|mrs|dato'?|datuk)\s+/i, '').trim();
+  const parts = cleaned.split(/\s+/).map((part) => part.toLowerCase().replace(/[^a-z]/g, '')).filter(Boolean);
+  return parts[0] || 'hello';
+}
+
+function businessSlug(business) {
+  return String(business || '')
+    .toLowerCase()
+    .replace(/\b(sdn\.?\s*bhd\.?|bhd\.?|plt|enterprise|trading|sdn)\b/g, '')
+    .replace(/[^a-z0-9]+/g, '')
+    .slice(0, 28) || 'niaga';
+}
+
+function emailFor(enquiry, used) {
+  const local = emailLocal(enquiry.contact);
+  const domain = businessSlug(enquiry.business);
+  const tokens = String(enquiry.contact || '')
+    .replace(/^(encik|puan|cik|mr|ms|mrs|dato'?|datuk)\s+/i, '')
+    .trim()
+    .split(/\s+/)
+    .slice(1)
+    .map((part) => part.toLowerCase().replace(/[^a-z]/g, ''))
+    .filter(Boolean);
+  const candidates = [`${local}@${domain}.com.my`, ...tokens.map((token) => `${local}.${token}@${domain}.com.my`)];
+  let email = candidates.find((item) => !used.has(item));
+  if (!email) {
+    const words = String(enquiry.business || '').toLowerCase().split(/[^a-z]+/).filter((word) => word.length > 2);
+    email = words.map((word) => `${local}.${word}@${domain}.com.my`).find((item) => !used.has(item));
+  }
+  if (!email) email = `${local}@${domain}.com.my`;
+  used.add(email);
+  return email;
+}
+
+function adForUnit(enquiry, unit, creative) {
+  const use = (unit?.use || enquiry.use) === 'Office' ? 'Office' : 'Retail';
+  const ads = creative.ads || [];
+  const office = ads.find((ad) => /pejabat|office/i.test(ad));
+  const retail = ads.find((ad) => /kedai|niaga|retail|lot kedai/i.test(ad));
+  if (enquiry.campaign === 'sa' && enquiry.channel === 'fb') {
+    if (use === 'Office') return ads[0];
+    if (enquiry.asset === 'pas') return 'Ruang Niaga di Plaza Alam Sentral – Lokasi Utama Seksyen 14';
+    return 'Lot Kedai Kompleks PKNS – Lokasi Strategik Seksyen 14';
+  }
+  if (use === 'Office') return office || ads[0];
+  return retail || ads[ads.length - 1];
 }
 
 function nextPhone(rng, used) {
@@ -447,7 +492,8 @@ const LEAD_MESSAGES = [
 export function enrichEnquiries(enquiries, units) {
   const rng = makeRng(20261031);
   const usedPhones = new Set();
-  enquiries.forEach((enquiry, index) => {
+  const usedEmails = new Set();
+  enquiries.forEach((enquiry) => {
     const unit = units.find((item) => item.id === enquiry.unitId);
     const roll = rng.next();
     const preferredContact = roll < 0.6 ? 'WhatsApp' : roll < 0.9 ? 'Call' : 'Email';
@@ -464,14 +510,16 @@ export function enrichEnquiries(enquiries, units) {
       preferredContact,
       message,
     };
-    enquiry.contactDetails = { phone, email: emailFor(enquiry.business, index + 1) };
+    enquiry.contactDetails = { phone, email: emailFor(enquiry, usedEmails) };
     enquiry.phone = phone;
     enquiry.email = enquiry.contactDetails.email;
     enquiry.consent = { given: true, via: consentVia(enquiry.source), at: enquiry.receivedAt };
     const creative = enquiry.campaign && enquiry.channel ? AD_CREATIVES[enquiry.campaign]?.[enquiry.channel] : null;
     if (creative) {
-      enquiry.attribution = { adSet: creative.adSet, ad: rng.pick(creative.ads) };
-      enquiry.ad = enquiry.attribution.ad;
+      rng.pick(creative.ads);
+      const ad = adForUnit(enquiry, unit, creative);
+      enquiry.attribution = { adSet: creative.adSet, ad };
+      enquiry.ad = ad;
     }
     if (enquiry.source === 'Website form') {
       const slug = UTM_CAMPAIGN[enquiry.campaign] || `${enquiry.campaign || 'web'}-2026`;
@@ -479,16 +527,27 @@ export function enrichEnquiries(enquiries, units) {
     }
     if (preferredContact === 'WhatsApp' && enquiry.firstResponseAt) {
       const count = rng.int(3, 6);
-      const logged = enquiry.log || [];
+      const officerLines = [
+        `Lot ${enquiry.lot} masih kosong. Boleh saya hantar kad kadar?`,
+        `Hi, this is PKNS leasing. ${enquiry.lot} is available to view this week.`,
+        `Terima kasih atas pertanyaan anda. Saya semak kekosongan lot ${enquiry.lot}.`,
+        `We can hold a viewing on a weekday morning if that suits you.`,
+      ];
+      const enquirerLines = [
+        message,
+        'Baik, boleh hantar butiran melalui WhatsApp.',
+        'Can we visit on a weekday morning?',
+        'Saya semak dengan rakan kongsi dahulu.',
+        'Please send the floor plan as well.',
+        'Terima kasih. Saya akan balas selepas mesyuarat.',
+      ];
       enquiry.whatsapp = Array.from({ length: count }, (_, i) => {
         const from = i % 2 === 0 ? 'officer' : 'enquirer';
-        const entry = logged[Math.floor(i / 2)];
+        const lines = from === 'officer' ? officerLines : enquirerLines;
         return {
           from,
-          at: entry?.at || enquiry.firstResponseAt,
-          text: from === 'officer'
-            ? (entry?.text || `Lot ${enquiry.lot} is available.`)
-            : (i === 1 ? message : 'Baik, terima kasih. Saya akan semak.'),
+          at: enquiry.firstResponseAt,
+          text: lines[Math.floor(i / 2) % lines.length],
         };
       });
     }
