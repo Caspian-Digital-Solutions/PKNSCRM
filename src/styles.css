@@ -140,6 +140,20 @@ a { color: inherit; }
 /* Phase 1 screens */
 .lead { font-size: 18px; color: var(--ink-2); max-width: 760px; margin: 0 0 16px; }
 .screen-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
+.screen-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.qr-panel { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; margin: 4px 0 16px; padding: 16px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); max-width: 100%; }
+.qr-panel svg { width: 300px; height: 300px; flex: 0 0 auto; }
+.qr-panel-title { margin: 0 0 6px; font-size: 21px; font-weight: 700; }
+.qr-panel-url { margin: 0; font-size: 16px; word-break: break-all; }
+.qr-page { min-height: 100%; box-sizing: border-box; padding: 28px 16px 48px; background: var(--bg); }
+.qr-page h1 { font-size: 32px; margin: 12px 0 8px; }
+.qr-page form, .qr-page .qr-thanks { width: min(440px, 100%); }
+.qr-page form { display: flex; flex-direction: column; gap: 14px; }
+.qr-page label { display: flex; flex-direction: column; gap: 4px; font-size: 16px; font-weight: 700; color: var(--ink-2); }
+.qr-page input, .qr-page select { font: inherit; font-size: 16px; font-weight: 400; color: var(--ink); padding: 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); width: 100%; }
+.qr-note { font-size: 16px; font-weight: 700; color: var(--ink); background: var(--red-tint); border: 1px solid #f6c6c8; border-radius: 8px; padding: 10px 12px; width: min(440px, 100%); }
+.qr-problem { margin: 0; font-size: 16px; color: var(--ink); }
+.qr-thanks { font-size: 18px; }
 .month-select, .move-to { display: flex; flex-direction: column; gap: 4px; font-size: 16px; font-weight: 700; color: var(--ink-2); }
 .month-select select, .move-to select, .stack-form input, .stack-form select, .dialog-form input, .dialog-form select {
   font: inherit; font-size: 16px; font-weight: 400; color: var(--ink); padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); min-width: 160px;

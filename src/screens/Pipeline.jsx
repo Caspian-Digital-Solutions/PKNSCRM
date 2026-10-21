@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { QRCodeSVG } from 'qrcode.react';
 import { useStore } from '../store.jsx';
 import { go } from '../router.js';
 import Filters from '../components/Filters.jsx';
@@ -8,6 +9,8 @@ import { LostDialog, SignedDialog, commitStage } from '../components/MoveDialogs
 import { PIPELINE_STAGES } from '../data/config.js';
 import { daysInStage, filteredEnquiries, liveAssets, pipelineSummary } from '../data/selectors.js';
 import { date, num, rm } from '../format.js';
+import { QR_SOURCE } from '../qrEnquiry.js';
+import { qrPageUrl, useQrEnquiries } from '../qrStore.js';
 
 const EMPTY_FILTERS = { asset: '', campaign: '', source: '', officer: '' };
 
@@ -17,11 +20,28 @@ export default function Pipeline() {
   const [filters, setFilters] = useState(EMPTY_FILTERS);
   const [pending, setPending] = useState(null);
   const [pulse, setPulse] = useState(false);
+  const [showQr, setShowQr] = useState(false);
+  const [freshQr, setFreshQr] = useState(() => new Set());
+  const seenQr = useRef(new Set());
+  const qrReady = useRef(false);
+  const pulseTimer = useRef(null);
+  const { rows: qrRows, enquiries: qrEnquiries } = useQrEnquiries();
   const assets = useMemo(() => liveAssets(data, state), [data, state]);
   const summary = useMemo(() => pipelineSummary(data, state, filters), [data, state, filters]);
   const enquiries = useMemo(() => filteredEnquiries(data, state, filters), [data, state, filters]);
   const byId = useMemo(() => new Map(enquiries.map((enquiry) => [enquiry.id, enquiry])), [enquiries]);
-  const sources = useMemo(() => [...new Set(filteredEnquiries(data, state, {}).map((enquiry) => enquiry.source).filter(Boolean))].sort(), [data, state]);
+  const shownQr = useMemo(() => qrEnquiries.filter((enquiry) => {
+    if (filters.asset && enquiry.asset !== filters.asset) return false;
+    if (filters.campaign) return false;
+    if (filters.source && enquiry.source !== filters.source) return false;
+    if (filters.officer && enquiry.officer !== filters.officer) return false;
+    return true;
+  }).slice().reverse(), [qrEnquiries, filters]);
+  const sources = useMemo(() => {
+    const names = filteredEnquiries(data, state, {}).map((enquiry) => enquiry.source).filter(Boolean);
+    if (qrEnquiries.length) names.push(QR_SOURCE);
+    return [...new Set(names)].sort();
+  }, [data, state, qrEnquiries.length]);
 
   useEffect(() => {
     if (!pulse) return undefined;
@@ -34,6 +54,21 @@ export default function Pipeline() {
     dispatch({ type: 'simulateHero' });
     setPulse(true);
   };
+
+  useEffect(() => {
+    const arrived = [];
+    for (const row of qrRows) {
+      if (qrReady.current && row.id && !seenQr.current.has(row.id)) arrived.push(row.id);
+      if (row.id) seenQr.current.add(row.id);
+    }
+    qrReady.current = true;
+    if (arrived.length) {
+      setFreshQr(new Set(arrived));
+      clearTimeout(pulseTimer.current);
+      pulseTimer.current = setTimeout(() => setFreshQr(new Set()), 5000);
+    }
+    return () => clearTimeout(pulseTimer.current);
+  }, [qrRows]);
 
   useEffect(() => {
     if (!canEdit) return undefined;
@@ -68,17 +103,37 @@ export default function Pipeline() {
           <h1 className="page-title">Enquiry pipeline</h1>
           <p className="lead">No retyping, no lost WhatsApp. The enquiry knows which ad it came from.</p>
           <p data-testid="pipeline-open">
-            Open <Num value={summary.open} format={num} watch="pipeline:open" />
+            Open <Num value={summary.open + shownQr.length} format={num} watch="pipeline:open" />
             {' · '}
             Open pipeline value <Num value={summary.openValue} format={rm} watch="pipeline:open-value" />
           </p>
         </div>
-        {canEdit && (
-          <button type="button" className="btn btn-primary" data-testid="simulate-enquiry" onClick={simulate}>
-            Simulate enquiry
+        <div className="screen-actions">
+          <button
+            type="button"
+            className="btn"
+            data-testid="qr-toggle"
+            aria-expanded={showQr}
+            onClick={() => setShowQr((open) => !open)}
+          >
+            {showQr ? 'Hide QR code' : 'Show QR code'}
           </button>
-        )}
+          {canEdit && (
+            <button type="button" className="btn btn-primary" data-testid="simulate-enquiry" onClick={simulate}>
+              Simulate enquiry
+            </button>
+          )}
+        </div>
       </div>
+      {showQr && (
+        <div className="qr-panel" data-testid="qr-panel">
+          <QRCodeSVG value={qrPageUrl()} size={300} title="Send an enquiry" data-testid="qr-code" />
+          <div>
+            <p className="qr-panel-title">Scan to send a live enquiry</p>
+            <p className="qr-panel-url">{qrPageUrl()}</p>
+          </div>
+        </div>
+      )}
       <Filters
         fields={['asset', 'campaign', 'source', 'officer']}
         value={filters}
@@ -103,19 +158,19 @@ export default function Pipeline() {
           >
             <header className="pipe-col-head">
               <h2>{stage}</h2>
-              <span data-testid={`count-${stage}`}><Num value={summary.counts[stage] || 0} format={num} watch={`pipeline:${stage}`} /></span>
+              <span data-testid={`count-${stage}`}><Num value={(summary.counts[stage] || 0) + (stage === 'New' ? shownQr.length : 0)} format={num} watch={`pipeline:${stage}`} /></span>
             </header>
             <div className="pipe-cards">
-              {enquiries.filter((enquiry) => enquiry.stage === stage).map((enquiry) => {
+              {[...(stage === 'New' ? shownQr : []), ...enquiries.filter((enquiry) => enquiry.stage === stage)].map((enquiry) => {
                 const asset = assets.find((item) => item.id === enquiry.asset);
                 const officer = data.officers[enquiry.officer];
                 const campaign = data.campaigns.find((item) => item.id === enquiry.campaign);
                 return (
                   <article
                     key={enquiry.id}
-                    className={`pipe-card${pulse && enquiry.hero && enquiry.stage === 'New' ? ' is-new' : ''}`}
-                    draggable={canEdit}
-                    data-testid={enquiry.hero ? 'hero-card' : undefined}
+                    className={`pipe-card${(pulse && enquiry.hero && enquiry.stage === 'New') || freshQr.has(String(enquiry.id).replace(/^qr-/, '')) ? ' is-new' : ''}`}
+                    draggable={canEdit && !enquiry.qr}
+                    data-testid={enquiry.hero ? 'hero-card' : (enquiry.qr ? 'qr-card' : undefined)}
                     onDragStart={canEdit ? (e) => {
                       e.dataTransfer.setData('text/plain', enquiry.id);
                       e.dataTransfer.effectAllowed = 'move';
@@ -137,7 +192,7 @@ export default function Pipeline() {
                       <span>{num(daysInStage(enquiry))} days in stage</span>
                       <span>Follow-up {date(enquiry.nextFollowUp)}</span>
                     </a>
-                    {canEdit && (
+                    {canEdit && !enquiry.qr && (
                       <label className="move-to">
                         Move to
                         <select

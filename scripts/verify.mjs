@@ -8,6 +8,7 @@ import {
 } from '../src/data/selectors.js';
 import { DEFINITIONS } from '../src/data/definitions.js';
 import { reportModel } from '../src/data/reportModel.js';
+import { QR_SOURCE, toQrEnquiry } from '../src/qrEnquiry.js';
 import { hours } from '../src/format.js';
 import { buildReportPdf } from '../src/reportPdf.js';
 import * as XLSX from 'xlsx';
@@ -392,6 +393,14 @@ check('Excel banner names the month', marketingLines[0][0], 'October 2026 · Dem
 check('Excel spend is the raw number', marketingLines.find((line) => line[0] === 'Spend')[1], 34206);
 const definitionLines = XLSX.utils.sheet_to_json(reportBook.Sheets.Definitions, { header: 1 });
 check('Excel definitions include the benchmark note', definitionLines.some((line) => String(line[3] || '').includes('Residential references are indicative only and not shown as targets.')), true);
+
+const qrKpsa = toQrEnquiry({ id: '1', name: 'Siti', business: 'Kedai Demo', space_type: 'Office', asset: 'kpsa', phone: '012' });
+const qrBangi = toQrEnquiry({ id: '2', asset: 'bangi' });
+const qrTower = toQrEnquiry({ id: '3', asset: 'mpkns' });
+check('QR enquiry lands in New', qrKpsa.stage, 'New');
+check('QR enquiry source', qrKpsa.source, QR_SOURCE);
+check('QR officers follow the asset', `${qrKpsa.officer}/${qrBangi.officer}/${qrTower.officer}`, 'aina/izzati/hafiz');
+check('QR enquiry for an unknown asset is dropped', toQrEnquiry({ id: 'x', asset: 'nope' }), null);
 
 const k = leasingKpis(D.units);
 console.log('\nComputed leasing figures (write these back to page 06 section 7):');
