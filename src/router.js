@@ -1,9 +1,19 @@
 import { useEffect, useState } from 'react';
 
-// Hash routing (#/screen/param) so a page reload keeps the presenter on the same screen.
+// Hash routing (#/screen/param?filter=value) so a reload and the back button keep the screen and its filters.
 const parse = () => {
-  const [screen = '', ...rest] = window.location.hash.replace(/^#\/?/, '').split('/');
-  return { screen, params: rest.map(decodeURIComponent) };
+  const raw = window.location.hash.replace(/^#\/?/, '');
+  const [path, query = ''] = raw.split('?');
+  const [screen = '', ...rest] = path.split('/').filter((part) => part !== '');
+  const search = {};
+  if (query) {
+    for (const part of query.split('&')) {
+      if (!part) continue;
+      const [key, value = ''] = part.split('=');
+      if (key) search[decodeURIComponent(key)] = decodeURIComponent(value);
+    }
+  }
+  return { screen, params: rest.map(decodeURIComponent), search };
 };
 
 export function useRoute() {
@@ -16,6 +26,17 @@ export function useRoute() {
   return route;
 }
 
-export const go = (screen, ...params) => {
-  window.location.hash = '/' + [screen, ...params.map(encodeURIComponent)].join('/');
+export const go = (screen, ...args) => {
+  const params = [];
+  const query = {};
+  for (const arg of args) {
+    if (arg && typeof arg === 'object') Object.assign(query, arg);
+    else if (arg != null && arg !== '') params.push(String(arg));
+  }
+  const qs = Object.entries(query)
+    .filter(([, value]) => value != null && value !== '')
+    .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
+    .join('&');
+  const path = [screen, ...params.map(encodeURIComponent)].filter(Boolean).join('/');
+  window.location.hash = `/${path}${qs ? `?${qs}` : ''}`;
 };

@@ -60,14 +60,17 @@ test('storyline figures from portfolio through reset', async ({ page }) => {
 
   await switchRole(page, 'Marketing');
   await expect(page.getByRole('heading', { name: 'Marketing dashboard' })).toBeVisible();
+  await page.getByRole('tab', { name: 'Website' }).click();
   await expect(page.getByTestId('sample-heatmap')).toContainText('Sample');
+  await page.getByRole('tab', { name: 'Social' }).click();
   await expect(page.getByTestId('followers-pkns-fb')).toContainText('55,200');
   await expect(page.getByTestId('followers-pkns-ig')).toContainText('9,650');
+  await expect(page.getByRole('heading', { name: 'Organic' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Paid' })).toBeVisible();
+  await page.getByRole('tab', { name: 'Google Ads' }).click();
   await expectKpi(page, 'google-spend', 'RM14,500');
   await expectKpi(page, 'google-ctr', '3.8%');
   await expectKpi(page, 'google-cpc', 'RM1.41');
-  await expect(page.getByRole('heading', { name: 'Organic' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Paid' })).toBeVisible();
 
   await openNav(page, 'Campaigns');
   await expectKpi(page, 'campaign-enquiries', '420');
@@ -82,7 +85,7 @@ test('storyline figures from portfolio through reset', async ({ page }) => {
   await expect(google).toContainText('RM3,360.00');
 
   await switchRole(page, 'Leasing');
-  await openNav(page, 'Enquiry pipeline');
+  await openNav(page, 'Enquiries');
   await expect(page.getByTestId('count-New')).toContainText('18');
   await expect(page.getByTestId('count-Signed')).toContainText('9');
   await page.getByTestId('simulate-enquiry').click();
@@ -126,11 +129,11 @@ test('storyline figures from portfolio through reset', async ({ page }) => {
   await expect(facebook).toContainText('211');
   await expect(facebook).toContainText('42');
 
-  await openNav(page, 'Asset detail');
+  await openNav(page, 'Assets');
   await expect(page.getByTestId('lot-4-07')).toBeVisible();
   await expect(page.getByTestId('lot-status')).toHaveText('Occupied');
 
-  await openNav(page, 'Portfolio overview');
+  await openNav(page, 'Overview');
   await expectKpi(page, 'kpi-occupancy', '79.9%');
   await expectKpi(page, 'kpi-occupied', '550');
   await expectKpi(page, 'kpi-vacant', '107');
@@ -138,7 +141,7 @@ test('storyline figures from portfolio through reset', async ({ page }) => {
   await expectKpi(page, 'kpi-new-leases', '10');
 
   await switchRole(page, 'Management');
-  await openNav(page, 'Management report');
+  await openNav(page, 'Reports');
   await expect(page.getByTestId('report-spend')).toHaveText('RM34,206');
   await expect(page.getByTestId('report-paid-enquiries')).toHaveText('283');
   await expect(page.getByTestId('report-cpl')).toHaveText('RM120.87');
@@ -168,11 +171,12 @@ test('storyline figures from portfolio through reset', async ({ page }) => {
   await expect(page.locator('.data-table')).toContainText('SITC');
 
   await switchRole(page, 'Marketing');
-  await openNav(page, 'Visitors (future phase)');
+  await openNav(page, 'Visitors');
   await expect(page.getByTestId('visitors-banner')).toHaveText("Future phase: connects to PKNS's visitor counting system when installed. Figures below are illustrative.");
 
   await switchRole(page, 'Management');
   await page.getByRole('button', { name: 'Reset demo' }).click();
+  await page.getByRole('button', { name: 'Reset', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Portfolio overview' })).toBeVisible();
   await expectKpi(page, 'kpi-assets', '12');
   await expectKpi(page, 'kpi-units', '838');
@@ -187,7 +191,7 @@ test('storyline figures from portfolio through reset', async ({ page }) => {
   await expectKpi(page, 'campaign-signed', '14');
   await expectKpi(page, 'campaign-cpl', 'RM114.29');
   await expectKpi(page, 'campaign-roas', '12.6x');
-  await openNav(page, 'Enquiry pipeline');
+  await openNav(page, 'Enquiries');
   await expect(page.getByTestId('count-New')).toContainText('18');
   await expect(page.getByTestId('count-Signed')).toContainText('9');
   await expect(page.getByTestId('hero-card')).toHaveCount(0);
@@ -202,13 +206,13 @@ test('layout, reload and the reset shortcut', async ({ page }) => {
   for (const viewport of [{ width: 1920, height: 1080 }, { width: 1440, height: 900 }]) {
     await page.setViewportSize(viewport);
     const screens = [
-      ['Portfolio overview', 'portfolio'],
-      ['Asset detail', 'asset'],
-      ['Marketing dashboard', 'marketing'],
+      ['Overview', 'portfolio'],
+      ['Assets', 'asset'],
+      ['Marketing', 'marketing'],
       ['Campaigns', 'campaign'],
-      ['Enquiry pipeline', 'pipeline'],
-      ['Management report', 'report'],
-      ['Visitors (future phase)', 'visitors'],
+      ['Enquiries', 'pipeline'],
+      ['Reports', 'report'],
+      ['Visitors', 'visitors'],
       ['Settings', 'settings'],
     ];
     for (const [name] of screens) {
@@ -218,7 +222,7 @@ test('layout, reload and the reset shortcut', async ({ page }) => {
   }
 
   await page.setViewportSize({ width: 1440, height: 900 });
-  await openNav(page, 'Portfolio overview');
+  await openNav(page, 'Overview');
   await expect(page.getByRole('button', { name: 'Asset', exact: true })).toBeVisible();
   const table = page.locator('main .table-scroll');
   await expect.poll(async () => table.evaluate((el) => el.clientWidth > 0 && el.scrollWidth > el.clientWidth + 1)).toBe(true);
@@ -249,14 +253,14 @@ test('layout, reload and the reset shortcut', async ({ page }) => {
   }
 
   await page.setViewportSize({ width: 1440, height: 900 });
-  await openNav(page, 'Enquiry pipeline');
+  await openNav(page, 'Enquiries');
   const boardFits = await page.locator('.board').evaluate((el) => el.scrollWidth <= el.clientWidth + 1);
   expect(boardFits).toBe(true);
   const lost = await page.getByTestId('column-Lost').boundingBox();
   expect(lost.x + lost.width).toBeLessThanOrEqual(1440 + 1);
   expect(await pageOverflow(page)).toBe(0);
 
-  await openNav(page, 'Asset detail');
+  await openNav(page, 'Assets');
   const lotsFit = await page.getByTestId('lot-grid').evaluate((el) => el.scrollWidth <= el.clientWidth + 1);
   expect(lotsFit).toBe(true);
   await expect(page.locator('.lot')).toHaveCount(120);
@@ -267,7 +271,7 @@ test('layout, reload and the reset shortcut', async ({ page }) => {
   expect(await pageOverflow(page)).toBe(0);
 
   await switchRole(page, 'Leasing');
-  await openNav(page, 'Enquiry pipeline');
+  await openNav(page, 'Enquiries');
   await page.getByTestId('simulate-enquiry').click();
   await page.getByTestId('hero-card').getByRole('link').click();
   await page.getByRole('textbox', { name: 'Entry' }).fill('Shortcut note');
@@ -292,7 +296,7 @@ test('layout, reload and the reset shortcut', async ({ page }) => {
   await expectKpi(page, 'kpi-assets', '12');
   await expectKpi(page, 'kpi-occupancy', '79.8%');
   await expect(page.locator('.data-table')).not.toContainText('SITC');
-  await openNav(page, 'Enquiry pipeline');
+  await openNav(page, 'Enquiries');
   await expect(page.getByTestId('hero-card')).toHaveCount(0);
   await expect(page.getByTestId('count-New')).toContainText('18');
 

@@ -46,6 +46,7 @@ export default function Filters({
   sources = [],
   fields = ['asset', 'campaign', 'channel', 'officer', 'source', 'range'],
   rangePresets = RANGE_PRESETS,
+  clearable = true,
 }) {
   const v = {
     asset: '',
@@ -84,6 +85,17 @@ export default function Filters({
             {rangePresets.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
           </select>
         </label>
+      )}
+      {clearable && (v.asset || v.campaign || v.channel || v.officer || v.source) && (
+        <button type="button" className="text-btn" onClick={() => onChange?.({
+          ...v,
+          asset: '',
+          campaign: '',
+          channel: '',
+          officer: '',
+          source: '',
+        })}
+        >Clear filters</button>
       )}
       {show('range') && v.preset === 'custom' && (
         <>

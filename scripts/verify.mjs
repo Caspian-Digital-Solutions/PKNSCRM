@@ -152,6 +152,13 @@ check('Hero stage / asset / lot', `${heroEnquiry.stage}/${heroEnquiry.asset}/${h
 check('Hero channel / campaign / source', `${heroEnquiry.channel}/${heroEnquiry.campaign}/${heroEnquiry.source}`, 'fb/sa/Facebook Lead Ad');
 check('Hero officer', heroEnquiry.officer, 'aina');
 check('Hero business', heroEnquiry.business, 'Teras Niaga Consulting Sdn Bhd');
+check('Hero lead form message', heroEnquiry.leadForm.message, 'Saya mencari pejabat sekitar 1,200 kaki persegi di Shah Alam untuk 8 staf. Boleh atur lawatan minggu ini?');
+check('Hero lead form size', heroEnquiry.leadForm.preferredSize, '1,000–1,500 sq ft');
+check('Hero lead form budget', heroEnquiry.leadForm.budget, 'Up to RM3,500 a month');
+check('Hero lead form move-in', heroEnquiry.leadForm.moveIn, 'December 2026');
+check('Hero lead form contact', heroEnquiry.leadForm.preferredContact, 'WhatsApp');
+check('Hero PDPA consent', heroEnquiry.consent.via, 'Lead form');
+check('Hero ad set', heroEnquiry.attribution.adSet, 'SA Sentral – Pemilik Perniagaan 25–55, Shah Alam 15km');
 check('Pipeline New before', pipelineSummary(D, {}).counts.New, 18);
 check('Pipeline Signed before', pipelineSummary(D, {}).counts.Signed, 9);
 check('Pipeline New while the hero is new', pipelineSummary(D, { heroStage: 'New' }).counts.New, 19);
@@ -408,6 +415,14 @@ check('QR enquiry lands in New', qrKpsa.stage, 'New');
 check('QR enquiry source', qrKpsa.source, QR_SOURCE);
 check('QR officers follow the asset', `${qrKpsa.officer}/${qrBangi.officer}/${qrTower.officer}`, 'aina/izzati/hafiz');
 check('QR enquiry for an unknown asset is dropped', toQrEnquiry({ id: 'x', asset: 'nope' }), null);
+
+const phones = D.enquiries.map((enquiry) => enquiry.contactDetails?.phone);
+check('Every enquiry has a lead form', D.enquiries.every((enquiry) => enquiry.leadForm?.businessType && enquiry.leadForm?.preferredSize && enquiry.leadForm?.budget && enquiry.leadForm?.message), true);
+check('Every enquiry has contact details', D.enquiries.every((enquiry) => enquiry.contactDetails?.phone && enquiry.contactDetails?.email?.endsWith('.com.my')), true);
+check('Every enquiry has PDPA consent', D.enquiries.every((enquiry) => enquiry.consent?.given === true && enquiry.consent.at === enquiry.receivedAt), true);
+check('Enquiry phones are unique', new Set(phones).size, 120);
+check('Enquiry phones use the fictional format', phones.every((phone) => /^01\d-\d{3} \d{4}$/.test(phone)), true);
+check('Enrichment leaves the enquiry count', D.enquiries.length, 120);
 
 const k = leasingKpis(D.units);
 console.log('\nComputed leasing figures (write these back to page 06 section 7):');

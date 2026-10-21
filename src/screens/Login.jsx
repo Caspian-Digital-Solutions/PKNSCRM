@@ -11,17 +11,17 @@ export default function Login() {
         <img className="login-logo" src={logo} alt="PKNS" />
         <h1>Asset Marketing Hub</h1>
         <p className="lead">One view of every PKNS asset: what is vacant, what marketing is bringing in, and which ringgit became a tenancy.</p>
-        <p className="choose">Choose a view</p>
         <div className="roles">
-          {Object.values(ROLES).map((r) => (
-            <button key={r.id} className="role-card" onClick={() => choose(r.id)}>
-              <span className="role-card-name">{r.name}</span>
-              <span className="role-card-blurb">{r.blurb}</span>
+          {Object.values(ROLES).map((role) => (
+            <button key={role.id} className="role-card" onClick={() => choose(role.id)}>
+              <span className="avatar" aria-hidden="true">{role.initials}</span>
+              <span className="role-card-name">{role.name}</span>
+              <span className="role-person">{role.person}</span>
+              <span className="role-card-blurb">{role.title}. Opens on {role.sees}.</span>
             </button>
           ))}
         </div>
       </div>
-      <p className="login-foot">Prototype by Caspian Digital Solutions · Demo data</p>
     </div>
   );
 }

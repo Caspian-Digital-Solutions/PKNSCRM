@@ -2,7 +2,7 @@
 // Every figure is computed here or in metrics.js. Pass live state in; do not copy numbers into components.
 
 import {
-  HERO, AS_AT, CHANNELS, PIPELINE_STAGES, LEASING_BY_MONTH, MONTHS, WEBSITE_OCT, TOP_POSTS, OFFICERS,
+  HERO, AS_AT, CHANNELS, PIPELINE_STAGES, LEASING_BY_MONTH, MONTHS, WEBSITE_OCT, TOP_POSTS, OFFICERS, AD_CREATIVES,
 } from './config.js';
 import { allocate, ymd, addDays, dateUTC, daysBetween } from './rng.js';
 import { lastDayOf } from './generate.js';
@@ -211,6 +211,23 @@ function heroRecord(data, s) {
     notes,
     log: [],
     signedId: s.heroStage === 'Signed' ? 'T-HERO' : null,
+    leadForm: {
+      businessType: 'services',
+      spaceType: 'Office',
+      preferredSize: '1,000–1,500 sq ft',
+      budget: 'Up to RM3,500 a month',
+      moveIn: 'December 2026',
+      preferredContact: 'WhatsApp',
+      message: 'Saya mencari pejabat sekitar 1,200 kaki persegi di Shah Alam untuk 8 staf. Boleh atur lawatan minggu ini?',
+    },
+    contactDetails: { phone: HERO.phone, email: HERO.email },
+    consent: { given: true, via: 'Lead form', at: receivedAt },
+    attribution: { adSet: AD_CREATIVES.sa.fb.adSet, ad: HERO.ad },
+    whatsapp: noteTimes[0] ? [
+      { from: 'officer', at: noteTimes[0], text: 'Encik Faizal, saya Aina. Lot 4-07 di SA Sentral masih kosong.' },
+      { from: 'enquirer', at: noteTimes[0], text: 'Saya mencari pejabat sekitar 1,200 kaki persegi di Shah Alam untuk 8 staf. Boleh atur lawatan minggu ini?' },
+      { from: 'officer', at: noteTimes[0], text: 'Boleh. Saya cadangkan lawatan minggu ini.' },
+    ] : [],
   };
 }
 

@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useStore } from '../store.jsx';
+import { useUi } from '../ui.jsx';
 import { go } from '../router.js';
 import DataTable from '../components/DataTable.jsx';
 import { liveAssets } from '../data/selectors.js';
@@ -37,6 +38,7 @@ function slug(name, assets) {
 
 export default function Settings() {
   const { state, dispatch, data } = useStore();
+  const ui = useUi();
   const assets = useMemo(() => liveAssets(data, state), [data, state]);
   const types = useMemo(() => {
     const list = [];
@@ -133,6 +135,9 @@ export default function Settings() {
     if (form.type === 'Event space' || spaces.length) asset.spaces = spaces;
     dispatch({ type: 'addAsset', asset });
     setNotice({ kind: 'saved', name });
+    if (fromSitc || /SITC|Selangor International/.test(name)) {
+      ui.notify({ title: 'SITC added to the portfolio', href: 'portfolio', action: 'View on portfolio' });
+    }
   };
 
   const columns = [

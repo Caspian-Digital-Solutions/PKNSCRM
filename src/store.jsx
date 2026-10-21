@@ -6,23 +6,39 @@ const DATA = generate();
 const KEY = 'pkns-hub-demo-v2';
 
 export const ROLES = {
-  marketing: { id: 'marketing', name: 'Marketing', landing: 'marketing', blurb: 'Campaigns, channels, content and cost per enquiry' },
-  leasing: { id: 'leasing', name: 'Leasing', landing: 'asset', blurb: 'Enquiries, viewings, units and tenancies' },
-  management: { id: 'management', name: 'Management', landing: 'portfolio', blurb: 'Portfolio occupancy, spend and return' },
+  marketing: {
+    id: 'marketing', name: 'Marketing', landing: 'marketing',
+    blurb: 'Campaigns, channels, content and cost per enquiry',
+    person: 'Farah Idris', title: 'Digital Marketing', initials: 'FI',
+    sees: 'Campaigns and channel results',
+  },
+  leasing: {
+    id: 'leasing', name: 'Leasing', landing: 'asset',
+    blurb: 'Enquiries, viewings, units and tenancies',
+    person: 'Aina Rahman', title: 'Leasing Officer, Section 14', initials: 'AR',
+    sees: 'Enquiries, units and tenancies',
+  },
+  management: {
+    id: 'management', name: 'Management', landing: 'portfolio',
+    blurb: 'Portfolio occupancy, spend and return',
+    person: 'Hisham Karim', title: 'General Manager, Asset Management', initials: 'HK',
+    sees: 'Portfolio occupancy, spend and return',
+  },
 };
 
 // Screen access matrix (Confluence page 04, section 3).
-// Enquiry detail uses the pipeline roles and stays out of the nav.
+// Enquiry detail and the list route stay out of the nav. The nav item is Enquiries (#/pipeline).
 export const SCREENS = [
-  { id: 'portfolio', n: 2, name: 'Portfolio overview', roles: ['marketing', 'leasing', 'management'], milestone: 'M1 · Fri 23 Oct' },
-  { id: 'asset', n: 3, name: 'Asset detail', roles: ['marketing', 'leasing', 'management'], milestone: 'M2 · Mon 26 Oct' },
-  { id: 'marketing', n: 4, name: 'Marketing dashboard', roles: ['marketing', 'management'], milestone: 'M2 · Mon 26 Oct' },
-  { id: 'campaign', n: 5, name: 'Campaigns', roles: ['marketing', 'leasing', 'management'], milestone: 'M1 · Fri 23 Oct' },
-  { id: 'pipeline', n: 6, name: 'Enquiry pipeline', roles: ['marketing', 'leasing', 'management'], milestone: 'M1 · Fri 23 Oct' },
-  { id: 'enquiry', n: 7, name: 'Enquiry detail', roles: ['marketing', 'leasing', 'management'], milestone: 'M1 · Fri 23 Oct', hidden: true },
-  { id: 'report', n: 10, name: 'Management report', roles: ['marketing', 'management'], milestone: 'M2 · Mon 26 Oct' },
-  { id: 'visitors', n: 9, name: 'Visitors (future phase)', roles: ['marketing', 'management'], milestone: 'M2 · Mon 26 Oct' },
-  { id: 'settings', n: 8, name: 'Settings', roles: ['management'], milestone: 'M2 · Mon 26 Oct' },
+  { id: 'portfolio', n: 2, name: 'Overview', roles: ['marketing', 'leasing', 'management'], milestone: 'M1' },
+  { id: 'asset', n: 3, name: 'Assets', roles: ['marketing', 'leasing', 'management'], milestone: 'M2' },
+  { id: 'marketing', n: 4, name: 'Marketing', roles: ['marketing', 'management'], milestone: 'M2' },
+  { id: 'campaign', n: 5, name: 'Campaigns', roles: ['marketing', 'leasing', 'management'], milestone: 'M1' },
+  { id: 'pipeline', n: 6, name: 'Enquiries', roles: ['marketing', 'leasing', 'management'], milestone: 'M1' },
+  { id: 'enquiries', n: 6, name: 'Enquiries', roles: ['marketing', 'leasing', 'management'], hidden: true },
+  { id: 'enquiry', n: 7, name: 'Enquiry detail', roles: ['marketing', 'leasing', 'management'], hidden: true },
+  { id: 'report', n: 10, name: 'Reports', roles: ['marketing', 'management'], milestone: 'M2' },
+  { id: 'visitors', n: 9, name: 'Visitors', roles: ['marketing', 'management'], milestone: 'M2' },
+  { id: 'settings', n: 8, name: 'Settings', roles: ['management'], milestone: 'M2' },
 ];
 
 // Date is the as-at date; the clock is the presenter's current time in Malaysia.

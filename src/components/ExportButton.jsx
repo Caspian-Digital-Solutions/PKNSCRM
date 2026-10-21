@@ -33,7 +33,10 @@ export default function ExportButton({
 }) {
   const onClick = () => {
     const book = sheets || [{ name: 'Data', columns, rows }];
+    const count = book.reduce((sum, sheet) => sum + (sheet.rows?.length || 0), 0);
+    const name = filename.endsWith('.xlsx') ? filename : `${filename}.xlsx`;
     exportSheets({ filename, banner, sheets: book });
+    window.dispatchEvent(new CustomEvent('pkns-toast', { detail: { title: `Exported ${count} rows to Excel`, detail: name } }));
   };
   return (
     <button type="button" className="export-btn" onClick={onClick}>{label}</button>

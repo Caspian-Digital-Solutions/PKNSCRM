@@ -70,10 +70,10 @@ export default function SampleHeatmap() {
                   {card.name}
                 </div>
               </foreignObject>
-              <text x={x + 10} y={y + 128} fill="#4a4546" fontSize="13" fontFamily="Source Sans 3, sans-serif">{card.use} · {num(card.size)} sq ft</text>
+              <text x={x + 10} y={y + 128} fill="#4a4546" fontSize="14" fontFamily="Source Sans 3, sans-serif">{card.use}, {num(card.size)} sq ft</text>
               <text x={x + 10} y={y + 148} fill="#231f20" fontSize="14" fontFamily="Source Sans 3, sans-serif" fontWeight="700">{`Dari ${rm(card.rent)} sebulan`}</text>
-              <rect x={x + 10} y={y + 156} width="112" height="22" rx="6" fill="#e31b23" />
-              <text x={x + 18} y={y + 171} fill="#ffffff" fontSize="12" fontFamily="Source Sans 3, sans-serif" fontWeight="700">Hubungi Kami</text>
+              <rect x={x + 10} y={y + 156} width="120" height="24" rx="6" fill="#e31b23" />
+              <text x={x + 18} y={y + 173} fill="#ffffff" fontSize="14" fontFamily="Source Sans 3, sans-serif" fontWeight="700">Hubungi Kami</text>
             </g>
           );
         })}

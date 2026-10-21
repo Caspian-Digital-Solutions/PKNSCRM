@@ -32,6 +32,7 @@ const BUILT = {
   marketing: Marketing,
   campaign: Campaign,
   pipeline: Pipeline,
+  enquiries: Pipeline,
   enquiry: Enquiry,
   settings: Settings,
   visitors: Visitors,
