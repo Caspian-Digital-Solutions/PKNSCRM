@@ -3,6 +3,7 @@ import {
   AS_AT, PERIOD, MONTHS, ASSETS, CAMPAIGNS, CHANNELS, SIGNED, OFFICERS, SOCIAL_PAGES, WEBSITE_OCT,
   STAGE_COUNTS, SOURCE_MIX, LOST_REASONS, HERO,
 } from './config.js';
+import { BUSINESSES } from './businesses.js';
 
 const r2 = (x) => Math.round(x * 100) / 100;
 const monthOf = (d) => d.slice(0, 7);
@@ -138,7 +139,6 @@ function buildCampaigns(rng, signed, spreadRng) {
   });
 }
 
-const BUSINESSES = ['Kedai Runcit Seri Mawar', 'Pusat Tuisyen Bestari', 'Klinik Gigi Senyum Alam', 'Butik Tudung Anggun', 'Rasa Senja Café', 'Optik Pandang Jelas', 'Farmasi Sihat Selalu', 'Kedai Gajet Pintar', 'Restoran Nasi Kandar Seri Alam', 'Akademi Muzik Irama', 'Dobi Layan Diri Kemas', 'Salon Rambut Sinar', 'Pusat Jahitan Kemas Rapi', 'Bakeri Roti Hangat', 'Kedai Bunga Teratai', 'Studio Yoga Tenang', 'Agensi Pelancongan Musafir', 'Kedai Buku Ilmu Jaya', 'Kopitiam Selera Lama', 'Pusat Fisioterapi Pulih', 'Tadika Cahaya Ilmu', 'Kedai Telefon Hubung', 'Butik Batik Warisan', 'Gerai Kek Lapis Sarawak', 'Pusat Kecergasan Aktif', 'Firma Guaman Adil & Rakan', 'Akauntan Teliti Sdn Bhd', 'Syarikat Hartanah Mewah', 'Klinik Haiwan Sayang', 'Pusat Bahasa Fasih', 'Kedai Cermin Mata Jernih', 'Bengkel Kunci Pantas', 'Kedai Jam Masa Kini', 'Studio Foto Kenangan', 'Pusat Perubatan Keluarga Sejahtera', 'Konsultan IT Rangkai Sdn Bhd', 'Syarikat Insurans Lindung', 'Kedai Kasut Langkah', 'Restoran Mee Bandung Muar', 'Pusat Dialisis Kasih', 'Perunding Kejuruteraan Teguh', 'Kafe Buku & Kopi', 'Butik Pengantin Seri', 'Kedai Perkakasan Rumah Indah', 'Pusat Latihan Kemahiran Maju', 'Koperasi Usahawan Muda', 'Syarikat Logistik Laju', 'Kedai Mainan Ceria'];
 const CONTACTS = ['Puan Rohana Ismail', 'Encik Lim Wei Jie', 'Cik Nurul Aisyah', 'Encik Ravi Subramaniam', 'Puan Tan Mei Ling', 'Encik Azman Yusof', 'Cik Priya Nair', 'Encik Hakim Zulkifli', 'Puan Siti Khadijah', 'Encik Wong Kok Leong', 'Cik Farah Hani', 'Encik Muthu Krishnan', 'Puan Norazlina Hassan', 'Encik Danial Rizal', 'Cik Chong Pei Shan', 'Encik Syafiq Ahmad', 'Puan Kavitha Raj', 'Encik Ong Boon Hock', 'Cik Izzah Najwa', 'Encik Firdaus Kamal'];
 
 const PAID_SOURCES = { 'Facebook Lead Ad': 'fb', 'Google Ads': 'gads', Instagram: 'ig' };
@@ -148,16 +148,14 @@ function buildEnquiries(rng, units, signed, campaigns) {
   const out = [];
   let n = 0;
   const nextId = () => `ENQ-${String(4100 + ++n)}`;
-  const respMinutes = () => Math.min(2880, Math.max(10, Math.round(Math.exp(Math.log(210) + 0.95 * gaussian(rng)))));
+  const respMinutes = () => Math.min(2880, Math.max(10, Math.round(Math.exp(Math.log(195) + 0.95 * gaussian(rng)))));
   const atTime = (d, hMin = 9, hMax = 18) => `${ymd(d)}T${String(rng.int(hMin, hMax)).padStart(2, '0')}:${String(rng.int(0, 59)).padStart(2, '0')}:00+08:00`;
   const plusMin = (iso, m) => new Date(new Date(iso).getTime() + m * 60000).toISOString();
-  const usedBiz = new Set();
-  const business = () => {
-    let b = rng.pick(BUSINESSES), guard = 0;
-    while (usedBiz.has(b) && guard++ < 20) b = rng.pick(BUSINESSES);
-    usedBiz.add(b);
-    return b;
-  };
+  // Each enquiry gets its own business: no name appears twice on the board.
+  const bizQueue = rng.shuffle(BUSINESSES);
+  const business = () => bizQueue.pop();
+  // A reserved unit is under negotiation with one prospect only.
+  const negotiating = new Set();
   const leasable = ASSETS.filter((a) => a.counts.redev === 0);
 
   // Signed this month: the October signed tenancies.
@@ -178,20 +176,34 @@ function buildEnquiries(rng, units, signed, campaigns) {
   for (const [stage, count] of Object.entries(STAGE_COUNTS)) {
     if (stage === 'Signed') continue;
     for (let i = 0; i < count; i++) {
-      const source = rng.weighted(SOURCE_MIX.map((s) => s[0]), SOURCE_MIX.map((s) => s[1]));
-      let campaign = null, channel = null, asset;
-      if (PAID_SOURCES[source]) {
-        channel = PAID_SOURCES[source];
-        const active = campaigns.filter((c) => c.end >= '2026-10-01');
-        const c = rng.weighted(active, active.map((x) => x.channels[channel][3] + 1));
-        campaign = c.id;
-        asset = rng.weighted(Object.keys(c.assets), Object.values(c.assets));
+      let source = rng.weighted(SOURCE_MIX.map((s) => s[0]), SOURCE_MIX.map((s) => s[1]));
+      let campaign = null, channel = null, asset, unit;
+      const active = campaigns.filter((c) => c.end >= '2026-10-01');
+      if (stage === 'Negotiation') {
+        // Negotiation holds a Reserved unit, one prospect per unit. Pick the unit first, then a campaign that covers it.
+        const free = units.filter((u) => u.status === 'Reserved' && !negotiating.has(u.id));
+        unit = rng.pick(free);
+        asset = unit.asset;
+        negotiating.add(unit.id);
+        const covering = active.filter((c) => c.assets[asset]);
+        if (PAID_SOURCES[source] && covering.length) {
+          channel = PAID_SOURCES[source];
+          campaign = rng.weighted(covering, covering.map((x) => x.channels[channel][3] + 1)).id;
+        } else if (PAID_SOURCES[source]) {
+          source = 'Website form';
+        }
       } else {
-        const a = rng.weighted(leasable, leasable.map((x) => x.counts.vacant + x.counts.reserved));
-        asset = a.id;
+        if (PAID_SOURCES[source]) {
+          channel = PAID_SOURCES[source];
+          const c = rng.weighted(active, active.map((x) => x.channels[channel][3] + 1));
+          campaign = c.id;
+          asset = rng.weighted(Object.keys(c.assets), Object.values(c.assets));
+        } else {
+          const a = rng.weighted(leasable, leasable.map((x) => x.counts.vacant + x.counts.reserved));
+          asset = a.id;
+        }
+        unit = rng.pick(units.filter((u) => u.asset === asset && u.status === 'Vacant' && u.lot !== HERO.lot));
       }
-      const pool = units.filter((u) => u.asset === asset && (stage === 'Negotiation' ? u.status === 'Reserved' : u.status === 'Vacant') && u.lot !== HERO.lot);
-      const unit = rng.pick(pool.length ? pool : units.filter((u) => u.asset === asset && u.status === 'Vacant' && u.lot !== HERO.lot));
       const [lo, hi] = ageRange[stage];
       const received = atTime(addDays(asAt, -rng.int(lo, hi)));
       const reached = stage === 'Lost' ? rng.int(1, 4) : flow.indexOf(stage);

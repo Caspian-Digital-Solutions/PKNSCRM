@@ -51,7 +51,13 @@ function draw(model, logoDataUrl, layout) {
       margin: { left, right: PAGE_WIDTH - left - width, top: 26, bottom: 12 },
       tableWidth: width,
       head: [['Measure', 'This month', 'Last month', 'Change']],
-      body: block.rows.map((row) => [row.label, row.currentText, row.previousText, row.changeText]),
+      body: block.rows.map((row) => [
+        row.label,
+        row.currentText,
+        row.previousText,
+        // Helvetica has no U+2212, so the PDF draws the same minus as a hyphen.
+        String(row.changeText ?? '').replaceAll('\u2212', '-'),
+      ]),
       theme: 'grid',
       styles: {
         font: 'helvetica',

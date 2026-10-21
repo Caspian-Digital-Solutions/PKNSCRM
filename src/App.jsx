@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { useStore, ROLES, SCREENS } from './store.jsx';
 import { useRoute, go } from './router.js';
 import Shell from './components/Shell.jsx';
@@ -40,6 +41,9 @@ const BUILT = {
 export default function App() {
   const { state } = useStore();
   const { screen, params } = useRoute();
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [screen]);
   if (screen === 'qr') return <QrForm />;
   if (!state.role) return <Login />;
   const role = ROLES[state.role];

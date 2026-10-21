@@ -35,6 +35,7 @@ export default function DataTable({
   exportName = 'export',
   onRowClick,
   initialSort,
+  className,
 }) {
   const [sort, setSort] = useState(() => initialSort || { key: null, dir: 'asc' });
   const [filters, setFilters] = useState({});
@@ -92,8 +93,13 @@ export default function DataTable({
         )}
         <ExportButton filename={exportName} columns={columns} rows={sorted} />
       </div>
-      <div className="table-scroll">
-        <table className="table data-table">
+      <div className={className ? `table-scroll ${className}` : 'table-scroll'}>
+        <table className={className ? `table data-table ${className}-table` : 'table data-table'}>
+          {columns.some((col) => col.width) && (
+            <colgroup>
+              {columns.map((col) => <col key={col.key} style={col.width ? { width: col.width } : undefined} />)}
+            </colgroup>
+          )}
           <thead>
             <tr>
               {columns.map((col) => {

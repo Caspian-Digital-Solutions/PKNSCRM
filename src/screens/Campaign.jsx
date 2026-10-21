@@ -14,6 +14,13 @@ import {
 import { totalRow } from '../data/metrics.js';
 import { num, rm, rm2, pct, x, date, dayMonth, ratio } from '../format.js';
 
+const CHANNEL_TABLE_NAMES = {
+  'Facebook lead ads': 'Facebook lead ads',
+  'Instagram ads': 'Instagram ads',
+  'Google Ads (Search)': 'Google Ads',
+  'Boosted posts (FB/IG)': 'Boosted posts',
+};
+
 const flash = (table, key, format) => (value, row) => (
   <Num value={value} format={format} watch={`${table}:${key}:${row?.channel || row?.id || 'total'}`} />
 );
@@ -107,19 +114,19 @@ export default function Campaign({ params }) {
     .slice(0, 8), [data, state, campaign.id]);
 
   const channelColumns = [
-    { key: 'name', label: 'Channel' },
-    { key: 'spend', label: 'Spend', align: 'right', total: 'sum', format: flash('channel', 'spend', rm) },
-    { key: 'impressions', label: 'Impressions', align: 'right', total: 'sum', format: flash('channel', 'impressions', num) },
-    { key: 'clicks', label: 'Clicks', align: 'right', total: 'sum', format: flash('channel', 'clicks', num) },
-    { key: 'ctr', label: 'CTR', align: 'right', format: flash('channel', 'ctr', pct), total: (list) => totalRow(list).ctr },
-    { key: 'enquiries', label: 'Paid enquiries', align: 'right', total: 'sum', format: flash('channel', 'enquiries', num) },
-    { key: 'cpl', label: 'CPL', term: 'cpl', align: 'right', format: flash('channel', 'cpl', rm2), total: (list) => totalRow(list).cpl },
-    { key: 'viewings', label: 'Viewings', align: 'right', total: 'sum', format: flash('channel', 'viewings', num) },
-    { key: 'costPerViewing', label: 'Cost per viewing', term: 'cost-per-viewing', align: 'right', format: flash('channel', 'costPerViewing', rm2), total: (list) => totalRow(list).costPerViewing },
-    { key: 'signed', label: 'Signed', align: 'right', total: 'sum', format: flash('channel', 'signed', num) },
-    { key: 'costPerSigned', label: 'Cost per signed tenant', term: 'cost-per-signed', align: 'right', format: flash('channel', 'costPerSigned', rm2), total: (list) => totalRow(list).costPerSigned },
-    { key: 'firstYearValue', label: 'First-year rental value', align: 'right', total: 'sum', format: flash('channel', 'firstYearValue', rm) },
-    { key: 'roas', label: 'ROAS', term: 'roas', align: 'right', format: flash('channel', 'roas', x), total: (list) => totalRow(list).roas },
+    { key: 'name', label: 'Channel', width: '10%' },
+    { key: 'spend', label: 'Spend', width: '8%', align: 'right', total: 'sum', format: flash('channel', 'spend', rm) },
+    { key: 'impressions', label: 'Impressions', width: '10%', align: 'right', total: 'sum', format: flash('channel', 'impressions', num) },
+    { key: 'clicks', label: 'Clicks', width: '7%', align: 'right', total: 'sum', format: flash('channel', 'clicks', num) },
+    { key: 'ctr', label: 'CTR', width: '5.5%', align: 'right', format: flash('channel', 'ctr', pct), total: (list) => totalRow(list).ctr },
+    { key: 'enquiries', label: 'Paid enquiries', width: '8%', align: 'right', total: 'sum', format: flash('channel', 'enquiries', num) },
+    { key: 'cpl', label: 'CPL', width: '7.5%', term: 'cpl', align: 'right', format: flash('channel', 'cpl', rm2), total: (list) => totalRow(list).cpl },
+    { key: 'viewings', label: 'Viewings', width: '6.5%', align: 'right', total: 'sum', format: flash('channel', 'viewings', num) },
+    { key: 'costPerViewing', label: 'Cost per viewing', width: '8%', term: 'cost-per-viewing', align: 'right', format: flash('channel', 'costPerViewing', rm2), total: (list) => totalRow(list).costPerViewing },
+    { key: 'signed', label: 'Signed', width: '6.5%', align: 'right', total: 'sum', format: flash('channel', 'signed', num) },
+    { key: 'costPerSigned', label: 'Cost per signed tenant', width: '8.5%', term: 'cost-per-signed', align: 'right', format: flash('channel', 'costPerSigned', rm2), total: (list) => totalRow(list).costPerSigned },
+    { key: 'firstYearValue', label: 'First-year rental value', width: '8%', align: 'right', total: 'sum', format: flash('channel', 'firstYearValue', rm) },
+    { key: 'roas', label: 'ROAS', width: '6.5%', term: 'roas', align: 'right', format: flash('channel', 'roas', x), total: (list) => totalRow(list).roas },
   ];
 
   const assetColumns = [
@@ -196,7 +203,13 @@ export default function Campaign({ params }) {
       <h2 className="section-title">Funnel</h2>
       <Funnel steps={steps} />
       <h2 className="section-title">Channels</h2>
-      <DataTable columns={channelColumns} rows={rows} totals exportName={`campaign-${campaign.id}-channels`} />
+      <DataTable
+        className="channel-fit"
+        columns={channelColumns}
+        rows={rows.map((row) => ({ ...row, name: CHANNEL_TABLE_NAMES[row.name] || row.name }))}
+        totals
+        exportName={`campaign-${campaign.id}-channels`}
+      />
       <h2 className="section-title">Weekly spend and paid enquiries</h2>
       <div className="chart-wrap">
         <ResponsiveContainer width="100%" height="100%">

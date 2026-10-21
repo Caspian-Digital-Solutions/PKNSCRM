@@ -34,6 +34,54 @@ export function signedChange(value, format) {
   return text;
 }
 
+const VALUE_FORMATS = { num, rm, rm2, pct, x, ratio, years, hours, pctStored };
+const MINUS = '\u2212';
+
+function shownNumber(value, format) {
+  const fn = VALUE_FORMATS[format] || num;
+  const text = fn(value);
+  if (text == null || text === '–') return null;
+  const body = String(text).replace(/^RM/, '');
+  const negative = body.startsWith('-') || body.startsWith(MINUS);
+  const digits = body.replace(/^[+\u2212-]/, '').replace(/[^0-9.]/g, '');
+  if (!digits || !Number.isFinite(Number(digits))) return null;
+  return negative ? -Number(digits) : Number(digits);
+}
+
+function shownPlaces(value, format) {
+  const fn = VALUE_FORMATS[format] || num;
+  const text = String(fn(value)).replace(/^RM/, '').replace(/^[+\u2212-]/, '');
+  const match = text.match(/\.(\d+)/);
+  return match ? match[1].length : 0;
+}
+
+// Difference of the numbers a reader sees, so the change column matches the subtraction.
+export function displayedDelta(current, previous, format) {
+  const a = shownNumber(current, format);
+  const b = shownNumber(previous, format);
+  if (a == null || b == null) return null;
+  return round(a - b, shownPlaces(current, format));
+}
+
+export function delta(current, previous, format) {
+  const diff = displayedDelta(current, previous, format);
+  if (diff == null) return '–';
+  const places = shownPlaces(current, format);
+  if (format === 'rm' || format === 'rm2') {
+    const body = (format === 'rm2' ? nf2 : nf0).format(Math.abs(diff));
+    if (diff < 0) return `${MINUS}RM${body}`;
+    if (diff > 0) return `+RM${body}`;
+    return `RM${body}`;
+  }
+  if (format === 'pct' || format === 'pctStored') {
+    const body = Math.abs(diff).toFixed(places);
+    if (diff < 0) return `${MINUS}${body} pts`;
+    if (diff > 0) return `+${body} pts`;
+    return `${(0).toFixed(places)} pts`;
+  }
+  return signedChange(diff, VALUE_FORMATS[format] || num);
+}
+
 export function duration(minutes) {
   if (minutes == null || !Number.isFinite(Number(minutes))) return '–';
   const m = Math.max(0, Math.round(Number(minutes)));

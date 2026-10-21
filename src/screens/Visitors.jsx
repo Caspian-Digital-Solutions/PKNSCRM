@@ -4,7 +4,7 @@ import { useStore } from '../store.jsx';
 import Filters from '../components/Filters.jsx';
 import Kpi from '../components/Kpi.jsx';
 import { liveAssets, visitorSummary } from '../data/selectors.js';
-import { num, rm, pct, dec1, dayMonth } from '../format.js';
+import { num, rm, pct, dayMonth } from '../format.js';
 
 function VisitorDot({ cx, cy, payload }) {
   if (cx == null || cy == null) return null;
@@ -30,7 +30,6 @@ export default function Visitors({ params }) {
     [data, selected, range.from, range.to],
   );
   const chart = summary.daily.map((day) => ({ ...day, label: dayMonth(day.date) }));
-  const asset = assets.find((item) => item.id === selected);
 
   return (
     <section>
@@ -45,10 +44,9 @@ export default function Visitors({ params }) {
         </label>
         <Filters fields={['range']} value={range} onChange={setRange} />
       </div>
-      <p className="lead">{asset?.name}</p>
       <div className="kpi-row">
-        <Kpi label="Average weekday visitors" value={summary.weekdayAverage} format={dec1} testId="visitors-weekday" />
-        <Kpi label="Average weekend visitors" value={summary.weekendAverage} format={dec1} testId="visitors-weekend" />
+        <Kpi label="Average weekday visitors" value={summary.weekdayAverage} format={num} testId="visitors-weekday" />
+        <Kpi label="Average weekend visitors" value={summary.weekendAverage} format={num} testId="visitors-weekend" />
         <Kpi label="Total visitors" value={summary.total} format={num} testId="visitors-total" />
       </div>
       <div className="chart-wrap">
@@ -63,8 +61,8 @@ export default function Visitors({ params }) {
               contentStyle={{ fontSize: 16, color: 'var(--ink)' }}
             />
             <Legend wrapperStyle={{ fontSize: 14, color: 'var(--ink)' }} />
-            <Bar yAxisId="spend" dataKey="spend" name="SA Sentral spend (RM)" fill="var(--s2)" maxBarSize={18} />
             <Line yAxisId="visitors" dataKey="visitors" name="Visitors" stroke="var(--s1)" strokeWidth={2} dot={<VisitorDot />} />
+            <Bar yAxisId="spend" dataKey="spend" name="SA Sentral spend (RM)" fill="var(--s2)" maxBarSize={18} />
           </ComposedChart>
         </ResponsiveContainer>
       </div>

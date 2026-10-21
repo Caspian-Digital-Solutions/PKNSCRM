@@ -59,11 +59,21 @@ export default function Marketing() {
 
   const paidColumns = [
     { key: 'name', label: 'Channel' },
-    { key: 'spend', label: 'Spend', align: 'right', format: flash('paid-spend', rm) },
-    { key: 'impressions', label: 'Impressions', align: 'right', format: flash('paid-impressions', num) },
-    { key: 'clicks', label: 'Clicks', align: 'right', format: flash('paid-clicks', num) },
-    { key: 'enquiries', label: 'Paid enquiries', align: 'right', format: flash('paid-enquiries', num) },
-    { key: 'cpl', label: 'CPL', align: 'right', format: flash('paid-cpl', rm2) },
+    { key: 'spend', label: 'Spend', align: 'right', total: 'sum', format: flash('paid-spend', rm) },
+    { key: 'impressions', label: 'Impressions', align: 'right', total: 'sum', format: flash('paid-impressions', num) },
+    { key: 'clicks', label: 'Clicks', align: 'right', total: 'sum', format: flash('paid-clicks', num) },
+    { key: 'enquiries', label: 'Paid enquiries', align: 'right', total: 'sum', format: flash('paid-enquiries', num) },
+    {
+      key: 'cpl',
+      label: 'CPL',
+      align: 'right',
+      format: flash('paid-cpl', rm2),
+      total: (list) => {
+        const spend = list.reduce((sum, row) => sum + (Number(row.spend) || 0), 0);
+        const enquiries = list.reduce((sum, row) => sum + (Number(row.enquiries) || 0), 0);
+        return enquiries ? spend / enquiries : null;
+      },
+    },
   ];
 
   const postColumns = [
@@ -167,7 +177,7 @@ export default function Marketing() {
       <DataTable columns={organicColumns} rows={summary.social} exportName="organic-social" />
       <h3 className="section-title">Paid</h3>
       <p className="footnote">Paid social is separate from organic. The two are not added together.</p>
-      <DataTable columns={paidColumns} rows={summary.paidSocial} exportName="paid-social" />
+      <DataTable columns={paidColumns} rows={summary.paidSocial} totals exportName="paid-social" />
       <h3 className="section-title">Top posts</h3>
       <DataTable columns={postColumns} rows={summary.topPosts} exportName="top-posts" />
 
