@@ -3,7 +3,7 @@ import { Command } from 'cmdk';
 import { useStore, ROLES, SCREENS } from '../store.jsx';
 import { useUi } from '../ui.jsx';
 import { go } from '../router.js';
-import { liveAssets, liveEnquiries } from '../data/selectors.js';
+import { liveAssets, liveEnquiries, liveUnits } from '../data/selectors.js';
 
 export default function CommandPalette() {
   const { state, dispatch, data } = useStore();
@@ -12,6 +12,8 @@ export default function CommandPalette() {
   const screens = SCREENS.filter((item) => !item.hidden && item.roles.includes(state.role));
   const enquiries = useMemo(() => liveEnquiries(data, state), [data, state]);
   const assets = useMemo(() => liveAssets(data, state), [data, state]);
+  const units = useMemo(() => liveUnits(data, state), [data, state]);
+  const assetById = useMemo(() => new Map(assets.map((asset) => [asset.id, asset])), [assets]);
 
   const close = () => setPalette(false);
   const run = (fn) => {
@@ -48,6 +50,27 @@ export default function CommandPalette() {
               {asset.name}
             </Command.Item>
           ))}
+        </Command.Group>
+        <Command.Group heading="Campaigns">
+          {data.campaigns.map((item) => (
+            <Command.Item key={item.id} value={`campaign ${item.name} ${item.short}`} onSelect={() => run(() => go('campaign', item.id))}>
+              {item.name}
+            </Command.Item>
+          ))}
+        </Command.Group>
+        <Command.Group heading="Lots">
+          {units.map((unit) => {
+            const asset = assetById.get(unit.asset);
+            return (
+              <Command.Item
+                key={unit.id}
+                value={`lot ${unit.lot} ${asset?.short || ''} ${asset?.name || ''} ${unit.id}`}
+                onSelect={() => run(() => go('asset', unit.asset, { lot: unit.id }))}
+              >
+                Lot {unit.lot}{asset?.short ? `, ${asset.short}` : ''}
+              </Command.Item>
+            );
+          })}
         </Command.Group>
         <Command.Group heading="Actions">
           {state.role === 'leasing' && !state.heroStage && (

@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useStore } from '../store.jsx';
-import { go } from '../router.js';
+import { go, useRoute } from '../router.js';
 import DataTable from '../components/DataTable.jsx';
+import Filters from '../components/Filters.jsx';
 import Num from '../components/Num.jsx';
+import { PIPELINE_STAGES } from '../data/config.js';
 import { assetDetail, liveAssets } from '../data/selectors.js';
 import { num, rm, rm2, pct, x, date } from '../format.js';
 
@@ -26,11 +28,21 @@ export default function Asset({ params }) {
   const assetId = params?.[0] || 'kpsa';
   const assets = useMemo(() => liveAssets(data, state), [data, state]);
   const detail = useMemo(() => assetDetail(data, state, assetId), [data, state, assetId]);
+  const { search } = useRoute();
+  const routeLot = search.lot || '';
   const [tab, setTab] = useState('lots');
   const [lotId, setLotId] = useState(null);
   const [photo, setPhoto] = useState(null);
+  const [query, setQuery] = useState('');
+  const [facet, setFacet] = useState({ status: '', floor: '', stage: '' });
 
-  useEffect(() => { setLotId(null); setTab('lots'); }, [assetId]);
+  useEffect(() => {
+    setQuery('');
+    setFacet({ status: '', floor: '', stage: '' });
+    setTab('lots');
+  }, [assetId]);
+
+  useEffect(() => { setLotId(routeLot || null); }, [assetId, routeLot]);
 
   useEffect(() => {
     let cancelled = false;
@@ -57,24 +69,42 @@ export default function Asset({ params }) {
   const preferred = detail.units.find((unit) => unit.id === 'kpsa:4-07') || detail.units[0] || null;
   const selected = detail.units.find((unit) => unit.id === lotId) || preferred;
   const visitorAsset = Boolean(data.visitors?.byAsset?.[asset.id]);
+  const needle = query.trim().toLowerCase();
+  const lotActive = Boolean(needle || facet.status || facet.floor || facet.stage);
+  const lotMatches = (unit) => {
+    if (facet.status && unit.status !== facet.status) return false;
+    if (facet.floor && String(unit.floor) !== String(facet.floor)) return false;
+    if (facet.stage && !detail.enquiries.some((enquiry) => (enquiry.unitId === unit.id || enquiry.lot === unit.lot) && enquiry.stage === facet.stage)) return false;
+    if (needle && !`${unit.lot || ''} ${unit.floor || ''} ${unit.use || ''} ${unit.status || ''}`.toLowerCase().includes(needle)) return false;
+    return true;
+  };
+  const visibleUnits = detail.units.filter(lotMatches);
+  const visibleEnquiries = detail.enquiries.filter((enquiry) => {
+    if (facet.stage && enquiry.stage !== facet.stage) return false;
+    const unit = detail.units.find((item) => item.id === enquiry.unitId || item.lot === enquiry.lot);
+    if (facet.status && unit?.status !== facet.status) return false;
+    if (facet.floor && String(unit?.floor) !== String(facet.floor)) return false;
+    if (needle && !`${enquiry.business || ''} ${enquiry.contact || ''} ${enquiry.lot || ''} ${enquiry.stage || ''} ${enquiry.source || ''} ${enquiry.id || ''}`.toLowerCase().includes(needle)) return false;
+    return true;
+  });
+  const visibleSpaces = detail.spaces.filter((space) => !needle || `${space.name || ''} ${space.status || ''}`.toLowerCase().includes(needle));
+  const legendCount = (status) => (lotActive ? visibleUnits.filter((unit) => unit.status === status).length : detail.counts[status]);
 
   const lotColumns = [
     { key: 'lot', label: 'Lot' },
-    { key: 'floor', label: 'Floor', filter: 'select' },
-    { key: 'use', label: 'Use', filter: 'select' },
+    { key: 'floor', label: 'Floor' },
+    { key: 'use', label: 'Use' },
     { key: 'size', label: 'Size (sq ft)', align: 'right', format: (value) => num(value) },
     { key: 'psf', label: 'Asking rent psf', align: 'right', format: (value) => rm2(value) },
     { key: 'rent', label: 'Asking rent per month', align: 'right', format: (value) => rm(value) },
     {
       key: 'status',
       label: 'Status',
-      filter: 'select',
       format: (value, row) => <Num value={value} watch={row ? `unit:${row.id}` : undefined} />,
     },
     {
       key: 'leaseWindow',
       label: 'Lease expiry',
-      filter: 'select',
       filterLabel: 'Lease expiry',
       sortValue: (row) => row.leaseExpiry || '',
       exportValue: (row) => row.leaseExpiry || '',
@@ -94,8 +124,8 @@ export default function Asset({ params }) {
       ) : value),
     },
     { key: 'lot', label: 'Lot' },
-    { key: 'stage', label: 'Stage', filter: 'select' },
-    { key: 'source', label: 'Source', filter: 'select' },
+    { key: 'stage', label: 'Stage' },
+    { key: 'source', label: 'Source' },
     {
       key: 'officer',
       label: 'Officer',
@@ -172,6 +202,16 @@ export default function Asset({ params }) {
         </dl>
       </div>
       {asset.note ? <p className="footnote">{asset.note}</p> : null}
+      <Filters
+        query={query}
+        onQuery={setQuery}
+        fields={detail.eventSpace ? ['stage'] : ['status', 'floor', 'stage']}
+        value={facet}
+        onChange={(next) => setFacet({ status: next.status || '', floor: next.floor || '', stage: next.stage || '' })}
+        statuses={STATUSES}
+        floors={detail.floors.map((floor) => ({ id: String(floor.floor), name: String(floor.floor) }))}
+        stages={PIPELINE_STAGES}
+      />
 
       <div className="tabs" role="tablist" aria-label="Asset sections">
         {[
@@ -185,7 +225,11 @@ export default function Asset({ params }) {
       </div>
 
       {tab === 'lots' && detail.eventSpace && (
-        <DataTable columns={spaceColumns} rows={detail.spaces} exportName={`${asset.id}-spaces`} />
+        visibleSpaces.length === 0 ? (
+          <p className="empty-state">No spaces match these filters. Clear filters to see every space.</p>
+        ) : (
+          <DataTable columns={spaceColumns} rows={visibleSpaces} exportName={`${asset.id}-spaces`} />
+        )
       )}
 
       {tab === 'lots' && !detail.eventSpace && (
@@ -195,17 +239,23 @@ export default function Asset({ params }) {
               <li key={status}>
                 <span className={`swatch lot-${lotClass(status)}`} />
                 {status}
-                <Num value={detail.counts[status]} format={num} watch={`legend:${asset.id}:${status}`} />
+                <Num value={legendCount(status)} format={num} watch={`legend:${asset.id}:${status}`} />
               </li>
             ))}
           </ul>
           <div className="lot-layout">
             <div className="lot-board" data-testid="lot-grid">
-              {detail.floors.map((floor) => (
+              {visibleUnits.length === 0 && (
+                <p className="empty-state">No lots match these filters. Clear filters to see every lot.</p>
+              )}
+              {detail.floors.map((floor) => {
+                const units = floor.units.filter(lotMatches);
+                if (!units.length) return null;
+                return (
                 <div key={floor.floor} className="floor-row">
                   <div className="floor-label">{floor.floor}</div>
                   <div className="lot-tiles">
-                    {floor.units.map((unit) => (
+                    {units.map((unit) => (
                       <span key={unit.id} className="lot-wrap">
                       <button
                         type="button"
@@ -227,7 +277,8 @@ export default function Asset({ params }) {
                     ))}
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
             <aside className="lot-panel">
               {selected ? (
@@ -273,12 +324,16 @@ export default function Asset({ params }) {
             </aside>
           </div>
           <h2 className="section-title">Lots</h2>
-          <DataTable columns={lotColumns} rows={detail.units} exportName={`${asset.id}-lots`} onRowClick={(row) => setLotId(row.id)} pageSize={25} />
+          <DataTable columns={lotColumns} rows={visibleUnits} exportName={`${asset.id}-lots`} onRowClick={(row) => setLotId(row.id)} pageSize={25} />
         </>
       )}
 
       {tab === 'enquiries' && (
-        <DataTable columns={enquiryColumns} rows={detail.enquiries} exportName={`${asset.id}-enquiries`} />
+        {visibleEnquiries.length === 0 ? (
+          <p className="empty-state">No enquiries match these filters. Clear filters to see every enquiry on this asset.</p>
+        ) : (
+          <DataTable columns={enquiryColumns} rows={visibleEnquiries} exportName={`${asset.id}-enquiries`} />
+        )}
       )}
 
       {tab === 'campaigns' && (

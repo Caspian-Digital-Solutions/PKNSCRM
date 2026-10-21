@@ -55,6 +55,8 @@ export default function Pipeline() {
   };
   const month = search.month || '';
   const view = search.view || '';
+  const query = search.q || '';
+  const stage = search.stage || '';
   const [pending, setPending] = useState(null);
   const [showQr, setShowQr] = useState(false);
   const [freshQr, setFreshQr] = useState(() => new Set());
@@ -72,7 +74,16 @@ export default function Pipeline() {
   const assets = useMemo(() => liveAssets(data, state), [data, state]);
   const base = useMemo(() => filteredEnquiries(data, state, filters).filter((enquiry) => !month || String(enquiry.receivedAt || '').startsWith(month)), [data, state, filters.asset, filters.campaign, filters.source, filters.officer, month]);
   const countsFor = (name) => base.filter((enquiry) => matchesView(enquiry, name, state.role)).length;
-  const enquiries = useMemo(() => base.filter((enquiry) => matchesView(enquiry, view, state.role)), [base, view, state.role]);
+  const textMatch = (enquiry, q) => {
+    if (!q.trim()) return true;
+    const asset = assets.find((item) => item.id === enquiry.asset);
+    const blob = `${enquiry.business || ''} ${enquiry.contact || ''} ${enquiry.lot || ''} ${enquiry.id || ''} ${asset?.short || ''} ${asset?.name || ''}`.toLowerCase();
+    return blob.includes(q.trim().toLowerCase());
+  };
+  const enquiries = useMemo(
+    () => base.filter((enquiry) => matchesView(enquiry, view, state.role) && (!stage || enquiry.stage === stage) && textMatch(enquiry, query)),
+    [base, view, state.role, stage, query, assets],
+  );
   const byId = useMemo(() => new Map(enquiries.map((enquiry) => [enquiry.id, enquiry])), [enquiries]);
   const shownQr = useMemo(() => qrEnquiries.filter((enquiry) => {
     if (view && view !== 'open' && view !== 'awaiting') return false;
@@ -81,8 +92,10 @@ export default function Pipeline() {
     if (filters.source && enquiry.source !== filters.source) return false;
     if (filters.officer && enquiry.officer !== filters.officer) return false;
     if (month && !String(enquiry.receivedAt || '').startsWith(month)) return false;
+    if (stage && enquiry.stage !== stage) return false;
+    if (!textMatch(enquiry, query)) return false;
     return true;
-  }).slice().reverse(), [qrEnquiries, filters.asset, filters.campaign, filters.source, filters.officer, month, view]);
+  }).slice().reverse(), [qrEnquiries, filters.asset, filters.campaign, filters.source, filters.officer, month, view, stage, query, assets]);
   const sources = useMemo(() => {
     const names = filteredEnquiries(data, state, {}).map((enquiry) => enquiry.source).filter(Boolean);
     if (qrEnquiries.length) names.push(QR_SOURCE);
@@ -98,12 +111,14 @@ export default function Pipeline() {
       officer: filters.officer,
       month,
       view,
+      q: query,
+      stage,
       ...patch,
     });
   };
 
   const clearFilters = () => go(listView ? 'enquiries' : 'pipeline');
-  const dirty = Boolean(filters.asset || filters.campaign || filters.source || filters.officer || month || view);
+  const dirty = Boolean(filters.asset || filters.campaign || filters.source || filters.officer || month || view || query || stage);
 
   useEffect(() => { setPage(0); }, [filters.asset, filters.campaign, filters.source, filters.officer, month, view, listView]);
 
@@ -240,17 +255,25 @@ export default function Pipeline() {
           </div>
         </div>
       )}
-      <div className="filter-bar">
-        <Filters
-          fields={['asset', 'campaign', 'source', 'officer']}
-          value={filters}
-          onChange={(next) => writeQuery({ asset: next.asset, campaign: next.campaign, source: next.source, officer: next.officer })}
-          assets={assets}
-          campaigns={data.campaigns.map((item) => ({ id: item.id, name: item.short }))}
-          sources={sources}
-          officers={Object.values(data.officers)}
-          clearable={false}
-        />
+      <Filters
+        query={query}
+        onQuery={(value) => writeQuery({ q: value })}
+        fields={['asset', 'campaign', 'source', 'officer', 'stage']}
+        value={{ ...filters, stage }}
+        onChange={(next) => writeQuery({
+          asset: next.asset, campaign: next.campaign, source: next.source, officer: next.officer, stage: next.stage,
+        })}
+        assets={assets}
+        campaigns={data.campaigns.map((item) => ({ id: item.id, name: item.short }))}
+        sources={sources}
+        officers={Object.values(data.officers)}
+        stages={PIPELINE_STAGES}
+        onClear={clearFilters}
+        extraChips={[
+          month ? { key: 'month', label: `Period: ${data.months.find((item) => item.key === month)?.label || month}`, remove: () => writeQuery({ month: '' }) } : null,
+          view ? { key: 'view', label: `View: ${saved.find(([id]) => id === view)?.[1] || view}`, remove: () => writeQuery({ view: '' }) } : null,
+        ].filter(Boolean)}
+      >
         <label className="filter-chip">
           Period
           <select value={month} onChange={(event) => writeQuery({ month: event.target.value })}>
@@ -258,8 +281,7 @@ export default function Pipeline() {
             {data.months.map((item) => <option key={item.key} value={item.key}>{item.label}</option>)}
           </select>
         </label>
-        {dirty && <button type="button" className="text-btn" onClick={clearFilters}>Clear filters</button>}
-      </div>
+      </Filters>
       <div className="saved-views">
         {saved.map(([id, label, count]) => (
           <button key={id} type="button" className={view === id ? 'on' : ''} onClick={() => writeQuery({ view: view === id ? '' : id })}>
@@ -458,7 +480,16 @@ export default function Pipeline() {
       <LostDialog
         open={pending?.stage === 'Lost'}
         onClose={() => setPending(null)}
-        onConfirm={(extra) => { commitStage(dispatch, pending.enquiry, 'Lost', extra); setPending(null); }}
+        onConfirm={(extra) => {
+          commitStage(dispatch, pending.enquiry, 'Lost', extra);
+          ui.notify({
+            title: `Marked as lost: ${pending.enquiry.business}${pending.enquiry.lot ? `, lot ${pending.enquiry.lot}` : ''}`,
+            detail: extra.lostReason,
+            href: `enquiry/${pending.enquiry.id}`,
+            action: 'Open',
+          });
+          setPending(null);
+        }}
       />
     </section>
   );

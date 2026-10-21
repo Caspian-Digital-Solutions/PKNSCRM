@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import logo from '../assets/pkns-logo.png';
 import { useStore } from '../store.jsx';
+import Filters from '../components/Filters.jsx';
 import Num from '../components/Num.jsx';
 import Term from '../components/Term.jsx';
 import { exportSheets } from '../components/ExportButton.jsx';
@@ -13,6 +14,9 @@ function MeasureTable({ title, rows }) {
   return (
     <section>
       <h2 className="section-title">{title}</h2>
+      {rows.length === 0 ? (
+        <p className="empty-state">No measures match this search. Clear the search to see this section.</p>
+      ) : (
       <div className="table-scroll">
         <table className="table data-table">
           <thead>
@@ -40,6 +44,7 @@ function MeasureTable({ title, rows }) {
           </tbody>
         </table>
       </div>
+      )}
     </section>
   );
 }
@@ -59,7 +64,10 @@ async function readLogo() {
 export default function Report() {
   const { state, data } = useStore();
   const [month, setMonth] = useState('2026-10');
+  const [query, setQuery] = useState('');
   const model = useMemo(() => reportModel(data, state, month), [data, state, month]);
+  const needle = query.trim().toLowerCase();
+  const matchRows = (rows) => (needle ? rows.filter((row) => `${row.label || ''} ${row.note || ''}`.toLowerCase().includes(needle)) : rows);
 
   const onExcel = () => {
     exportSheets({ filename: `PKNS-report-${month}`, banner: model.banner, sheets: model.sheets });
@@ -78,23 +86,36 @@ export default function Report() {
           <h1 className="page-title">Management report</h1>
           <p className="lead">The industry-standard set, filled from this system, and it still opens in Excel.</p>
         </div>
+        <div className="stage-actions">
+          <button type="button" className="btn" data-testid="export-excel" onClick={onExcel}>Export to Excel</button>
+          <button type="button" className="btn" data-testid="export-pdf" onClick={onPdf}>Export to PDF</button>
+        </div>
+      </div>
+      <Filters
+        query={query}
+        onQuery={setQuery}
+        fields={[]}
+        value={{}}
+        onClear={() => { setMonth('2026-10'); setQuery(''); }}
+        extraChips={month === '2026-10' ? [] : [{
+          key: 'month',
+          label: `Period: ${MONTHS.find((item) => item.key === month)?.label || month}`,
+          remove: () => setMonth('2026-10'),
+        }]}
+      >
         <label className="month-select">
           Month
           <select data-testid="report-month" value={month} onChange={(event) => setMonth(event.target.value)}>
             {MONTHS.map((item) => <option key={item.key} value={item.key}>{item.label}</option>)}
           </select>
         </label>
-        <div className="stage-actions">
-          <button type="button" className="btn" data-testid="export-excel" onClick={onExcel}>Export to Excel</button>
-          <button type="button" className="btn" data-testid="export-pdf" onClick={onPdf}>Export to PDF</button>
-        </div>
-      </div>
+      </Filters>
       <article className="report-page">
         <img className="report-logo" src={logo} alt="PKNS" />
         <p className="report-month">{MONTHS.find((item) => item.key === month)?.label}</p>
-        <MeasureTable title="1. Portfolio and leasing" rows={model.block1} />
-        <MeasureTable title="2. Marketing to tenancy" rows={model.block2} />
-        <MeasureTable title="3. Digital reach" rows={model.block3} />
+        <MeasureTable title="1. Portfolio and leasing" rows={matchRows(model.block1)} />
+        <MeasureTable title="2. Marketing to tenancy" rows={matchRows(model.block2)} />
+        <MeasureTable title="3. Digital reach" rows={matchRows(model.block3)} />
       <details className="definitions" open data-testid="definitions">
         <summary>Definitions</summary>
         <dl>

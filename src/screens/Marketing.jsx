@@ -20,6 +20,7 @@ export default function Marketing() {
   const { state, data } = useStore();
   const [tab, setTab] = useState('overview');
   const [postsAsTable, setPostsAsTable] = useState(false);
+  const [query, setQuery] = useState('');
   const [filters, setFilters] = useState({
     asset: '',
     campaign: '',
@@ -108,18 +109,31 @@ export default function Marketing() {
 
   const paid = summary.paid;
   const google = summary.google;
+  const matches = (...parts) => {
+    const needle = query.trim().toLowerCase();
+    if (!needle) return true;
+    return parts.join(' ').toLowerCase().includes(needle);
+  };
+  const socialRows = summary.social.filter((row) => matches(row.page, row.platform));
+  const pageRows = summary.website.topPages.filter((row) => matches(row.name));
+  const postRows = summary.topPosts.filter((row) => matches(row.caption, row.type, row.channel));
+  const paidRows = summary.paidSocial.filter((row) => matches(row.name));
+  const googleRows = google.campaigns.filter((row) => matches(row.short, row.name));
 
   return (
     <section>
       <h1 className="page-title">Marketing dashboard</h1>
       <p className="lead">Your whole digital footprint in one place, and content decisions based on enquiries, not on likes.</p>
       <Filters
+        query={query}
+        onQuery={setQuery}
         value={filters}
         onChange={setFilters}
         assets={assets}
         campaigns={data.campaigns}
         channels={CHANNELS}
         fields={['asset', 'campaign', 'channel', 'range']}
+        periodDefault="2026-10"
       />
 
       <div className="tabs" role="tablist" aria-label="Marketing">
@@ -186,7 +200,8 @@ export default function Marketing() {
         </div>
       </div>
       <h3 className="section-title">Top pages</h3>
-      <DataTable columns={pageColumns} rows={summary.website.topPages} exportName="website-top-pages" />
+      {query.trim() && pageRows.length === 0 && <p className="empty-state">No pages match this search. Clear filters to see the pages for this period.</p>}
+      <DataTable columns={pageColumns} rows={pageRows} exportName="website-top-pages" />
 
       </>
       )}
@@ -196,7 +211,7 @@ export default function Marketing() {
       <h2 className="section-title">Facebook and Instagram</h2>
       <h3 className="section-title">Organic</h3>
       <ul className="social-rows">
-        {summary.social.map((row) => {
+        {socialRows.map((row) => {
           const series = data.social.find((page) => page.id === row.id);
           const points = series ? data.months.map((month) => series.followersByMonth[month.key]).filter((value) => value != null) : [];
           return (
@@ -219,14 +234,15 @@ export default function Marketing() {
       </ul>
       <h3 className="section-title">Paid</h3>
       <p className="footnote">Paid social is separate from organic. The two are not added together.</p>
-      <DataTable columns={paidColumns} rows={summary.paidSocial} totals exportName="paid-social" />
+      {query.trim() && socialRows.length === 0 && paidRows.length === 0 && <p className="empty-state">No social rows match this search. Clear filters to see every page and channel.</p>}
+      <DataTable columns={paidColumns} rows={paidRows} totals exportName="paid-social" />
       <h3 className="section-title">Top posts</h3>
       <button type="button" className="btn" onClick={() => setPostsAsTable((on) => !on)}>{postsAsTable ? 'View as cards' : 'View as table'}</button>
       {postsAsTable ? (
-        <DataTable columns={postColumns} rows={summary.topPosts} exportName="top-posts" />
+        <DataTable columns={postColumns} rows={postRows} exportName="top-posts" />
       ) : (
         <div className="post-grid">
-          {summary.topPosts.map((post) => (
+          {postRows.map((post) => (
             <article key={post.caption} className="post-card">
               <div className="ad-image">{post.type}</div>
               <p>{post.caption}</p>
@@ -252,7 +268,8 @@ export default function Marketing() {
         <Kpi label="Conversions" value={google.conversions} format={num} testId="google-conversions" />
         <Kpi label="Cost per conversion" value={google.costPerConversion} format={rm2} testId="google-cpcv" />
       </div>
-      <DataTable columns={googleColumns} rows={google.campaigns} exportName="google-ads" />
+      {query.trim() && googleRows.length === 0 && <p className="empty-state">No Google Ads campaigns match this search. Clear filters to see them all.</p>}
+      <DataTable columns={googleColumns} rows={googleRows} exportName="google-ads" />
       </>
       )}
     </section>
