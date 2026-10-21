@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import ExportButton from './ExportButton.jsx';
 import Term from './Term.jsx';
 
@@ -36,9 +36,11 @@ export default function DataTable({
   onRowClick,
   initialSort,
   className,
+  pageSize,
 }) {
   const [sort, setSort] = useState(() => initialSort || { key: null, dir: 'asc' });
   const [filters, setFilters] = useState({});
+  const [page, setPage] = useState(0);
 
   const filtered = useMemo(() => rows.filter((row) => columns.every((col) => {
     const chosen = filters[col.key];
@@ -56,6 +58,10 @@ export default function DataTable({
     const dir = sort.dir === 'desc' ? -1 : 1;
     return filtered.slice().sort((a, b) => dir * compare(cellValue(a, col), cellValue(b, col)));
   }, [filtered, columns, sort]);
+
+  useEffect(() => { setPage(0); }, [rows, sort.key, sort.dir, filters]);
+  const shown = pageSize ? sorted.slice(page * pageSize, page * pageSize + pageSize) : sorted;
+  const pages = pageSize ? Math.max(1, Math.ceil(sorted.length / pageSize)) : 1;
 
   const onHeader = (key) => {
     setSort((cur) => (cur.key === key
@@ -120,7 +126,7 @@ export default function DataTable({
             </tr>
           </thead>
           <tbody>
-            {sorted.map((row, i) => (
+            {shown.map((row, i) => (
               <tr
                 key={row.id ?? row.key ?? i}
                 className={onRowClick ? 'clickable' : undefined}
@@ -152,6 +158,13 @@ export default function DataTable({
           </tbody>
         </table>
       </div>
+      {pageSize && pages > 1 && (
+        <div className="pager">
+          <button type="button" className="btn" disabled={page === 0} onClick={() => setPage((current) => current - 1)}>Previous</button>
+          <span>{page + 1} of {pages}</span>
+          <button type="button" className="btn" disabled={page + 1 >= pages} onClick={() => setPage((current) => current + 1)}>Next</button>
+        </div>
+      )}
     </div>
   );
 }

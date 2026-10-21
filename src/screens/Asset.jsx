@@ -206,8 +206,8 @@ export default function Asset({ params }) {
                   <div className="floor-label">{floor.floor}</div>
                   <div className="lot-tiles">
                     {floor.units.map((unit) => (
+                      <span key={unit.id} className="lot-wrap">
                       <button
-                        key={unit.id}
                         type="button"
                         className={`lot lot-${lotClass(unit.status)} ${selected?.id === unit.id ? 'on' : ''}`}
                         data-testid={unit.lot === '4-07' && unit.asset === 'kpsa' ? 'lot-4-07' : undefined}
@@ -216,6 +216,14 @@ export default function Asset({ params }) {
                         <span>{unit.lot}</span>
                         {unit.id === 'kpsa:4-07' ? <Num value={unit.status} watch={`unit:${unit.id}`} className="lot-status" /> : null}
                       </button>
+                      <span className="lot-pop">
+                        <strong>Lot {unit.lot}</strong>
+                        <span>{unit.use}, {num(unit.size)} sq ft</span>
+                        <span>{rm(unit.rent)} a month</span>
+                        <span>{unit.status}</span>
+                        <span>{num(unit.openEnquiryIds?.length || 0)} open enquiries</span>
+                      </span>
+                      </span>
                     ))}
                   </div>
                 </div>
@@ -265,7 +273,7 @@ export default function Asset({ params }) {
             </aside>
           </div>
           <h2 className="section-title">Lots</h2>
-          <DataTable columns={lotColumns} rows={detail.units} exportName={`${asset.id}-lots`} onRowClick={(row) => setLotId(row.id)} />
+          <DataTable columns={lotColumns} rows={detail.units} exportName={`${asset.id}-lots`} onRowClick={(row) => setLotId(row.id)} pageSize={25} />
         </>
       )}
 

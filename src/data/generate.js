@@ -1,7 +1,7 @@
 import { makeRng, allocate, scatter, ymd, addDays, dateUTC, daysBetween } from './rng.js';
 import {
   AS_AT, PERIOD, MONTHS, ASSETS, CAMPAIGNS, CHANNELS, SIGNED, OFFICERS, SOCIAL_PAGES, WEBSITE_OCT,
-  STAGE_COUNTS, SOURCE_MIX, LOST_REASONS, HERO,
+  STAGE_COUNTS, SOURCE_MIX, LOST_REASONS, HERO, AD_CREATIVES,
 } from './config.js';
 import { BUSINESSES } from './businesses.js';
 
@@ -375,6 +375,126 @@ export function buildContactLogs(enquiries) {
   }
 }
 
+const UTM_CAMPAIGN = {
+  sa: 'sa-sentral-2026',
+  mpk: 'menara-pkns-2026',
+  bangi: 'bangi-2026',
+  kl: 'pejabat-kl-2026',
+  s13: 'seksyen-13-2026',
+};
+
+function businessTypeOf(name) {
+  const text = String(name || '').toLowerCase();
+  if (/klinik|clinic|dental|pergigian|optik|pharmacy|farmasi/.test(text)) return 'clinic';
+  if (/cafe|café|coffee|restaurant|restoran|bistro|bakery|kitchen|food|makanan/.test(text)) return 'F&B';
+  if (/school|sekolah|tuition|tuisyen|tadika|academy|college|kolej|education|pendidikan/.test(text)) return 'education';
+  if (/retail|fashion|boutique|mart|grocer|kedai|store|shop|runcit/.test(text)) return 'retail';
+  if (/service|servis|consult|konsul|agency|agensi|solution|digital|tech|engineering|logistik/.test(text)) return 'services';
+  return 'office';
+}
+
+function sizeBand(size) {
+  const n = Number(size) || 0;
+  const lo = Math.floor(n / 500) * 500;
+  const hi = lo + 500;
+  const fmt = (value) => value.toLocaleString('en-US');
+  return `${fmt(lo)}–${fmt(hi)} sq ft`;
+}
+
+function budgetLabel(rent) {
+  const up = Math.ceil((Number(rent) || 0) / 500) * 500;
+  return `Up to RM${up.toLocaleString('en-US')} a month`;
+}
+
+function moveInLabel(iso, months) {
+  const received = new Date(iso);
+  const when = new Date(Date.UTC(received.getUTCFullYear(), received.getUTCMonth() + months, 1));
+  return when.toLocaleDateString('en-GB', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+}
+
+function emailFor(business, index) {
+  const slug = String(business || '').toLowerCase().replace(/sdn\.?\s*bhd\.?/g, '').replace(/[^a-z0-9]+/g, '').slice(0, 18) || 'niaga';
+  return `${slug}${index}@${slug}.com.my`;
+}
+
+function nextPhone(rng, used) {
+  for (let attempt = 0; attempt < 80; attempt++) {
+    const phone = `01${rng.int(0, 9)}-${String(rng.int(0, 999)).padStart(3, '0')} ${String(rng.int(0, 9999)).padStart(4, '0')}`;
+    if (!used.has(phone)) {
+      used.add(phone);
+      return phone;
+    }
+  }
+  const phone = `019-000 ${String(used.size).padStart(4, '0')}`;
+  used.add(phone);
+  return phone;
+}
+
+function consentVia(source) {
+  if (source === 'Walk-in / call') return 'Verbal (walk-in)';
+  if (source === 'Website form' || source === 'Website form – QR demo') return 'Website form';
+  return 'Lead form';
+}
+
+const LEAD_MESSAGES = [
+  (enquiry) => `Saya berminat dengan ruang di lot ${enquiry.lot}. Boleh hubungi saya?`,
+  (enquiry) => `I would like the rate card for lot ${enquiry.lot}.`,
+  (enquiry) => `Mohon maklumat sewa untuk lot ${enquiry.lot}.`,
+  (enquiry) => `Looking at lot ${enquiry.lot}. Please call me this week.`,
+];
+
+// Own stream after contact logs, so campaigns, units and the existing enquiry fields stay identical.
+export function enrichEnquiries(enquiries, units) {
+  const rng = makeRng(20261031);
+  const usedPhones = new Set();
+  enquiries.forEach((enquiry, index) => {
+    const unit = units.find((item) => item.id === enquiry.unitId);
+    const roll = rng.next();
+    const preferredContact = roll < 0.6 ? 'WhatsApp' : roll < 0.9 ? 'Call' : 'Email';
+    const months = rng.int(1, 4);
+    const message = rng.pick(LEAD_MESSAGES)(enquiry);
+    const phone = nextPhone(rng, usedPhones);
+    const spaceType = (unit?.use || enquiry.use) === 'Office' ? 'Office' : 'Retail';
+    enquiry.leadForm = {
+      businessType: businessTypeOf(enquiry.business),
+      spaceType,
+      preferredSize: sizeBand(unit?.size || enquiry.size),
+      budget: budgetLabel(enquiry.rent),
+      moveIn: moveInLabel(enquiry.receivedAt, months),
+      preferredContact,
+      message,
+    };
+    enquiry.contactDetails = { phone, email: emailFor(enquiry.business, index + 1) };
+    enquiry.phone = phone;
+    enquiry.email = enquiry.contactDetails.email;
+    enquiry.consent = { given: true, via: consentVia(enquiry.source), at: enquiry.receivedAt };
+    const creative = enquiry.campaign && enquiry.channel ? AD_CREATIVES[enquiry.campaign]?.[enquiry.channel] : null;
+    if (creative) {
+      enquiry.attribution = { adSet: creative.adSet, ad: rng.pick(creative.ads) };
+      enquiry.ad = enquiry.attribution.ad;
+    }
+    if (enquiry.source === 'Website form') {
+      const slug = UTM_CAMPAIGN[enquiry.campaign] || `${enquiry.campaign || 'web'}-2026`;
+      enquiry.attribution = { ...(enquiry.attribution || {}), utm: `utm_source=facebook&utm_campaign=${slug}` };
+    }
+    if (preferredContact === 'WhatsApp' && enquiry.firstResponseAt) {
+      const count = rng.int(3, 6);
+      const logged = enquiry.log || [];
+      enquiry.whatsapp = Array.from({ length: count }, (_, i) => {
+        const from = i % 2 === 0 ? 'officer' : 'enquirer';
+        const entry = logged[Math.floor(i / 2)];
+        return {
+          from,
+          at: entry?.at || enquiry.firstResponseAt,
+          text: from === 'officer'
+            ? (entry?.text || `Lot ${enquiry.lot} is available.`)
+            : (i === 1 ? message : 'Baik, terima kasih. Saya akan semak.'),
+        };
+      });
+    }
+  });
+}
+
 export function generate() {
   const rng = makeRng();
   const signed = SIGNED.map((s) => ({ ...s }));
@@ -386,6 +506,7 @@ export function generate() {
   const social = buildSocial(rng);
   const visitors = buildVisitors(rng, campaigns.find((c) => c.id === 'sa'));
   buildContactLogs(enquiries);
+  enrichEnquiries(enquiries, units);
   return { asAt: AS_AT, months: MONTHS, assets: ASSETS, officers: OFFICERS, units, signed, campaigns, enquiries, website, social, visitors };
 }
 

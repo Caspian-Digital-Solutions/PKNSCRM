@@ -73,7 +73,7 @@ export default function Report() {
 
   return (
     <section>
-      <div className="screen-head">
+      <div className="report-toolbar">
         <div>
           <h1 className="page-title">Management report</h1>
           <p className="lead">The industry-standard set, filled from this system, and it still opens in Excel.</p>
@@ -84,14 +84,17 @@ export default function Report() {
             {MONTHS.map((item) => <option key={item.key} value={item.key}>{item.label}</option>)}
           </select>
         </label>
+        <div className="stage-actions">
+          <button type="button" className="btn" data-testid="export-excel" onClick={onExcel}>Export to Excel</button>
+          <button type="button" className="btn" data-testid="export-pdf" onClick={onPdf}>Export to PDF</button>
+        </div>
       </div>
-      <div className="stage-actions">
-        <button type="button" className="btn" data-testid="export-excel" onClick={onExcel}>Export to Excel</button>
-        <button type="button" className="btn" data-testid="export-pdf" onClick={onPdf}>Export to PDF</button>
-      </div>
-      <MeasureTable title="Portfolio and leasing" rows={model.block1} />
-      <MeasureTable title="Marketing to tenancy" rows={model.block2} />
-      <MeasureTable title="Digital reach" rows={model.block3} />
+      <article className="report-page">
+        <img className="report-logo" src={logo} alt="PKNS" />
+        <p className="report-month">{MONTHS.find((item) => item.key === month)?.label}</p>
+        <MeasureTable title="1. Portfolio and leasing" rows={model.block1} />
+        <MeasureTable title="2. Marketing to tenancy" rows={model.block2} />
+        <MeasureTable title="3. Digital reach" rows={model.block3} />
       <details className="definitions" open data-testid="definitions">
         <summary>Definitions</summary>
         <dl>
@@ -99,12 +102,13 @@ export default function Report() {
             <div key={item.id}>
               <dt>{item.name}</dt>
               <dd>{item.formula}</dd>
-              <dd className="cell-note">{item.source}{item.note ? ` · ${item.note}` : ''}</dd>
+              <dd className="cell-note">{item.source}{item.note ? `. ${item.note}` : ''}</dd>
             </div>
           ))}
         </dl>
         <p>{BENCHMARK_NOTE}</p>
       </details>
+      </article>
     </section>
   );
 }

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis, Tooltip, CartesianGrid, Legend } from 'recharts';
+import { ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis, Tooltip, CartesianGrid, Legend, ReferenceLine } from 'recharts';
 import { useStore } from '../store.jsx';
+import { useUi } from '../ui.jsx';
 import { go } from '../router.js';
 import DataTable from '../components/DataTable.jsx';
 import Filters, { RANGE_PRESETS } from '../components/Filters.jsx';
@@ -37,29 +38,44 @@ function managingArea(campaign, assets, officers) {
   return ids.map((id) => officers[id]?.area).filter(Boolean).join('; ') || '–';
 }
 
-function Funnel({ steps }) {
-  const max = Math.max(...steps.map((step) => step.value), 1);
+function JourneyRail({ totals }) {
+  const steps = [
+    { id: 'spend', label: 'Spend', value: totals.spend, format: rm },
+    { id: 'impressions', label: 'Impressions', value: totals.impressions, format: num },
+    { id: 'clicks', label: 'Clicks', value: totals.clicks, format: num },
+    { id: 'enquiries', label: 'Paid enquiries', value: totals.enquiries, format: num },
+    { id: 'viewings', label: 'Viewings', value: totals.viewings, format: num },
+    { id: 'signed', label: 'Signed', value: totals.signed, format: num },
+    { id: 'fyv', label: 'First-year rent', value: totals.firstYearValue, format: rm },
+  ];
   return (
-    <div className="funnel" data-testid="funnel">
-      {steps.map((step) => (
-        <div key={step.id} className="funnel-step">
-          <div className="funnel-meta">
-            <span>{step.label}</span>
-            {step.rate != null ? <Num value={step.rate} format={pct} watch={`funnel-rate:${step.id}`} /> : <span />}
-          </div>
-          <div className="funnel-track">
-            <div className="funnel-bar" style={{ width: `${Math.max(12, (step.value / max) * 100)}%` }}>
-              <Num value={step.value} format={num} watch={`funnel:${step.id}`} />
-            </div>
-          </div>
-        </div>
-      ))}
-    </div>
+    <ol className="journey campaign-rail" data-testid="funnel">
+      {steps.map((step, index) => {
+        const prev = steps[index - 1];
+        const rate = prev && prev.id !== 'spend' && step.id !== 'fyv' && prev.value ? step.value / prev.value : null;
+        return (
+          <li key={step.id} className="reached">
+            <span className="journey-label">{step.label}</span>
+            <span className="journey-value"><Num value={step.value} format={step.format} watch={`funnel:${step.id}`} /></span>
+            {rate != null && <span className="journey-gap"><Num value={rate} format={pct} watch={`funnel-rate:${step.id}`} /></span>}
+            {step.id === 'fyv' && <span className="journey-roas">ROAS <Num value={totals.roas} format={x} watch="funnel:roas" /></span>}
+          </li>
+        );
+      })}
+    </ol>
   );
 }
 
+const CHANNEL_SOURCE = {
+  'Facebook lead ads': 'Facebook Lead Ad',
+  'Instagram ads': 'Instagram',
+  'Google Ads': 'Google Ads',
+  'Boosted posts': 'Boosted post',
+};
+
 export default function Campaign({ params }) {
   const { state, data } = useStore();
+  const ui = useUi();
   const requested = params?.[0] || 'sa';
   const campaign = data.campaigns.find((item) => item.id === requested) || data.campaigns.find((item) => item.id === 'sa');
   const [range, setRange] = useState(() => ({ preset: 'full', from: campaign.start, to: campaign.end }));
@@ -114,7 +130,17 @@ export default function Campaign({ params }) {
     .slice(0, 8), [data, state, campaign.id]);
 
   const channelColumns = [
-    { key: 'name', label: 'Channel', width: '10%' },
+    {
+      key: 'name',
+      label: 'Channel',
+      width: '12%',
+      format: (value) => (
+        <span className="source-line">
+          <SourceIcon source={CHANNEL_SOURCE[value]} />
+          <span>{value}</span>
+        </span>
+      ),
+    },
     { key: 'spend', label: 'Spend', width: '8%', align: 'right', total: 'sum', format: flash('channel', 'spend', rm) },
     { key: 'impressions', label: 'Impressions', width: '10%', align: 'right', total: 'sum', format: flash('channel', 'impressions', num) },
     { key: 'clicks', label: 'Clicks', width: '7%', align: 'right', total: 'sum', format: flash('channel', 'clicks', num) },
@@ -125,7 +151,7 @@ export default function Campaign({ params }) {
     { key: 'costPerViewing', label: 'Cost per viewing', width: '8%', term: 'cost-per-viewing', align: 'right', format: flash('channel', 'costPerViewing', rm2), total: (list) => totalRow(list).costPerViewing },
     { key: 'signed', label: 'Signed', width: '6.5%', align: 'right', total: 'sum', format: flash('channel', 'signed', num) },
     { key: 'costPerSigned', label: 'Cost per signed tenant', width: '8.5%', term: 'cost-per-signed', align: 'right', format: flash('channel', 'costPerSigned', rm2), total: (list) => totalRow(list).costPerSigned },
-    { key: 'firstYearValue', label: 'First-year rental value', width: '8%', align: 'right', total: 'sum', format: flash('channel', 'firstYearValue', rm) },
+    { key: 'firstYearValue', label: 'First-year rental value', width: '7%', align: 'right', total: 'sum', format: flash('channel', 'firstYearValue', rm) },
     { key: 'roas', label: 'ROAS', width: '6.5%', term: 'roas', align: 'right', format: flash('channel', 'roas', x), total: (list) => totalRow(list).roas },
   ];
 
@@ -172,8 +198,8 @@ export default function Campaign({ params }) {
       <header className="campaign-head">
         <h2>{campaign.name}</h2>
         <p>
-          {date(range.from)} – {date(range.to)}
-          {range.preset !== 'full' ? <span className="muted"> · Campaign period {date(campaign.start)} – {date(campaign.end)}</span> : null}
+          {date(range.from)} to {date(range.to)}
+          {range.preset !== 'full' ? <span className="muted"> Campaign period {date(campaign.start)} to {date(campaign.end)}</span> : null}
         </p>
         <p>
           Assets:{' '}
@@ -200,8 +226,8 @@ export default function Campaign({ params }) {
         <Kpi label="First-year rental value" value={totals.firstYearValue} format={rm} testId="campaign-fyv" />
         <Kpi label="ROAS" term="roas" value={totals.roas} format={x} testId="campaign-roas" />
       </div>
-      <h2 className="section-title">Funnel</h2>
-      <Funnel steps={steps} />
+      <h2 className="section-title">Journey</h2>
+      <JourneyRail totals={totals} />
       <h2 className="section-title">Channels</h2>
       <DataTable
         className="channel-fit"
@@ -224,8 +250,11 @@ export default function Campaign({ params }) {
               labelStyle={{ fontSize: 16, color: 'var(--ink)' }}
             />
             <Legend wrapperStyle={{ fontSize: 14, color: 'var(--ink)' }} />
-            <Bar yAxisId="spend" dataKey="spend" name="Spend (RM)" fill="var(--s2)" maxBarSize={28} />
-            <Line yAxisId="enquiries" dataKey="enquiries" name="Paid enquiries" stroke="var(--s1)" strokeWidth={2} dot={{ r: 3, strokeWidth: 2 }} />
+            <Bar yAxisId="spend" dataKey="spend" name="Spend (RM)" fill="var(--s1)" maxBarSize={28} />
+            <Line yAxisId="enquiries" dataKey="enquiries" name="Paid enquiries" stroke="var(--s3)" strokeWidth={2} dot={{ r: 3, strokeWidth: 2 }} />
+            {state.heroStage === 'Signed' && weeks.length > 0 && (
+              <ReferenceLine yAxisId="enquiries" x={weeks[weeks.length - 1].label} stroke="var(--crest)" strokeWidth={2} label={{ value: 'Suite 4-07 signed', fill: 'var(--ink)', fontSize: 14 }} />
+            )}
           </ComposedChart>
         </ResponsiveContainer>
       </div>
@@ -251,17 +280,12 @@ export default function Campaign({ params }) {
           const asset = assets.find((item) => item.id === enquiry.asset);
           return (
             <li key={enquiry.id}>
-              <a href={`#/enquiry/${enquiry.id}`} onClick={(e) => { e.preventDefault(); go('enquiry', enquiry.id); }}>
+              <a href={`#/enquiry/${enquiry.id}`} onClick={(e) => { e.preventDefault(); ui.openRecord(enquiry.id); }}>
                 <SourceIcon source={enquiry.source} />
                 <span>
                   <strong>{enquiry.business}</strong>
                   <span className="cell-note">
-                    {enquiry.source || '–'}
-                    {campaign.short ? ` · ${campaign.short}` : ''}
-                    {asset ? ` · ${asset.short}` : ''}
-                    {enquiry.lot ? ` · ${enquiry.lot}` : ''}
-                    {' · '}{enquiry.stage}
-                    {' · '}{date(enquiry.receivedAt)}
+                    {[enquiry.source, campaign.short, asset?.short, enquiry.lot].filter(Boolean).join(', ')}. {enquiry.stage}. Received {date(enquiry.receivedAt)}.
                   </span>
                 </span>
               </a>

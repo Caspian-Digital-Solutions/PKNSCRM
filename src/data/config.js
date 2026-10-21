@@ -73,6 +73,18 @@ export const CHANNELS = [
   { id: 'boost', name: 'Boosted posts (FB/IG)', source: 'Boosted post' },
 ];
 
+// Ad names only. No figures. The hero keeps HERO.ad exactly.
+export const AD_CREATIVES = {
+  sa:    { fb: { adSet: 'SA Sentral – Pemilik Perniagaan 25–55, Shah Alam 15km', ads: ['Ruang Pejabat di SA Sentral – Sewa dari RM2.80 sk', 'Lot Kedai Kompleks PKNS – Lokasi Strategik Seksyen 14'] },
+           ig: { adSet: 'SA Sentral – Usahawan Muda, Klang Valley', ads: ['Mulakan Perniagaan Anda di SA Sentral'] },
+           gads:{ adSet: 'Sewa pejabat Shah Alam', ads: ['Sewa Pejabat Shah Alam | Dari RM2.80 sk | Kompleks PKNS'] },
+           boost:{ adSet: 'Boosted – SA Sentral', ads: ['SA Sentral: Wajah Baharu Seksyen 14'] } },
+  mpk:   { fb: { adSet: 'Menara PKNS – Syarikat PJ & KL', ads: ['Pejabat Siap Diduduki di Menara PKNS, PJ'] }, ig: { adSet: 'Menara PKNS – Profesional', ads: ['Ruang Pejabat PJ dengan Pemandangan Bandar'] }, gads: { adSet: 'Office space Petaling Jaya', ads: ['Office for Rent Petaling Jaya | Menara PKNS'] }, boost: { adSet: 'Boosted – Menara PKNS', ads: ['Ruang Pejabat Menara PKNS – Sewa Sekarang'] } },
+  bangi: { fb: { adSet: 'Bangi – Peniaga Tempatan', ads: ['Lot Kedai untuk Disewa di Kompleks PKNS Bangi'] }, ig: { adSet: 'Bangi – Usahawan', ads: ['Buka Kedai Anda di Bandar Baru Bangi'] }, gads: { adSet: 'Kedai sewa Bangi', ads: ['Lot Kedai Sewa Bangi | Kompleks PKNS'] }, boost: { adSet: 'Boosted – Bangi', ads: ['Kompleks PKNS Bangi Kini Menerima Penyewa Baharu'] } },
+  kl:    { fb: { adSet: 'KL – Syarikat Korporat', ads: ['Pejabat Strategik di Bukit Bintang'] }, ig: { adSet: 'KL – Startup', ads: ['Pejabat Anda di Tengah KL'] }, gads: { adSet: 'Office rent Kuala Lumpur', ads: ['Office for Rent Kuala Lumpur | Menara Worldwide'] }, boost: { adSet: 'Boosted – Pejabat KL', ads: ['Pejabat Strategik di Kuala Lumpur'] } },
+  s13:   { fb: { adSet: 'Seksyen 13 – PKS', ads: ['Pejabat di Menara U, Seksyen 13 – dari RM2.40 sk'] }, ig: { adSet: 'Seksyen 13 – Usahawan', ads: ['Ruang Niaga Seksyen 13'] }, gads: { adSet: 'Pejabat sewa Seksyen 13', ads: ['Sewa Pejabat Seksyen 13 Shah Alam | Menara U'] }, boost: { adSet: 'Boosted – Seksyen 13', ads: ['Ruang Niaga Seksyen 13 – Menara U & U2'] } },
+};
+
 // Channel totals over each campaign period: spend (RM), impressions, clicks, paid enquiries, viewings, signed.
 export const CAMPAIGNS = [
   { id: 'sa', name: 'SA Sentral: Ruang Niaga Baharu Seksyen 14', short: 'SA Sentral', start: '2026-07-01', end: '2026-10-31', assets: { kpsa: 0.55, pas: 0.45 },

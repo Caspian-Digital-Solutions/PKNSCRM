@@ -1,4 +1,6 @@
 import { useMemo, useState } from 'react';
+import SourceIcon from '../components/SourceIcon.jsx';
+import Sparkline from '../components/Sparkline.jsx';
 import { ResponsiveContainer, ComposedChart, BarChart, Bar, Line, XAxis, YAxis, Tooltip, CartesianGrid, Legend } from 'recharts';
 import { useStore } from '../store.jsx';
 import DataTable from '../components/DataTable.jsx';
@@ -16,6 +18,8 @@ const flash = (key, format) => (value, row) => (
 
 export default function Marketing() {
   const { state, data } = useStore();
+  const [tab, setTab] = useState('overview');
+  const [postsAsTable, setPostsAsTable] = useState(false);
   const [filters, setFilters] = useState({
     asset: '',
     campaign: '',
@@ -118,6 +122,14 @@ export default function Marketing() {
         fields={['asset', 'campaign', 'channel', 'range']}
       />
 
+      <div className="tabs" role="tablist" aria-label="Marketing">
+        {[['overview', 'Overview'], ['website', 'Website'], ['social', 'Social'], ['google', 'Google Ads']].map(([id, label]) => (
+          <button key={id} type="button" role="tab" aria-selected={tab === id} className={tab === id ? 'on' : ''} onClick={() => setTab(id)}>{label}</button>
+        ))}
+      </div>
+
+      {tab === 'overview' && (
+      <>
       <h2 className="section-title">Spend against results</h2>
       <div className="kpi-row">
         <Kpi label="Spend" value={paid.spend} format={rm} testId="mkt-spend" />
@@ -130,7 +142,11 @@ export default function Marketing() {
         <Kpi label="Cost per signed tenant" term="cost-per-signed" value={paid.costPerSigned} format={rm2} testId="mkt-cps" />
         <Kpi label="ROAS" term="roas" value={paid.roas} format={x} testId="mkt-roas" />
       </div>
+      </>
+      )}
 
+      {tab === 'website' && (
+      <>
       <h2 className="section-title">Website</h2>
       {summary.website.filteredLabel ? <p className="footnote" data-testid="website-scope">{summary.website.filteredLabel}</p> : null}
       <div className="kpi-row">
@@ -172,15 +188,60 @@ export default function Marketing() {
       <h3 className="section-title">Top pages</h3>
       <DataTable columns={pageColumns} rows={summary.website.topPages} exportName="website-top-pages" />
 
+      </>
+      )}
+
+      {tab === 'social' && (
+      <>
       <h2 className="section-title">Facebook and Instagram</h2>
       <h3 className="section-title">Organic</h3>
-      <DataTable columns={organicColumns} rows={summary.social} exportName="organic-social" />
+      <ul className="social-rows">
+        {summary.social.map((row) => {
+          const series = data.social.find((page) => page.id === row.id);
+          const points = series ? data.months.map((month) => series.followersByMonth[month.key]).filter((value) => value != null) : [];
+          return (
+            <li key={row.id}>
+              <SourceIcon source={row.platform === 'Instagram' ? 'Instagram' : 'Facebook Lead Ad'} />
+              <span>
+                <strong>{row.page}</strong>
+                <span className="cell-note">{row.platform}</span>
+              </span>
+              <span data-testid={row.id === 'pkns-fb' || row.id === 'pkns-ig' ? `followers-${row.id}` : undefined}>
+                <Num value={row.followers} format={num} watch={`followers:${row.id}`} />
+              </span>
+              <Sparkline values={points} />
+              <span>{num(row.reach)} reach</span>
+              <span>{num(row.engagements)} engagements</span>
+              <span>{pctPlain(row.er)} ER</span>
+            </li>
+          );
+        })}
+      </ul>
       <h3 className="section-title">Paid</h3>
       <p className="footnote">Paid social is separate from organic. The two are not added together.</p>
       <DataTable columns={paidColumns} rows={summary.paidSocial} totals exportName="paid-social" />
       <h3 className="section-title">Top posts</h3>
-      <DataTable columns={postColumns} rows={summary.topPosts} exportName="top-posts" />
+      <button type="button" className="btn" onClick={() => setPostsAsTable((on) => !on)}>{postsAsTable ? 'View as cards' : 'View as table'}</button>
+      {postsAsTable ? (
+        <DataTable columns={postColumns} rows={summary.topPosts} exportName="top-posts" />
+      ) : (
+        <div className="post-grid">
+          {summary.topPosts.map((post) => (
+            <article key={post.caption} className="post-card">
+              <div className="ad-image">{post.type}</div>
+              <p>{post.caption}</p>
+              <span className="stage-pill">{post.type}</span>
+              <p>{num(post.reach)} reach, {num(post.engagements)} engagements, {num(post.clicks)} clicks</p>
+              <p>Boosted spend {rm(post.boosted)}</p>
+            </article>
+          ))}
+        </div>
+      )}
+      </>
+      )}
 
+      {tab === 'google' && (
+      <>
       <h2 className="section-title">Google Ads</h2>
       <div className="kpi-row">
         <Kpi label="Spend" value={google.spend} format={rm} testId="google-spend" />
@@ -192,6 +253,8 @@ export default function Marketing() {
         <Kpi label="Cost per conversion" value={google.costPerConversion} format={rm2} testId="google-cpcv" />
       </div>
       <DataTable columns={googleColumns} rows={google.campaigns} exportName="google-ads" />
+      </>
+      )}
     </section>
   );
 }
