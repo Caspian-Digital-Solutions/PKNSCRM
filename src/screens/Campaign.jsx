@@ -10,8 +10,9 @@ import Num from '../components/Num.jsx';
 import Term from '../components/Term.jsx';
 import SourceIcon from '../components/SourceIcon.jsx';
 import {
-  campaignRows, campaignWeeks, funnelSteps, assetMarketing, unpaidInRange, filteredEnquiries, liveAssets, marketingSummary,
+  campaignRows, campaignWeeks, assetMarketing, unpaidInRange, filteredEnquiries, liveAssets, marketingSummary,
 } from '../data/selectors.js';
+import { CHANNELS } from '../data/config.js';
 import { totalRow } from '../data/metrics.js';
 import { num, rm, rm2, pct, x, date, dayMonth, ratio } from '../format.js';
 
@@ -78,11 +79,20 @@ export default function Campaign({ params }) {
   const ui = useUi();
   const requested = params?.[0] || 'sa';
   const campaign = data.campaigns.find((item) => item.id === requested) || data.campaigns.find((item) => item.id === 'sa');
-  const [range, setRange] = useState(() => ({ preset: 'full', from: campaign.start, to: campaign.end }));
+  const [query, setQuery] = useState('');
+  const [filters, setFilters] = useState(() => ({ preset: 'full', from: campaign.start, to: campaign.end, asset: '', channel: '' }));
 
   useEffect(() => {
-    setRange((cur) => (cur.preset === 'full' ? { preset: 'full', from: campaign.start, to: campaign.end } : cur));
-  }, [campaign.id, campaign.start, campaign.end]);
+    setFilters((cur) => {
+      const assetOk = !cur.asset || Object.prototype.hasOwnProperty.call(campaign.assets, cur.asset);
+      return {
+        ...cur,
+        asset: assetOk ? cur.asset : '',
+        from: cur.preset === 'full' ? campaign.start : cur.from,
+        to: cur.preset === 'full' ? campaign.end : cur.to,
+      };
+    });
+  }, [campaign.id, campaign.start, campaign.end, campaign.assets]);
 
   const presets = useMemo(() => ([
     { id: 'full', label: 'Full campaign period', from: campaign.start, to: campaign.end },
@@ -90,19 +100,29 @@ export default function Campaign({ params }) {
   ]), [campaign.start, campaign.end]);
 
   const rows = useMemo(
-    () => campaignRows(data, state, campaign.id, { from: range.from, to: range.to }),
-    [data, state, campaign.id, range.from, range.to],
+    () => campaignRows(data, state, campaign.id, {
+      from: filters.from,
+      to: filters.to,
+      ...(filters.asset ? { assetId: filters.asset } : {}),
+      ...(filters.channel ? { channels: [filters.channel] } : {}),
+    }),
+    [data, state, campaign.id, filters.from, filters.to, filters.asset, filters.channel],
   );
-  const totals = useMemo(() => totalRow(rows), [rows]);
-  const steps = useMemo(() => funnelSteps(totals), [totals]);
+  const namedRows = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    if (!needle) return rows;
+    const matched = rows.filter((row) => (CHANNEL_TABLE_NAMES[row.name] || row.name).toLowerCase().includes(needle));
+    return matched.length ? matched : rows;
+  }, [rows, query]);
+  const totals = useMemo(() => totalRow(namedRows), [namedRows]);
   const weeks = useMemo(
-    () => campaignWeeks(data, state, campaign.id, { from: range.from, to: range.to }).map((week) => ({ ...week, label: weekLabel(week) })),
-    [data, state, campaign.id, range.from, range.to],
+    () => campaignWeeks(data, state, campaign.id, { from: filters.from, to: filters.to }).map((week) => ({ ...week, label: weekLabel(week) })),
+    [data, state, campaign.id, filters.from, filters.to],
   );
   const assets = useMemo(() => liveAssets(data, state), [data, state]);
   const assetRows = useMemo(() => Object.keys(campaign.assets).map((id) => {
     const asset = assets.find((item) => item.id === id);
-    const slice = assetMarketing(data, state, id, { from: range.from, to: range.to }).byCampaign.find((item) => item.id === campaign.id);
+    const slice = assetMarketing(data, state, id, { from: filters.from, to: filters.to }).byCampaign.find((item) => item.id === campaign.id);
     return {
       id,
       name: asset?.name || id,
@@ -114,20 +134,43 @@ export default function Campaign({ params }) {
       cpl: slice?.cpl ?? null,
       roas: slice?.roas ?? null,
     };
-  }), [assets, campaign, data, state, range.from, range.to]);
-  const unpaid = useMemo(() => unpaidInRange(campaign, { from: range.from, to: range.to }), [campaign, range.from, range.to]);
-  const ownedToPaid = useMemo(
-    () => marketingSummary(data, state, { campaign: campaign.id, from: range.from, to: range.to }).ownedToPaid,
-    [data, state, campaign.id, range.from, range.to],
+  }), [assets, campaign, data, state, filters.from, filters.to]);
+  const shownAssets = assetRows.filter((row) => {
+    if (filters.asset && row.id !== filters.asset) return false;
+    const needle = query.trim().toLowerCase();
+    const channelSearch = needle && namedRows.length !== rows.length;
+    if (needle && !channelSearch && !row.name.toLowerCase().includes(needle)) return false;
+    return true;
+  });
+  const campaignAssets = Object.keys(campaign.assets).map((id) => ({
+    id,
+    name: assets.find((item) => item.id === id)?.name || id,
+  }));
+  const unpaid = useMemo(
+    () => unpaidInRange(campaign, { from: filters.from, to: filters.to }, filters.asset || null),
+    [campaign, filters.from, filters.to, filters.asset],
   );
-  const recent = useMemo(() => filteredEnquiries(data, state, { campaign: campaign.id })
-    .slice()
-    .sort((a, b) => {
-      if (a.hero && !b.hero) return -1;
-      if (b.hero && !a.hero) return 1;
-      return (b.receivedAt || '').localeCompare(a.receivedAt || '');
-    })
-    .slice(0, 8), [data, state, campaign.id]);
+  const ownedToPaid = useMemo(
+    () => marketingSummary(data, state, { campaign: campaign.id, from: filters.from, to: filters.to }).ownedToPaid,
+    [data, state, campaign.id, filters.from, filters.to],
+  );
+  const recent = useMemo(() => {
+    const channelSource = CHANNELS.find((item) => item.id === filters.channel)?.source || '';
+    const needle = query.trim().toLowerCase();
+    return filteredEnquiries(data, state, { campaign: campaign.id })
+      .filter((enquiry) => {
+        if (filters.asset && enquiry.asset !== filters.asset) return false;
+        if (channelSource && enquiry.source !== channelSource) return false;
+        if (!needle) return true;
+        return `${enquiry.business || ''} ${enquiry.lot || ''} ${enquiry.source || ''} ${enquiry.stage || ''} ${enquiry.id || ''}`.toLowerCase().includes(needle);
+      })
+      .sort((a, b) => {
+        if (a.hero && !b.hero) return -1;
+        if (b.hero && !a.hero) return 1;
+        return (b.receivedAt || '').localeCompare(a.receivedAt || '');
+      })
+      .slice(0, 8);
+  }, [data, state, campaign.id, filters.asset, filters.channel, query]);
 
   const channelColumns = [
     {
@@ -194,12 +237,22 @@ export default function Campaign({ params }) {
           </a>
         ))}
       </div>
-      <Filters fields={['range']} value={range} onChange={setRange} rangePresets={presets} />
+      <Filters
+        query={query}
+        onQuery={setQuery}
+        fields={['asset', 'channel', 'range']}
+        value={filters}
+        onChange={setFilters}
+        assets={campaignAssets}
+        channels={CHANNELS}
+        rangePresets={presets}
+        periodDefault="full"
+      />
       <header className="campaign-head">
         <h2>{campaign.name}</h2>
         <p>
-          {date(range.from)} to {date(range.to)}
-          {range.preset !== 'full' ? <span className="muted"> Campaign period {date(campaign.start)} to {date(campaign.end)}</span> : null}
+          {date(filters.from)} to {date(filters.to)}
+          {filters.preset !== 'full' ? <span className="muted"> Campaign period {date(campaign.start)} to {date(campaign.end)}</span> : null}
         </p>
         <p>
           Assets:{' '}
@@ -229,14 +282,21 @@ export default function Campaign({ params }) {
       <h2 className="section-title">Journey</h2>
       <JourneyRail totals={totals} />
       <h2 className="section-title">Channels</h2>
-      <DataTable
-        className="channel-fit"
-        columns={channelColumns}
-        rows={rows.map((row) => ({ ...row, name: CHANNEL_TABLE_NAMES[row.name] || row.name }))}
-        totals
-        exportName={`campaign-${campaign.id}-channels`}
-      />
+      {namedRows.length === 0 ? (
+        <p className="empty-state">No channels match these filters. Clear filters to see the full campaign.</p>
+      ) : (
+        <DataTable
+          className="channel-fit"
+          columns={channelColumns}
+          rows={namedRows.map((row) => ({ ...row, name: CHANNEL_TABLE_NAMES[row.name] || row.name }))}
+          totals
+          exportName={`campaign-${campaign.id}-channels`}
+        />
+      )}
       <h2 className="section-title">Weekly spend and paid enquiries</h2>
+      {(filters.asset || filters.channel) && (
+        <p className="footnote">This weekly chart is the whole campaign. Asset and channel filters apply to the figures and the channel table above.</p>
+      )}
       <div className="chart-wrap">
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart data={weeks} margin={{ top: 8, right: 8, left: 0, bottom: 8 }}>
@@ -259,8 +319,15 @@ export default function Campaign({ params }) {
         </ResponsiveContainer>
       </div>
       <h2 className="section-title">By asset</h2>
-      <DataTable columns={assetColumns} rows={assetRows} totals exportName={`campaign-${campaign.id}-assets`} />
+      {filters.channel ? (
+        <p className="footnote">Asset rows stay for the whole asset. They are not split by channel, so the channel filter applies to the figures above.</p>
+      ) : shownAssets.length === 0 ? (
+        <p className="empty-state">No assets match these filters. Clear filters to see every asset in this campaign.</p>
+      ) : (
+        <DataTable columns={assetColumns} rows={shownAssets} totals exportName={`campaign-${campaign.id}-assets`} />
+      )}
       <h2 className="section-title">Unpaid enquiries</h2>
+      {filters.channel ? <p className="footnote">Unpaid enquiries are not split by paid channel.</p> : null}
       <p className="lead">Shown separately. Unpaid enquiries are not included in CPL or ROAS.</p>
       <DataTable
         columns={[
@@ -292,7 +359,7 @@ export default function Campaign({ params }) {
             </li>
           );
         })}
-        {recent.length === 0 && <li>No enquiries for this campaign.</li>}
+        {recent.length === 0 && <li className="empty-state">No enquiries match these filters. Clear filters to see this campaign.</li>}
       </ul>
     </section>
   );

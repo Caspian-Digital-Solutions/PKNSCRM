@@ -46,13 +46,13 @@ export default function EnquiryRecord({ id, variant = 'page', onClose }) {
   const ui = useUi();
   const canEdit = state.role === 'leasing';
   const [pending, setPending] = useState(null);
-  const [menu, setMenu] = useState(false);
   const [viewDate, setViewDate] = useState('');
   const [viewTime, setViewTime] = useState('');
   const stored = ui.drafts[id] || { type: 'Call', text: '' };
   const [entryType, setEntryType] = useState(stored.type || 'Call');
   const [entryText, setEntryText] = useState(stored.text || '');
   const seenStage = useRef(null);
+  const followRef = useRef(null);
   const [crest, setCrest] = useState(false);
   const enquiries = useMemo(() => liveEnquiries(data, state), [data, state]);
   const { enquiries: qrEnquiries, ready: qrReady } = useQrEnquiries();
@@ -78,7 +78,8 @@ export default function EnquiryRecord({ id, variant = 'page', onClose }) {
     if (!enquiry) return undefined;
     const previous = seenStage.current;
     seenStage.current = enquiry.stage;
-    if (previous && previous !== 'Signed' && enquiry.stage === 'Signed') {
+    const arrived = previous && previous !== enquiry.stage && (enquiry.stage === 'Signed' || enquiry.stage === 'Lost');
+    if (arrived) {
       setCrest(true);
       const timer = setTimeout(() => setCrest(false), 2500);
       return () => clearTimeout(timer);
@@ -118,7 +119,13 @@ export default function EnquiryRecord({ id, variant = 'page', onClose }) {
     { id: 'contact', label: 'First contact', at: enquiry.firstResponseAt, reached: Boolean(enquiry.firstResponseAt), pending: 'Not contacted' },
     { id: 'viewing', label: 'Viewing', at: atOf(enquiry, 'Viewing Scheduled'), reached: Boolean(atOf(enquiry, 'Viewing Scheduled')), pending: 'Viewing: not scheduled' },
     { id: 'offer', label: 'Offer', at: atOf(enquiry, 'Negotiation'), reached: Boolean(atOf(enquiry, 'Negotiation')), pending: 'Offer: not sent' },
-    { id: 'tenancy', label: 'Tenancy', at: atOf(enquiry, 'Signed'), reached: enquiry.stage === 'Signed', pending: 'Tenancy: not signed' },
+    {
+      id: 'tenancy',
+      label: enquiry.stage === 'Lost' ? 'Lost' : 'Tenancy',
+      at: enquiry.stage === 'Lost' ? atOf(enquiry, 'Lost') : atOf(enquiry, 'Signed'),
+      reached: enquiry.stage === 'Signed' || enquiry.stage === 'Lost',
+      pending: 'Tenancy: not signed',
+    },
   ];
   let previousAt = null;
   const rail = nodes.map((node) => {
@@ -149,7 +156,6 @@ export default function EnquiryRecord({ id, variant = 'page', onClose }) {
 
   const requestStage = (stage) => {
     if (!editable || stage === enquiry.stage) return;
-    setMenu(false);
     if (stage === 'Signed' || stage === 'Lost') {
       setPending(stage);
       return;
@@ -206,13 +212,9 @@ export default function EnquiryRecord({ id, variant = 'page', onClose }) {
           <button type="button" className="btn" onClick={() => setEntryType('WhatsApp')}><MessageCircle size={18} strokeWidth={1.75} aria-hidden="true" /> WhatsApp</button>
           <button type="button" className="btn" onClick={() => setEntryType('Email')}><Mail size={18} strokeWidth={1.75} aria-hidden="true" /> Email</button>
           <button type="button" className="btn" onClick={scheduleViewing}><Calendar size={18} strokeWidth={1.75} aria-hidden="true" /> Schedule viewing</button>
-          <div className="split">
-            <button type="button" className="btn btn-primary" onClick={() => requestStage('Signed')}>Mark as signed</button>
-            <button type="button" className="btn" aria-expanded={menu} aria-label="More outcomes" onClick={() => setMenu((open) => !open)}>▾</button>
-            {menu && (
-              <button type="button" className="btn split-menu" onClick={() => requestStage('Lost')}>Mark as lost</button>
-            )}
-          </div>
+          <button type="button" className="btn" onClick={() => followRef.current?.focus()}>Set follow-up</button>
+          <button type="button" className="btn btn-primary" onClick={() => requestStage('Signed')}>Mark as signed</button>
+          <button type="button" className="btn" onClick={() => requestStage('Lost')}>Mark as lost</button>
         </div>
       )}
       <div className="stepper" aria-label="Stage">
@@ -232,14 +234,21 @@ export default function EnquiryRecord({ id, variant = 'page', onClose }) {
                 <p>{enquiry.ad || enquiry.attribution?.ad}</p>
                 <span className="ad-cta">Learn more</span>
               </div>
-            ) : (
+            ) : node.id === 'tenancy' && enquiry.stage === 'Lost' ? null : (
               <p>{node.reached ? (node.body || (node.at ? `${dayMonth(node.at)} ${time(node.at)}` : 'Reached')) : node.pending}</p>
             )}
+            {node.id === 'viewing' && enquiry.nextFollowUp && <p>Next follow-up {date(enquiry.nextFollowUp)}</p>}
             {node.gap && <span className="journey-gap">{node.gap}</span>}
+            {node.id === 'tenancy' && enquiry.stage === 'Lost' && (
+              <div className={crest ? 'journey-end crest-flash' : 'journey-end'}>
+                Lost
+                <span className="journey-gap">{enquiry.lostReason || 'No reason recorded'}</span>
+              </div>
+            )}
             {node.id === 'tenancy' && enquiry.stage === 'Signed' && (
               <div className={crest ? 'journey-end crest-flash' : 'journey-end'}>
                 <Num value={firstYear} format={rm} watch={`journey-fyv:${enquiry.id}`} />
-                <span>first-year rent</span>
+                <span className="journey-caption">first-year rent</span>
               </div>
             )}
           </li>
@@ -345,7 +354,16 @@ export default function EnquiryRecord({ id, variant = 'page', onClose }) {
                 </label>
                 <label>
                   Next follow-up
-                  <input type="date" value={enquiry.nextFollowUp || ''} onChange={(event) => dispatch({ type: 'followUp', id: enquiry.id, date: event.target.value })} />
+                  <input
+                    ref={followRef}
+                    type="date"
+                    value={enquiry.nextFollowUp || ''}
+                    onChange={(event) => {
+                      const next = event.target.value;
+                      dispatch({ type: 'followUp', id: enquiry.id, date: next });
+                      if (next) ui.notify({ title: `Follow-up set: ${enquiry.business}, ${date(next)}`, href: `enquiry/${enquiry.id}`, action: 'Open' });
+                    }}
+                  />
                 </label>
               </>
             ) : (
@@ -379,6 +397,12 @@ export default function EnquiryRecord({ id, variant = 'page', onClose }) {
         onClose={() => setPending(null)}
         onConfirm={(extra) => {
           commitStage(dispatch, enquiry, 'Lost', extra);
+          ui.notify({
+            title: `Marked as lost: ${enquiry.business}${enquiry.lot ? `, lot ${enquiry.lot}` : ''}`,
+            detail: extra.lostReason,
+            href: `enquiry/${enquiry.id}`,
+            action: 'Open',
+          });
           setPending(null);
         }}
       />
