@@ -329,11 +329,11 @@ export default function Asset({ params }) {
       )}
 
       {tab === 'enquiries' && (
-        {visibleEnquiries.length === 0 ? (
+        visibleEnquiries.length === 0 ? (
           <p className="empty-state">No enquiries match these filters. Clear filters to see every enquiry on this asset.</p>
         ) : (
           <DataTable columns={enquiryColumns} rows={visibleEnquiries} exportName={`${asset.id}-enquiries`} />
-        )}
+        )
       )}
 
       {tab === 'campaigns' && (
