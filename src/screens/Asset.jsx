@@ -2,11 +2,13 @@ import { useEffect, useMemo, useState } from 'react';
 import { useStore } from '../store.jsx';
 import { go, useRoute } from '../router.js';
 import DataTable from '../components/DataTable.jsx';
+import Field from '../components/Field.jsx';
 import Filters from '../components/Filters.jsx';
 import Num from '../components/Num.jsx';
 import { PIPELINE_STAGES } from '../data/config.js';
 import { assetDetail, liveAssets } from '../data/selectors.js';
 import { num, rm, rm2, pct, x, date } from '../format.js';
+import { assetMark } from '../labels.js';
 
 const STATUSES = ['Occupied', 'Reserved', 'Vacant', 'Under redevelopment'];
 
@@ -172,16 +174,15 @@ export default function Asset({ params }) {
           <h1 className="page-title"><span className="sr-only">Asset detail </span>{asset.name}</h1>
           <p className="lead">{asset.type}</p>
         </div>
-        <label className="month-select">
-          Asset
+        <Field label="Asset">
           <select data-testid="asset-select" value={assetId} onChange={(event) => go('asset', event.target.value)}>
             {assets.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
           </select>
-        </label>
+        </Field>
       </div>
       <div className="asset-head">
         <div className="asset-photo">
-          {photo ? <img src={photo} alt="" /> : <div className="asset-photo-fallback">{asset.name}</div>}
+          {photo ? <img src={photo} alt="" /> : <div className="asset-photo-fallback" aria-hidden="true">{assetMark(asset)}</div>}
         </div>
         <dl className="fact-grid">
           <div><dt className="fact-label">Type</dt><dd className="fact-value">{asset.type}</dd></div>
@@ -264,7 +265,6 @@ export default function Asset({ params }) {
                         onClick={() => setLotId(unit.id)}
                       >
                         <span>{unit.lot}</span>
-                        {unit.id === 'kpsa:4-07' ? <Num value={unit.status} watch={`unit:${unit.id}`} className="lot-status" /> : null}
                       </button>
                       <span className="lot-pop">
                         <strong>Lot {unit.lot}</strong>

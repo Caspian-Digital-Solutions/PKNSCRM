@@ -253,7 +253,7 @@ check('Contact log keeps generated entries and adds the live note', noted.length
 check('Live note is in the contact log', noted.some((l) => l.text === 'Called back.'), true);
 
 const roasDef = DEFINITIONS.find((d) => d.id === 'roas');
-check('ROAS demo-assumption note', roasDef.note, "Demo assumption: first-year rental value of signed tenancies ÷ paid spend. PKNS's preferred definition to be confirmed.");
+check('ROAS demo-assumption note', roasDef.note, 'Definition to be confirmed with PKNS.');
 check('Every definition has a formula and source', DEFINITIONS.every((d) => d.id && d.name && d.formula && d.source), true);
 
 const report = reportBlocks(D, {}, '2026-10');
@@ -406,7 +406,7 @@ const marketingLines = XLSX.utils.sheet_to_json(reportBook.Sheets['Marketing to 
 check('Excel banner names the month', marketingLines[0][0], 'October 2026 · Demo data');
 check('Excel spend is the raw number', marketingLines.find((line) => line[0] === 'Spend')[1], 34206);
 const definitionLines = XLSX.utils.sheet_to_json(reportBook.Sheets.Definitions, { header: 1 });
-check('Excel definitions include the benchmark note', definitionLines.some((line) => String(line[3] || '').includes('Residential references are indicative only and not shown as targets.')), true);
+check('Excel definitions omit the residential note', definitionLines.some((line) => String(line.join(' ')).includes('Residential references are indicative only')), false);
 
 const qrKpsa = toQrEnquiry({ id: '1', name: 'Siti', business: 'Kedai Demo', space_type: 'Office', asset: 'kpsa', phone: '012' });
 const qrBangi = toQrEnquiry({ id: '2', asset: 'bangi' });

@@ -1,7 +1,7 @@
-/* Type, spacing and control tokens. Inter is the only face (Barlow and Source Sans 3 are not loaded). */
+/* Text stays Inter. Headline figures use Barlow Semi Condensed. */
 :root {
-  --font-text: Inter, "Segoe UI", system-ui, sans-serif;
-  --font-figure: Inter, "Segoe UI", system-ui, sans-serif;
+  --font-text: "Inter", "Segoe UI", system-ui, sans-serif;
+  --font-figure: "Barlow Semi Condensed", "Arial Narrow", sans-serif;
 
   --t-overline: 600 13px/16px var(--font-text);
   --t-meta: 400 14px/20px var(--font-text);

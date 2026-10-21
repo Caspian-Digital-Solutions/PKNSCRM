@@ -26,12 +26,12 @@ export const DEFINITIONS = [
     name: 'ROAS',
     formula: 'First-year rental value of signed tenancies ÷ paid spend',
     source: 'Page 04 §5',
-    note: "Demo assumption: first-year rental value of signed tenancies ÷ paid spend. PKNS's preferred definition to be confirmed.",
+    note: 'Definition to be confirmed with PKNS.',
   },
   {
     id: 'occupancy',
     name: 'Occupancy %',
-    formula: 'Occupied ÷ (total units − units under redevelopment). Event spaces are excluded entirely',
+    formula: 'Occupied ÷ (total units − units under redevelopment). Event spaces are excluded entirely.',
     source: 'Page 04 §5',
   },
   {
@@ -67,7 +67,7 @@ export const DEFINITIONS = [
   {
     id: 'rental-reversion',
     name: 'Rental reversion',
-    formula: 'From the monthly leasing table (LEASING_BY_MONTH)',
+    formula: 'Leasing records, monthly.',
     source: 'Page 04 §5',
   },
   {
@@ -99,7 +99,6 @@ export const DEFINITIONS = [
     name: 'Engagements',
     formula: 'Organic reach × engagement rate, rounded',
     source: 'Page 04 §5',
-    note: 'Engagement rate is the percent stored on each social page (3.1 means 3.1%).',
   },
   {
     id: 'follower-change',

@@ -33,16 +33,16 @@ export function spaceLabel(use, lot) {
 }
 
 const ASSET_MARK = {
-  kpsa: 'KSA',
-  pas: 'PAS',
-  sacc: 'SAC',
-  bangi: 'KBG',
-  mpkns: 'MPK',
-  mww: 'MWW',
+  kpsa: 'KS',
+  pas: 'PA',
+  sacc: 'SC',
+  bangi: 'KB',
+  mpkns: 'MP',
+  mww: 'MW',
   wy: 'WY',
   mu: 'MU',
   mu2: 'U2',
-  sitc: 'SITC',
+  sitc: 'SI',
 };
 
 export function assetMark(asset) {
@@ -64,6 +64,12 @@ export function officerTint(id) {
 
 export function initialsOf(name) {
   return String(name || '').split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase() || '–';
+}
+
+export function officerMark(officer) {
+  if (!officer) return '–';
+  if (officer.initials) return officer.initials;
+  return initialsOf(officer.name);
 }
 
 export function sentence(text) {

@@ -7,7 +7,7 @@ import Term from '../components/Term.jsx';
 import { exportSheets } from '../components/ExportButton.jsx';
 import { MONTHS } from '../data/config.js';
 import { DEFINITIONS } from '../data/definitions.js';
-import { BENCHMARK_NOTE, reportModel } from '../data/reportModel.js';
+import { reportModel } from '../data/reportModel.js';
 import { buildReportPdf } from '../reportPdf.js';
 
 function MeasureTable({ title, rows }) {
@@ -31,15 +31,19 @@ function MeasureTable({ title, rows }) {
             {rows.reduce((nodes, row, index) => {
               const snapshot = row.kind === 'snapshot';
               const trade = String(row.id).startsWith('trade-');
+              const expiry = String(row.id).startsWith('expiry-');
               if (snapshot && !rows.slice(0, index).some((item) => item.kind === 'snapshot')) {
                 nodes.push(<tr key="snapshot-head"><td colSpan={4}>Snapshot as at 31 Oct 2026</td></tr>);
+              }
+              if (expiry && !rows.slice(0, index).some((item) => String(item.id).startsWith('expiry-'))) {
+                nodes.push(<tr key="expiry-head"><td colSpan={4}>Lease expiry profile</td></tr>);
               }
               if (trade && !rows.slice(0, index).some((item) => String(item.id).startsWith('trade-'))) {
                 nodes.push(<tr key="trade-head"><td colSpan={4}>Retail trade mix</td></tr>);
               }
               const label = trade ? String(row.label).split('·').pop().trim() : row.label;
               nodes.push(
-                <tr key={row.id} className={trade ? 'indent-row' : undefined}>
+                <tr key={row.id} className={trade || expiry ? 'indent-row' : undefined}>
                   <td>
                     {row.term ? <Term id={row.term}>{label}</Term> : label}
                     {row.note ? <span className="cell-note">{row.note}</span> : null}
@@ -201,7 +205,6 @@ export default function Report() {
             </div>
           ))}
         </dl>
-        <p>{BENCHMARK_NOTE}</p>
       </details>
       </article>
     </section>

@@ -13,7 +13,7 @@ import { lastDayOf } from '../data/generate.js';
 import { AS_AT } from '../data/config.js';
 import { delta, num, rm, rm2, pct, x } from '../format.js';
 
-const DEFAULT_COLUMNS = ['name', 'units', 'occupied', 'vacant', 'occupancy', 'medianDaysVacant', 'paidEnquiries', 'openPipeline', 'spend', 'cpl', 'signed', 'roas'];
+const DEFAULT_COLUMNS = ['name', 'units', 'occupied', 'vacant', 'occupancy', 'medianDaysVacant', 'paidEnquiries', 'spend', 'cpl', 'signed', 'roas'];
 
 function changeLine(current, previous, format, label) {
   if (previous == null || !label) return null;
@@ -283,61 +283,68 @@ export default function Portfolio() {
       <aside className="today-panel">
         <h2 className="section-title">Today</h2>
         {state.role === 'leasing' && (
-          <>
-            <p>{num(dueToday.length)} follow-ups due today</p>
-            <ul className="today-list">
-              {dueToday.slice(0, 5).map((enquiry) => (
-                <li key={enquiry.id}>
-                  <a href={`#/enquiry/${enquiry.id}`} onClick={(event) => { event.preventDefault(); go('enquiry', enquiry.id); }}>
-                    {enquiry.business}{enquiry.lot ? `, lot ${enquiry.lot}` : ''}
-                  </a>
-                </li>
-              ))}
-            </ul>
-            <p><a href="#/pipeline" onClick={(event) => { event.preventDefault(); go('pipeline', { view: 'awaiting' }); }}>{num(newCount)} new enquiries</a></p>
-          </>
+          <ul className="today-list">
+            <li>{num(dueToday.length)} follow-ups due today</li>
+            {dueToday.slice(0, 5).map((enquiry) => (
+              <li key={enquiry.id}>
+                <a href={`#/enquiry/${enquiry.id}`} onClick={(event) => { event.preventDefault(); go('enquiry', enquiry.id); }}>
+                  {enquiry.business}{enquiry.lot ? `, lot ${enquiry.lot}` : ''}
+                </a>
+              </li>
+            ))}
+            <li><a href="#/pipeline" onClick={(event) => { event.preventDefault(); go('pipeline', { view: 'awaiting' }); }}>{num(newCount)} new enquiries</a></li>
+          </ul>
         )}
         {state.role === 'management' && (
-          <>
-            <p>{num(november.length)} leases expiring in November, {rm(novemberRent)} a month</p>
-            <p>{num(awaitingList.length)} enquiries awaiting first response</p>
-            <ul className="today-list">
-              {awaitingList.slice(0, 5).map((enquiry) => (
-                <li key={enquiry.id}>
-                  <a href={`#/enquiry/${enquiry.id}`} onClick={(event) => { event.preventDefault(); go('enquiry', enquiry.id); }}>
-                    {enquiry.business}{enquiry.lot ? `, lot ${enquiry.lot}` : ''}
-                  </a>
-                </li>
-              ))}
-            </ul>
-          </>
+          <ul className="today-list">
+            <li>{num(november.length)} leases expiring in November, {rm(novemberRent)} a month</li>
+            <li>
+              <p className="today-sub">Awaiting first response</p>
+              <ul className="today-list">
+                {awaitingList.slice(0, 5).map((enquiry) => (
+                  <li key={enquiry.id}>
+                    <a href={`#/enquiry/${enquiry.id}`} onClick={(event) => { event.preventDefault(); go('enquiry', enquiry.id); }}>
+                      {enquiry.business}{enquiry.lot ? `, lot ${enquiry.lot}` : ''}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </li>
+          </ul>
         )}
         {state.role === 'marketing' && topCampaign && (
           <p><a href={`#/campaign/${topCampaign.id}`} onClick={(event) => { event.preventDefault(); go('campaign', topCampaign.id); }}>{topCampaign.name}: {num(topCampaign.enquiries)} paid enquiries</a></p>
         )}
       </aside>
       </div>
-      <div className="table-toolbar">
-        <button type="button" className="btn" aria-expanded={colsOpen} onClick={() => setColsOpen((open) => !open)}>Columns</button>
-        {colsOpen && (
-          <div className="col-pop" role="group" aria-label="Columns">
-            {columns.map((column) => (
-              <label key={column.key}>
-                <input
-                  type="checkbox"
-                  checked={shownCols.includes(column.key)}
-                  onChange={() => setShownCols((current) => (current.includes(column.key) ? current.filter((key) => key !== column.key) : [...current, column.key]))}
-                />
-                {column.label}
-              </label>
-            ))}
-          </div>
-        )}
-      </div>
       {assetFiltered && narrowed.length === 0 && (
         <p className="empty-state">No assets match these filters. Clear filters to see all {num(body.length)}.</p>
       )}
-      <DataTable columns={visibleColumns} rows={narrowed} totals exportName={`portfolio-${month}`} />
+      <DataTable
+        columns={visibleColumns}
+        rows={narrowed}
+        totals
+        exportName={`portfolio-${month}`}
+        tools={(
+          <div className="table-toolbar">
+            <button type="button" className="btn" aria-expanded={colsOpen} onClick={() => setColsOpen((open) => !open)}>Columns</button>
+            {colsOpen && (
+              <div className="col-pop" role="group" aria-label="Columns">
+                {columns.map((column) => (
+                  <label key={column.key}>
+                    <input
+                      type="checkbox"
+                      checked={shownCols.includes(column.key)}
+                      onChange={() => setShownCols((current) => (current.includes(column.key) ? current.filter((key) => key !== column.key) : [...current, column.key]))}
+                    />
+                    {column.label}
+                  </label>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      />
       {notes.map((row) => (
         <p key={row.id} className="footnote">{row.name}: {row.note}</p>
       ))}

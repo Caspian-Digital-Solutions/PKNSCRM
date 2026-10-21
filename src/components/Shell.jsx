@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Bell, Building2, ChevronDown, Clock, FileText, Home, Inbox, LayoutGrid, Megaphone,
-  PanelLeft, Settings, Target, X,
+  PanelLeft, RotateCcw, Settings, Target, X,
 } from 'lucide-react';
 import logo from '../assets/pkns-logo.png';
 import { useStore, ROLES, SCREENS } from '../store.jsx';
@@ -79,7 +79,6 @@ export default function Shell({ current, children }) {
   const route = useRoute();
   const ui = useUi();
   const role = ROLES[state.role];
-  const nav = SCREENS.filter((item) => !item.hidden && item.roles.includes(state.role));
   const [menu, setMenu] = useState(false);
   const [bell, setBell] = useState(false);
   const fresh = useMemo(() => pipelineSummary(data, state).counts.New || 0, [data, state]);
@@ -90,8 +89,17 @@ export default function Shell({ current, children }) {
   const navCurrent = current === 'enquiries' || current === 'enquiry' ? 'pipeline' : current;
   const section = SCREENS.find((item) => item.id === navCurrent);
 
+  const closeOverlays = () => {
+    ui.closeRecord();
+    ui.setPalette(false);
+    ui.setShortcuts(false);
+    setBell(false);
+    setMenu(false);
+  };
+
   const confirmReset = () => {
     ui.setResetOpen(false);
+    closeOverlays();
     ui.clearEvents();
     dispatch({ type: 'reset' });
     ui.toastOnly({ title: 'Demo reset' });
@@ -99,6 +107,7 @@ export default function Shell({ current, children }) {
   };
 
   const resetNow = () => {
+    closeOverlays();
     ui.clearEvents();
     dispatch({ type: 'reset' });
     ui.toastOnly({ title: 'Demo reset' });
@@ -114,13 +123,26 @@ export default function Shell({ current, children }) {
     else go(ROLES[id].landing);
   };
 
+  const closeRecordRef = useRef(ui.closeRecord);
+  closeRecordRef.current = ui.closeRecord;
+  const bellGuard = useRef(false);
+
   useEffect(() => {
-    if (route.screen === 'enquiry') ui.closeRecord();
+    closeRecordRef.current();
     setBell(false);
     setMenu(false);
     window.scrollTo(0, 0);
     document.querySelectorAll('.content, .main-col').forEach((node) => { node.scrollTop = 0; });
-  }, [route.screen, route.params, ui]);
+  }, [route.screen, route.params]);
+
+  useEffect(() => {
+    if (!ui.drawerId) return undefined;
+    const onKey = (event) => {
+      if (event.key === 'Escape') closeRecordRef.current();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [ui.drawerId]);
 
   useEffect(() => {
     if ((current === 'pipeline' || current === 'enquiries' || current === 'enquiry') && window.innerWidth < 1600) {
@@ -131,7 +153,11 @@ export default function Shell({ current, children }) {
   useEffect(() => {
     if (!bell && !menu) return undefined;
     const onPointer = (event) => {
-      if (event.target instanceof Element && event.target.closest('.bell-wrap, .user-card')) return;
+      if (bellGuard.current) {
+        bellGuard.current = false;
+        return;
+      }
+      if (event.target instanceof Element && event.target.closest('.bell-wrap, .user-card, .bell-menu')) return;
       setBell(false);
       setMenu(false);
     };
@@ -193,8 +219,12 @@ export default function Shell({ current, children }) {
             </span>
           </a>
           <div className="side-links">
-            {nav.map((item) => {
+            {SCREENS.filter((item) => !item.hidden).map((item) => {
+              if (!item.roles.includes(state.role)) {
+                return ui.collapsed ? <span key={item.id} className="nav-spacer" aria-hidden="true" /> : null;
+              }
               const Icon = ICONS[item.id] || LayoutGrid;
+              const icon = <Icon size={18} strokeWidth={1.75} aria-hidden="true" />;
               return (
                 <a
                   key={item.id}
@@ -203,7 +233,7 @@ export default function Shell({ current, children }) {
                   aria-label={item.name}
                   onClick={(event) => { event.preventDefault(); go(item.id); }}
                 >
-                  <Icon size={18} strokeWidth={1.75} aria-hidden="true" />
+                  {ui.collapsed ? <Tip label={item.name} place="right">{icon}</Tip> : icon}
                   <span className="nav-label">{item.name}</span>
                   {item.id === 'pipeline' && (
                     <span className="nav-badge" aria-hidden="true">{num(fresh)}</span>
@@ -218,7 +248,12 @@ export default function Shell({ current, children }) {
               <span className="demo-pill">Demo data</span>
               {ui.presenter && <span className="demo-pill">Presenter mode</span>}
             </div>
-            <button type="button" className="icon-btn nav-quiet" onClick={() => ui.setResetOpen(true)}>Reset demo</button>
+            <Tip label="Reset demo" place="right">
+              <button type="button" className="icon-btn nav-quiet" aria-label="Reset demo" onClick={() => ui.setResetOpen(true)}>
+                <RotateCcw size={18} strokeWidth={1.75} aria-hidden="true" />
+                <span className="nav-label">Reset demo</span>
+              </button>
+            </Tip>
             <button type="button" className="icon-btn nav-quiet" onClick={() => ui.setCollapsed((on) => !on)} aria-label={ui.collapsed ? 'Expand navigation' : 'Collapse navigation'}>
               <PanelLeft size={18} strokeWidth={1.75} aria-hidden="true" />
               <span className="nav-label">{ui.collapsed ? 'Expand' : 'Collapse'}</span>
@@ -267,7 +302,7 @@ export default function Shell({ current, children }) {
               </Tip>
               <div className="bell-wrap">
                 <Tip label="Notifications">
-                  <button type="button" className="icon-btn" aria-label="Notifications" aria-expanded={bell} onClick={() => { setBell((open) => !open); ui.markAllRead(); }}>
+                  <button type="button" className="icon-btn" aria-label="Notifications" aria-expanded={bell} onClick={(event) => { event.stopPropagation(); bellGuard.current = true; setBell((open) => !open); ui.markAllRead(); }}>
                     <Bell size={18} strokeWidth={1.75} aria-hidden="true" />
                     {ui.events.some((event) => !event.read) && <span className="nav-badge" aria-hidden="true">{ui.events.filter((event) => !event.read).length}</span>}
                   </button>

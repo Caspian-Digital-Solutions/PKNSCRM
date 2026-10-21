@@ -19,8 +19,11 @@ async function offenders(page) {
       if (!text || !el || !el.offsetWidth || el.closest('[data-allow-type]')) continue;
       const style = getComputedStyle(el);
       const family = style.fontFamily || '';
-      const badFamily = !/Inter/i.test(family) || /Barlow|Source Sans/i.test(family);
-      const badSize = !allowed.includes(style.fontSize);
+      const allowedFamily = /Inter|Barlow Semi Condensed/i.test(family) && !/Source Sans/i.test(family);
+      const badFamily = !allowedFamily;
+      const size = parseFloat(style.fontSize);
+      const figure = el.closest('.kpi-value');
+      const badSize = figure ? size < 24 || size > 32.01 : !allowed.includes(style.fontSize);
       const badWeight = !['400', '600'].includes(style.fontWeight);
       const underline = style.textDecorationLine.includes('underline');
       if (badFamily || badSize || badWeight || underline) {
@@ -34,6 +37,20 @@ async function offenders(page) {
       const height = Math.round(parseFloat(getComputedStyle(el).height));
       if (![32, 36, 40].includes(height)) out.push(`height ${height}px <${el.tagName.toLowerCase()} ${el.getAttribute('aria-label') || el.textContent.trim().slice(0, 24)}>`);
     }
+    for (const el of document.querySelectorAll('button')) {
+      if (!el.offsetWidth) continue;
+      const style = getComputedStyle(el);
+      const color = style.color.replace(/\s/g, '');
+      const background = style.backgroundColor.replace(/\s/g, '');
+      if (color && background && color === background && style.opacity !== '0') {
+        out.push(`same color ${color} <${el.textContent.trim().slice(0, 24)}>`);
+      }
+    }
+    for (const el of document.querySelectorAll('.kpi-value')) {
+      const tile = el.closest('.kpi');
+      if (!tile || !el.offsetWidth) continue;
+      if (el.scrollWidth > tile.clientWidth - 8) out.push(`kpi overflow ${el.textContent.trim().slice(0, 24)}`);
+    }
     return out.slice(0, 30);
   }, ALLOWED);
 }
@@ -44,8 +61,8 @@ for (const [role, routes] of Object.entries(ROUTES)) {
     await page.setViewportSize({ width: 1512, height: 861 });
     await page.goto('/');
     await page.getByRole('button', { name: new RegExp(`^${role}`) }).click();
-    for (const width of [1512, 1920]) {
-    await page.setViewportSize({ width, height: width === 1512 ? 861 : 1080 });
+    for (const width of [1366, 1512, 1920]) {
+    await page.setViewportSize({ width, height: width === 1920 ? 1080 : 861 });
     for (const route of routes) {
       await page.evaluate((hash) => { window.location.hash = hash.replace(/^#/, ''); }, route);
       await page.waitForTimeout(80);

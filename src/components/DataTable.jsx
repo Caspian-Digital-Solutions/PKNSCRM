@@ -37,6 +37,7 @@ export default function DataTable({
   initialSort,
   className,
   pageSize,
+  tools,
 }) {
   const [sort, setSort] = useState(() => initialSort || { key: null, dir: 'asc' });
   const [filters, setFilters] = useState({});
@@ -76,6 +77,7 @@ export default function DataTable({
   return (
     <div className="datatable">
       <div className="datatable-bar">
+        {tools}
         {filterable.length > 0 && (
           <div className="filters">
             {filterable.map((col) => (

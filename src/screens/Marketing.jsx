@@ -175,7 +175,7 @@ export default function Marketing() {
                 <CartesianGrid stroke="var(--line)" vertical={false} />
                 <XAxis dataKey="name" tick={{ fontSize: 14, fill: 'var(--ink-2)' }} />
                 <YAxis tick={{ fontSize: 14, fill: 'var(--muted)' }} tickFormatter={(value) => num(value)} />
-                <Tooltip formatter={(value) => rm(value)} />
+                <Tooltip separator=" " formatter={(value) => rm(value)} />
                 <Bar dataKey="spend" name="Spend" fill="var(--s1)" maxBarSize={28} />
               </BarChart>
             </ResponsiveContainer>
@@ -189,7 +189,7 @@ export default function Marketing() {
                 <CartesianGrid stroke="var(--line)" vertical={false} />
                 <XAxis dataKey="name" tick={{ fontSize: 14, fill: 'var(--ink-2)' }} />
                 <YAxis tick={{ fontSize: 14, fill: 'var(--muted)' }} tickFormatter={(value) => num(value)} />
-                <Tooltip formatter={(value) => num(value)} />
+                <Tooltip separator=" " formatter={(value) => num(value)} />
                 <Bar dataKey="enquiries" name="Paid enquiries" fill="var(--s2)" maxBarSize={28} />
               </BarChart>
             </ResponsiveContainer>
@@ -219,21 +219,33 @@ export default function Marketing() {
         <Kpi label="Sessions" value={summary.website.sessions} format={num} testId="web-sessions" />
         <Kpi label="Users" value={summary.website.users} format={num} testId="web-users" />
       </div>
+      <div className="heatmap-wide">
+        <h3 className="section-title">Sample heatmap</h3>
+        <SampleHeatmap />
+      </div>
       <div className="panel-grid">
         <div>
           <h3 className="section-title">Traffic sources</h3>
           <div className="chart-wrap compact">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={summary.website.sources} layout="vertical" margin={{ top: 8, right: 16, left: 8, bottom: 8 }}>
+              <BarChart data={summary.website.sources} layout="vertical" margin={{ top: 8, right: 64, left: 8, bottom: 8 }}>
                 <CartesianGrid stroke="var(--line)" strokeWidth={2} horizontal={false} />
                 <XAxis type="number" stroke="var(--ink)" strokeWidth={2} tick={{ fontSize: 14, fill: 'var(--ink)' }} tickFormatter={(value) => num(value)} />
                 <YAxis type="category" dataKey="name" width={130} stroke="var(--ink)" strokeWidth={2} tick={{ fontSize: 14, fill: 'var(--ink)' }} />
-                <Tooltip formatter={(value) => num(value)} contentStyle={{ fontSize: 16, color: 'var(--ink)' }} />
+                <Tooltip separator=" " content={({ active, payload, label }) => {
+                  if (!active || !payload?.length) return null;
+                  return (
+                    <div className="chart-tip">
+                      <p>{label}</p>
+                      {payload.map((item) => <p key={item.dataKey}>{item.name} {num(item.value)}</p>)}
+                    </div>
+                  );
+                }} />
                 <Bar dataKey="sessions" name="Sessions" fill="var(--s2)" barSize={16}>
                   <LabelList
                     dataKey="sessions"
                     position="right"
-                    formatter={(value) => `${num(value)} · ${pct((Number(value) || 0) / (summary.website.sessions || 1))}`}
+                    formatter={(value) => `${num(value)} ${pct((Number(value) || 0) / (summary.website.sessions || 1))}`}
                     style={{ fontSize: 14, fill: '#4B4F56', fontFamily: 'Inter, sans-serif' }}
                   />
                 </Bar>
@@ -247,15 +259,19 @@ export default function Marketing() {
                 <CartesianGrid stroke="var(--line)" strokeWidth={2} vertical={false} />
                 <XAxis dataKey="label" stroke="var(--ink)" strokeWidth={2} tick={{ fontSize: 14, fill: 'var(--ink)' }} interval={daily.length > 16 ? 4 : 0} angle={-30} textAnchor="end" height={70} />
                 <YAxis stroke="var(--ink)" strokeWidth={2} tick={{ fontSize: 14, fill: 'var(--ink)' }} tickFormatter={(value) => num(value)} />
-                <Tooltip formatter={(value) => num(value)} contentStyle={{ fontSize: 16, color: 'var(--ink)' }} />
+                <Tooltip separator=" " content={({ active, payload, label }) => {
+                  if (!active || !payload?.length) return null;
+                  return (
+                    <div className="chart-tip">
+                      <p>{label}</p>
+                      {payload.map((item) => <p key={item.dataKey}>{item.name} {num(item.value)}</p>)}
+                    </div>
+                  );
+                }} />
                 <Line dataKey="sessions" name="Sessions" stroke="var(--s1)" strokeWidth={2} dot={false} />
               </ComposedChart>
             </ResponsiveContainer>
           </div>
-        </div>
-        <div>
-          <h3 className="section-title">Sample heatmap</h3>
-          <SampleHeatmap />
         </div>
       </div>
       <h3 className="section-title">Top pages</h3>

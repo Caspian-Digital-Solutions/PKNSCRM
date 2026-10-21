@@ -66,7 +66,7 @@ export default function SampleHeatmap() {
               <rect x={x} y={y} width="194" height="184" rx="8" fill="#ffffff" stroke="#e4e1df" strokeWidth="2" />
               <rect x={x + 10} y={y + 10} width="174" height="58" rx="4" fill="#d9d6d4" />
               <foreignObject x={x + 10} y={y + 74} width="174" height="40">
-                <div xmlns="http://www.w3.org/1999/xhtml" style={{ fontFamily: 'Source Sans 3, sans-serif', fontSize: '14px', fontWeight: 600, color: '#231f20', lineHeight: 1.2 }}>
+                <div xmlns="http://www.w3.org/1999/xhtml" style={{ fontFamily: 'Inter, sans-serif', fontSize: '14px', fontWeight: 600, color: '#231f20', lineHeight: 1.2 }}>
                   {card.name}
                 </div>
               </foreignObject>

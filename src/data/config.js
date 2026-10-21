@@ -10,10 +10,10 @@ export const MONTHS = [
 ];
 
 export const OFFICERS = {
-  aina: { id: 'aina', name: 'Aina Rahman', area: 'Section 14' },
-  hafiz: { id: 'hafiz', name: 'Hafiz Kamal', area: 'Petaling Jaya, Kuala Lumpur, Kota Damansara' },
-  izzati: { id: 'izzati', name: 'Siti Nur Izzati', area: 'Bangi' },
-  huda: { id: 'huda', name: 'Nurul Huda Azman', area: 'Section 13 and Shah Alam' },
+  aina: { id: 'aina', name: 'Aina Rahman', initials: 'AR', area: 'Section 14' },
+  hafiz: { id: 'hafiz', name: 'Hafiz Kamal', initials: 'HZ', area: 'Petaling Jaya, Kuala Lumpur, Kota Damansara' },
+  izzati: { id: 'izzati', name: 'Siti Nur Izzati', initials: 'SN', area: 'Bangi' },
+  huda: { id: 'huda', name: 'Nurul Huda Azman', initials: 'NH', area: 'Section 13 and Shah Alam' },
 };
 
 // mix: unit groups per asset. floors listed bottom to top; sizes in sq ft; psf = asking rent RM per sq ft per month.

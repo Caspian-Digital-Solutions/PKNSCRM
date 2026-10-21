@@ -3,6 +3,7 @@ import { useStore } from '../store.jsx';
 import { useUi } from '../ui.jsx';
 import { go } from '../router.js';
 import DataTable from '../components/DataTable.jsx';
+import Field from '../components/Field.jsx';
 import { liveAssets } from '../data/selectors.js';
 import { ASSETS, OFFICERS, SITC_TEMPLATE } from '../data/config.js';
 
@@ -186,12 +187,11 @@ export default function Settings() {
             <input className="name-field" value={form.name} onChange={(event) => set({ name: event.target.value })} />
             {!form.name.trim() && notice?.kind === 'invalid' ? <span className="field-error">Enter the asset name</span> : null}
           </label>
-          <label>
-            Type
+          <Field label="Type">
             <select value={form.type} onChange={(event) => set({ type: event.target.value })}>
               {types.map((type) => <option key={type} value={type}>{type}</option>)}
             </select>
-          </label>
+          </Field>
           <label>
             Location
             <input value={form.location} onChange={(event) => set({ location: event.target.value })} />
@@ -204,12 +204,11 @@ export default function Settings() {
             Campaign grouping
             <input value={form.grouping} onChange={(event) => set({ grouping: event.target.value })} />
           </label>
-          <label>
-            Officer
+          <Field label="Officer">
             <select value={form.officer} onChange={(event) => set({ officer: event.target.value })}>
               {Object.values(OFFICERS).map((officer) => <option key={officer.id} value={officer.id}>{officer.name}</option>)}
             </select>
-          </label>
+          </Field>
           <label>
             Image
             <span className="btn file-btn">Upload image<input type="file" accept="image/*" onChange={onFile} /></span>
@@ -232,19 +231,17 @@ export default function Settings() {
               Rate (RM)
               <input value={space.rate} inputMode="decimal" onChange={(event) => updateSpace(index, { rate: event.target.value })} />
             </label>
-            <label>
-              Basis
+            <Field label="Basis">
               <select value={space.basis} onChange={(event) => updateSpace(index, { basis: event.target.value })}>
                 <option value="per month">per month</option>
                 <option value="per day">per day</option>
               </select>
-            </label>
-            <label>
-              Status
+            </Field>
+            <Field label="Status">
               <select value={space.status} onChange={(event) => updateSpace(index, { status: event.target.value })}>
                 {STATUSES.map((status) => <option key={status || 'blank'} value={status}>{status || '–'}</option>)}
               </select>
-            </label>
+            </Field>
             <button type="button" className="btn" onClick={() => set({ spaces: form.spaces.filter((_, i) => i !== index) })}>Remove</button>
           </div>
         ))}

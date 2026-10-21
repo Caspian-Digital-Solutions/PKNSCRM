@@ -99,7 +99,7 @@ export default function CommandPalette() {
             return (
               <Command.Item
                 key={unit.id}
-                value={`lot ${unit.lot} ${asset?.short || ''} ${asset?.name || ''} ${unit.id}`}
+                value={`${spaceLabel(unit.use, unit.lot)} ${asset?.short || ''} ${asset?.name || ''} ${unit.id}`}
                 onSelect={() => run(() => go('asset', unit.asset, { lot: unit.id }))}
               >
                 {spaceLabel(unit.use, unit.lot)}{asset?.short ? `, ${asset.short}` : ''}

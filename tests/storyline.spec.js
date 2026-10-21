@@ -114,7 +114,7 @@ test('storyline figures from portfolio through reset', async ({ page }) => {
   await page.getByRole('button', { name: 'Negotiation', exact: true }).click();
   await expect(page.getByTestId('unit-status')).toHaveText('Reserved');
   await page.getByRole('button', { name: 'Signed', exact: true }).click();
-  await expect(page.locator('.modal input[name="rent"]')).toHaveValue('3360');
+  await expect(page.locator('.modal input[name="rent"]')).toHaveValue('3,360');
   await expect(page.locator('.modal input[name="start"]')).toHaveValue('2026-12-01');
   await page.getByRole('button', { name: 'Mark as signed' }).click();
   await expect(page.getByTestId('unit-status')).toHaveText('Occupied');
@@ -147,7 +147,8 @@ test('storyline figures from portfolio through reset', async ({ page }) => {
   await expect(page.getByTestId('report-cpl')).toHaveText('RM120.87');
   await expect(page.getByTestId('report-signed')).toHaveText('10');
   await expect(page.getByTestId('report-roas')).toHaveText('13.6x');
-  await expect(page.getByTestId('definitions')).toContainText('Residential references are indicative only and not shown as targets.');
+  await expect(page.getByTestId('definitions')).toContainText('Definition to be confirmed with PKNS.');
+  await expect(page.getByTestId('definitions')).toContainText('Event spaces are excluded entirely.');
   const [excel] = await Promise.all([
     page.waitForEvent('download'),
     page.getByTestId('export-excel').click(),
