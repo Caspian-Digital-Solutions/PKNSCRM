@@ -248,7 +248,7 @@ export default function EnquiryRecord({ id, variant = 'page', onClose }) {
             {node.id === 'tenancy' && enquiry.stage === 'Signed' && (
               <div className={crest ? 'journey-end crest-flash' : 'journey-end'}>
                 <Num value={firstYear} format={rm} watch={`journey-fyv:${enquiry.id}`} />
-                <span>first-year rent</span>
+                <span className="journey-caption">first-year rent</span>
               </div>
             )}
           </li>

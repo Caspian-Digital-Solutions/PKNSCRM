@@ -464,7 +464,8 @@ html.presenter .btn, html.presenter .sidenav a, html.presenter .icon-btn, html.p
 .journey-label { display: block; font-size: 16px; color: var(--ink-2); margin-bottom: 4px; }
 .journey-value, .journey-gap, .journey-roas { display: block; }
 .journey-value { font-family: var(--signage); font-weight: 600; font-size: 32px; line-height: 1.15; font-variant-numeric: tabular-nums; }
-.journey-end { font-family: var(--signage); font-weight: 600; font-size: 32px; line-height: 1.05; overflow-wrap: anywhere; }
+.journey-end { font-family: var(--signage); font-weight: 600; font-size: 32px; line-height: 1.05; overflow-wrap: normal; }
+.journey-caption { display: block; font-size: 16px; font-weight: 600; line-height: 1.3; }
 .journey-gap { font-size: 16px; color: var(--ink-2); }
 .record { container-type: inline-size; min-width: 0; }
 @container (min-width: 1000px) {
