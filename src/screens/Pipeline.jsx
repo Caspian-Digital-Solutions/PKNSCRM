@@ -13,7 +13,7 @@ import { exportSheets } from '../components/ExportButton.jsx';
 import { AS_AT, PIPELINE_STAGES } from '../data/config.js';
 import { daysInStage, filteredEnquiries, firstResponseMinutes, liveAssets, liveEnquiries } from '../data/selectors.js';
 import { date, dateTime, duration, num, rm } from '../format.js';
-import { officerMark, officerTint, initialsOf } from '../labels.js';
+import { officerMark, officerTint, initialsOf, unitLabel } from '../labels.js';
 import { addDays, dateUTC, ymd } from '../data/rng.js';
 import { QR_SOURCE } from '../qrEnquiry.js';
 import { qrPageUrl, useQrEnquiries } from '../qrStore.js';
@@ -377,6 +377,7 @@ export default function Pipeline() {
         </div>
       )}
       {listView && (
+        <>
         <div className="list-tools">
           <div className="table-toolbar">
             <button type="button" className="btn" aria-expanded={moveId === 'columns'} onClick={() => setMoveId((current) => (current === 'columns' ? null : 'columns'))}>Columns</button>
@@ -408,6 +409,7 @@ export default function Pipeline() {
               <button type="button" className="btn" onClick={() => exportRows(sorted.filter((enquiry) => selected.has(enquiry.id)))}>Export selected</button>
             </>
           )}
+        </div>
           <div className="table-scroll">
             <table className="table data-table enquiry-list">
               <thead>
@@ -415,7 +417,7 @@ export default function Pipeline() {
                   {canEdit && <th />}
                   {columnsOn.enquirer && <th><button type="button" className="th-btn" onClick={() => toggleSort('business')}>Enquirer</button></th>}
                   {columnsOn.unit && <th><button type="button" className="th-btn" onClick={() => toggleSort('lot')}>Unit</button></th>}
-                  {columnsOn.source && <th>Source and campaign</th>}
+                  {columnsOn.source && <th><span className="th-label">Source and campaign</span></th>}
                   {columnsOn.stage && <th><button type="button" className="th-btn" onClick={() => toggleSort('stage')}>Stage</button></th>}
                   {columnsOn.officer && <th><button type="button" className="th-btn" onClick={() => toggleSort('officer')}>Officer</button></th>}
                   {columnsOn.received && <th><button type="button" className="th-btn" onClick={() => toggleSort('receivedAt')}>Received</button></th>}
@@ -479,11 +481,13 @@ export default function Pipeline() {
             <span>{page + 1} of {pages}</span>
             <button type="button" className="btn" disabled={page + 1 >= pages} onClick={() => setPage((current) => current + 1)}>Next</button>
           </div>
-        </div>
+        </>
       )}
       <SignedDialog
         open={pending?.stage === 'Signed'}
         enquiry={pending?.enquiry}
+        assetName={assets.find((item) => item.id === pending?.enquiry?.asset)?.name}
+        unit={data.units.find((item) => item.id === pending?.enquiry?.unitId) || data.units.find((item) => item.asset === pending?.enquiry?.asset && item.lot === pending?.enquiry?.lot)}
         onClose={() => setPending(null)}
         onConfirm={(extra) => { commitStage(dispatch, pending.enquiry, 'Signed', extra); setPending(null); }}
       />
@@ -494,7 +498,7 @@ export default function Pipeline() {
         onConfirm={(extra) => {
           commitStage(dispatch, pending.enquiry, 'Lost', extra);
           ui.notify({
-            title: `Marked as lost: ${pending.enquiry.business}${pending.enquiry.lot ? `, lot ${pending.enquiry.lot}` : ''}`,
+            title: `Marked as lost: ${pending.enquiry.business}${pending.enquiry.lot ? `, ${unitLabel(data.units.find((item) => item.id === pending.enquiry.unitId) || { lot: pending.enquiry.lot, use: pending.enquiry.use })}` : ''}`,
             detail: extra.lostReason,
             href: `enquiry/${pending.enquiry.id}`,
             action: 'Open',

@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useStore } from '../store.jsx';
 import { go } from '../router.js';
-import { assetMark } from '../labels.js';
+import { assetMark, enquiryUnitLabel } from '../labels.js';
 import DataTable from '../components/DataTable.jsx';
 import Filters from '../components/Filters.jsx';
 import Kpi from '../components/Kpi.jsx';
@@ -173,7 +173,8 @@ export default function Portfolio() {
     },
     {
       key: 'medianDaysVacant',
-      label: 'Median days vacant',
+      label: 'Days vacant (median)',
+      head: <span className="th-stack">Days vacant <span>(median)</span></span>,
       term: 'days-vacant',
       align: 'right',
       format: flash('medianDaysVacant', num),
@@ -288,7 +289,7 @@ export default function Portfolio() {
             {dueToday.slice(0, 5).map((enquiry) => (
               <li key={enquiry.id}>
                 <a href={`#/enquiry/${enquiry.id}`} onClick={(event) => { event.preventDefault(); go('enquiry', enquiry.id); }}>
-                  {enquiry.business}{enquiry.lot ? `, lot ${enquiry.lot}` : ''}
+                  {enquiry.business}{enquiry.lot ? `, ${enquiryUnitLabel(enquiry, units)}` : ''}
                 </a>
               </li>
             ))}
@@ -304,7 +305,7 @@ export default function Portfolio() {
                 {awaitingList.slice(0, 5).map((enquiry) => (
                   <li key={enquiry.id}>
                     <a href={`#/enquiry/${enquiry.id}`} onClick={(event) => { event.preventDefault(); go('enquiry', enquiry.id); }}>
-                      {enquiry.business}{enquiry.lot ? `, lot ${enquiry.lot}` : ''}
+                      {enquiry.business}{enquiry.lot ? `, ${enquiryUnitLabel(enquiry, units)}` : ''}
                     </a>
                   </li>
                 ))}
@@ -321,6 +322,7 @@ export default function Portfolio() {
         <p className="empty-state">No assets match these filters. Clear filters to see all {num(body.length)}.</p>
       )}
       <DataTable
+        className="portfolio-fit"
         columns={visibleColumns}
         rows={narrowed}
         totals

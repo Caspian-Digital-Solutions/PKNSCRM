@@ -14,7 +14,7 @@ import { useQrEnquiries } from '../qrStore.js';
 import { bookedWhen, date, dayMonth, duration, num, rm, time, weekdayDate } from '../format.js';
 import { Tip } from './Term.jsx';
 import { addDays, dateUTC, ymd } from '../data/rng.js';
-import { displaySource, spaceLabel } from '../labels.js';
+import { displaySource, unitLabel } from '../labels.js';
 
 const LOG_TYPES = ['Call', 'WhatsApp', 'Email', 'Viewing', 'Note'];
 const STEPS = PIPELINE_STAGES.filter((stage) => stage !== 'Lost');
@@ -244,6 +244,7 @@ export default function EnquiryRecord({ id, variant = 'page', onClose }) {
       commitStage(dispatch, enquiry, 'Viewing Scheduled');
     }
     setEntryText('');
+    setEntryType('Note');
     ui.notify({ title: 'Viewing scheduled', detail: `${dayMonth(when)}, ${clock}`, href: `enquiry/${enquiry.id}`, action: 'Open' });
   };
 
@@ -370,7 +371,7 @@ export default function EnquiryRecord({ id, variant = 'page', onClose }) {
                   </Field>
                 </div>
               )}
-              <button type="submit" className={enquiry.stage === 'Signed' ? 'btn' : 'btn btn-primary'}>{SUBMIT[entryType]}</button>
+              <button type="submit" className={enquiry.stage === 'Signed' || entryType === 'Note' ? 'btn' : 'btn btn-primary'}>{SUBMIT[entryType]}</button>
             </form>
           )}
           <div className="timeline">
@@ -424,7 +425,7 @@ export default function EnquiryRecord({ id, variant = 'page', onClose }) {
           <DescriptionList
             title="Unit"
             rows={[
-              { label: 'Lot', value: asset ? <a href={`#/asset/${asset.id}`} onClick={(event) => { event.preventDefault(); go('asset', asset.id); }}>{spaceLabel(unit?.use || enquiry.use, enquiry.lot)}</a> : '–' },
+              { label: 'Unit', value: asset ? <a href={`#/asset/${asset.id}`} onClick={(event) => { event.preventDefault(); go('asset', asset.id); }}>{unitLabel(unit)}</a> : '–' },
               { label: 'Asset', value: asset?.short || '–' },
               { label: 'Use', value: unit?.use || enquiry.use || '–' },
               { label: 'Size', value: unit?.size ? `${num(unit.size)} sq ft` : '–' },
@@ -493,6 +494,7 @@ export default function EnquiryRecord({ id, variant = 'page', onClose }) {
         open={pending === 'Signed'}
         enquiry={enquiry}
         assetName={asset?.name}
+        unit={unit}
         onClose={() => setPending(null)}
         onConfirm={(extra) => { commitStage(dispatch, enquiry, 'Signed', extra); setPending(null); }}
       />

@@ -13,7 +13,7 @@ import {
   campaignRows, campaignWeeks, assetMarketing, unpaidInRange, filteredEnquiries, liveAssets, marketingSummary,
 } from '../data/selectors.js';
 import { CHANNELS } from '../data/config.js';
-import { displaySource, spaceLabel } from '../labels.js';
+import { displaySource, enquiryUnitLabel } from '../labels.js';
 import { dateTime } from '../format.js';
 import { totalRow } from '../data/metrics.js';
 import { num, rm, rm2, pct, x, date, dayMonth, ratio } from '../format.js';
@@ -371,7 +371,7 @@ export default function Campaign({ params }) {
                   <strong>{enquiry.business}</strong>
                   <span className="cell-note">{displaySource(enquiry.source)}</span>
                 </span>
-                <span className="lot-chip">{spaceLabel(enquiry.use, enquiry.lot)}</span>
+                <span className="lot-chip">{enquiryUnitLabel(enquiry, data.units)}</span>
                 <span className="stage-pill">{enquiry.stage}</span>
                 <span>{dateTime(enquiry.receivedAt)}</span>
               </a>

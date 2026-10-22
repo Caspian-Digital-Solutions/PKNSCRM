@@ -32,6 +32,19 @@ export function spaceLabel(use, lot) {
   return `${spaceWord(use)} ${lot}`;
 }
 
+export function unitLabel(unit) {
+  if (!unit?.lot) return '–';
+  return spaceLabel(unit.use, unit.lot);
+}
+
+export function enquiryUnitLabel(enquiry, units = []) {
+  if (!enquiry) return '–';
+  const unit = units.find((item) => item.id && item.id === enquiry.unitId)
+    || units.find((item) => item.asset === enquiry.asset && item.lot === enquiry.lot);
+  if (unit) return unitLabel(unit);
+  return spaceLabel(enquiry.use, enquiry.lot);
+}
+
 const ASSET_MARK = {
   kpsa: 'KS',
   pas: 'PA',
