@@ -3,7 +3,7 @@ import Modal from './Modal.jsx';
 import Field from './Field.jsx';
 import { DescriptionList } from './DescriptionList.jsx';
 import { HERO, LOST_REASONS } from '../data/config.js';
-import { spaceLabel } from '../labels.js';
+import { unitLabel, spaceLabel } from '../labels.js';
 import { rm, weekdayDate, num } from '../format.js';
 
 export const LOST_OPTIONS = [...LOST_REASONS.map(([name]) => name), 'Other'];
@@ -29,7 +29,7 @@ export function commitStage(dispatch, enquiry, stage, extra = {}) {
   dispatch(action);
 }
 
-export function SignedDialog({ open, enquiry, assetName, onClose, onConfirm }) {
+export function SignedDialog({ open, enquiry, assetName, unit, onClose, onConfirm }) {
   const [rentError, setRentError] = useState('');
   const [startError, setStartError] = useState('');
   const submit = (event) => {
@@ -51,7 +51,7 @@ export function SignedDialog({ open, enquiry, assetName, onClose, onConfirm }) {
       <form className="dialog-form" noValidate onSubmit={submit} key={enquiry?.id || 'signed'}>
         <DescriptionList
           rows={[
-            { label: 'Lot', value: spaceLabel(enquiry?.use, enquiry?.lot) },
+            { label: 'Unit', value: unit ? unitLabel(unit) : spaceLabel(enquiry?.use, enquiry?.lot) },
             { label: 'Asset', value: assetName || '–' },
             { label: 'Term', value: '2 years' },
           ]}

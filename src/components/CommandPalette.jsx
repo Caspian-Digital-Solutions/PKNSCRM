@@ -4,7 +4,7 @@ import { useStore, ROLES, SCREENS } from '../store.jsx';
 import { useUi } from '../ui.jsx';
 import { go, useRoute } from '../router.js';
 import { liveAssets, liveEnquiries, liveUnits } from '../data/selectors.js';
-import { spaceLabel } from '../labels.js';
+import { enquiryUnitLabel, unitLabel } from '../labels.js';
 
 export default function CommandPalette() {
   const { state, dispatch, data } = useStore();
@@ -75,7 +75,7 @@ export default function CommandPalette() {
               value={`${enquiry.business} ${enquiry.contact || ''} ${enquiry.lot || ''} ${enquiry.id}`}
               onSelect={() => run(() => go('enquiry', enquiry.id))}
             >
-              {enquiry.business}{enquiry.lot ? `, lot ${enquiry.lot}` : ''}
+              {enquiry.business}{enquiry.lot ? `, ${enquiryUnitLabel(enquiry, units)}` : ''}
             </Command.Item>
           ))}
         </Command.Group>
@@ -99,10 +99,10 @@ export default function CommandPalette() {
             return (
               <Command.Item
                 key={unit.id}
-                value={`${spaceLabel(unit.use, unit.lot)} ${asset?.short || ''} ${asset?.name || ''} ${unit.id}`}
+                value={`${unitLabel(unit)} ${asset?.short || ''} ${asset?.name || ''} ${unit.id}`}
                 onSelect={() => run(() => go('asset', unit.asset, { lot: unit.id }))}
               >
-                {spaceLabel(unit.use, unit.lot)}{asset?.short ? `, ${asset.short}` : ''}
+                {unitLabel(unit)}{asset?.short ? `, ${asset.short}` : ''}
               </Command.Item>
             );
           })}

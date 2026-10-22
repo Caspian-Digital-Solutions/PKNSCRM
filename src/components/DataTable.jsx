@@ -115,7 +115,7 @@ export default function DataTable({
                 const ariaSort = active ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none';
                 const button = (
                   <button type="button" className="th-btn" onClick={() => onHeader(col.key)}>
-                    {col.label}
+                    {col.head || col.label}
                     {active ? <span aria-hidden="true">{sort.dir === 'asc' ? '↑' : '↓'}</span> : null}
                   </button>
                 );

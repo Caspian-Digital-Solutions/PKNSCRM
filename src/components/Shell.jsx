@@ -126,6 +126,7 @@ export default function Shell({ current, children }) {
   const closeRecordRef = useRef(ui.closeRecord);
   closeRecordRef.current = ui.closeRecord;
   const bellGuard = useRef(false);
+  const navHold = useRef(null);
 
   useEffect(() => {
     closeRecordRef.current();
@@ -145,8 +146,15 @@ export default function Shell({ current, children }) {
   }, [ui.drawerId]);
 
   useEffect(() => {
-    if ((current === 'pipeline' || current === 'enquiries' || current === 'enquiry') && window.innerWidth < 1600) {
+    const wide = current === 'pipeline' || current === 'enquiries' || current === 'enquiry';
+    if (wide && window.innerWidth < 1600) {
+      if (navHold.current === null) navHold.current = ui.collapsed;
       ui.setCollapsed(true);
+      return;
+    }
+    if (navHold.current !== null) {
+      ui.setCollapsed(navHold.current);
+      navHold.current = null;
     }
   }, [current]);
 
@@ -220,9 +228,7 @@ export default function Shell({ current, children }) {
           </a>
           <div className="side-links">
             {SCREENS.filter((item) => !item.hidden).map((item) => {
-              if (!item.roles.includes(state.role)) {
-                return ui.collapsed ? <span key={item.id} className="nav-spacer" aria-hidden="true" /> : null;
-              }
+              if (!item.roles.includes(state.role)) return null;
               const Icon = ICONS[item.id] || LayoutGrid;
               const icon = <Icon size={18} strokeWidth={1.75} aria-hidden="true" />;
               return (
@@ -254,7 +260,11 @@ export default function Shell({ current, children }) {
                 <span className="nav-label">Reset demo</span>
               </button>
             </Tip>
-            <button type="button" className="icon-btn nav-quiet" onClick={() => ui.setCollapsed((on) => !on)} aria-label={ui.collapsed ? 'Expand navigation' : 'Collapse navigation'}>
+            <button type="button" className="icon-btn nav-quiet" onClick={() => ui.setCollapsed((on) => {
+              const next = !on;
+              if (navHold.current !== null) navHold.current = next;
+              return next;
+            })} aria-label={ui.collapsed ? 'Expand navigation' : 'Collapse navigation'}>
               <PanelLeft size={18} strokeWidth={1.75} aria-hidden="true" />
               <span className="nav-label">{ui.collapsed ? 'Expand' : 'Collapse'}</span>
             </button>

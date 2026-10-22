@@ -8,7 +8,7 @@ import Num from '../components/Num.jsx';
 import { PIPELINE_STAGES } from '../data/config.js';
 import { assetDetail, liveAssets } from '../data/selectors.js';
 import { num, rm, rm2, pct, x, date } from '../format.js';
-import { assetMark } from '../labels.js';
+import { assetMark, unitLabel } from '../labels.js';
 
 const STATUSES = ['Occupied', 'Reserved', 'Vacant', 'Under redevelopment'];
 
@@ -267,7 +267,7 @@ export default function Asset({ params }) {
                         <span>{unit.lot}</span>
                       </button>
                       <span className="lot-pop">
-                        <strong>Lot {unit.lot}</strong>
+                        <strong>{unitLabel(unit)}</strong>
                         <span>{unit.use}, {num(unit.size)} sq ft</span>
                         <span>{rm(unit.rent)} a month</span>
                         <span>{unit.status}</span>
@@ -283,7 +283,7 @@ export default function Asset({ params }) {
             <aside className="lot-panel">
               {selected ? (
                 <>
-                  <h2>Lot {selected.lot}</h2>
+                  <h2>{unitLabel(selected)}</h2>
                   <dl className="fact-grid">
                     <div><dt className="fact-label">Floor</dt><dd className="fact-value">{selected.floor}</dd></div>
                     <div><dt className="fact-label">Use</dt><dd className="fact-value">{selected.use}</dd></div>
