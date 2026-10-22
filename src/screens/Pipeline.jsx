@@ -698,9 +698,10 @@ function ZonePanels({ enquiries, shownQr, state, canEdit, assets, data, freshQr,
             const clock = enquiry.hero ? state.heroReceivedAt : undefined;
             return firstContactOverdue(presentRequirements(enquiry, state, clock), state.triggers);
           }).length;
-          const viewings = state.triggers?.T4 === false ? 0 : rows.filter((enquiry) => {
+          const viewings = rows.filter((enquiry) => {
             const clock = enquiry.hero ? state.heroReceivedAt : undefined;
-            return presentRequirements(enquiry, state, clock).some((req) => req.id === 'P2' && req.status === 'overdue');
+            const reqs = presentRequirements(enquiry, state, clock);
+            return cardAlert(enquiry, reqs, state.triggers) === 'Viewing outcome overdue';
           }).length;
           const handed = rows.filter((enquiry) => handoverOf(enquiry, state) === 'handed').length;
           const ready = zone.id === 'customer' ? rows.length - handed : 0;

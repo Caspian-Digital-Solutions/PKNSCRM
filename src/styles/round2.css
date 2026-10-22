@@ -480,7 +480,8 @@ td { font: var(--t-ui); font-weight: 400; }
   flex-direction: column;
   gap: 8px;
   padding: 8px;
-  max-height: 520px;
+  max-height: calc(100vh - 560px);
+  min-height: 180px;
   overflow: auto;
 }
 .zone-flow {

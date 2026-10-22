@@ -292,13 +292,18 @@ export function firstContactOverdue(reqs, triggers = DEFAULT_TRIGGERS) {
   return (reqs || []).some((req) => req.id === 'S1' && req.status === 'overdue');
 }
 
+function viewingWasBooked(enquiry) {
+  if (enquiry.viewingAt) return true;
+  return (enquiry.history || []).some((entry) => entry[0] === 'Viewing Scheduled');
+}
+
 export function cardAlert(enquiry, reqs, triggers = DEFAULT_TRIGGERS) {
   if (firstContactOverdue(reqs, triggers)) {
     const s1 = reqs.find((req) => req.id === 'S1');
     return `First contact overdue ${s1?.overdueHours || ''} h`.replace('  ', ' ');
   }
   const p2 = (reqs || []).find((req) => req.id === 'P2');
-  if (triggers.T4 !== false && p2 && p2.status === 'overdue') return 'Viewing outcome overdue';
+  if (triggers.T4 !== false && viewingWasBooked(enquiry) && p2 && p2.status === 'overdue') return 'Viewing outcome overdue';
   return null;
 }
 
