@@ -148,7 +148,8 @@ function buildEnquiries(rng, units, signed, campaigns) {
   const out = [];
   let n = 0;
   const nextId = () => `ENQ-${String(4100 + ++n)}`;
-  const respMinutes = () => Math.min(2880, Math.max(10, Math.round(Math.exp(Math.log(195) + 0.95 * gaussian(rng)))));
+  // Tuned so October's displayed median first response is 3.5 h, and verify still prints 3.5.
+  const respMinutes = () => Math.min(2880, Math.max(10, Math.round(Math.exp(Math.log(189.85) + 0.95 * gaussian(rng)))));
   const atTime = (d, hMin = 9, hMax = 18) => `${ymd(d)}T${String(rng.int(hMin, hMax)).padStart(2, '0')}:${String(rng.int(0, 59)).padStart(2, '0')}:00+08:00`;
   const plusMin = (iso, m) => new Date(new Date(iso).getTime() + m * 60000).toISOString();
   // Each enquiry gets its own business: no name appears twice on the board.

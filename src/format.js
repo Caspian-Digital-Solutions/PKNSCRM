@@ -26,13 +26,26 @@ function klParts(iso) {
   const hour = get('hour') === '24' ? '00' : get('hour');
   return {
     weekday: get('weekday'),
-    day: get('day'),
+    day: String(Number(get('day')) || get('day')),
     month: MONTHS_SHORT[Number(get('month')) - 1] || '',
     year: get('year'),
     hour,
     minute: get('minute'),
   };
 }
+
+export const weekdayDate = (iso) => {
+  if (!iso) return '';
+  const part = klParts(iso);
+  return `${part.weekday} ${part.day} ${part.month} ${part.year}`;
+};
+
+export const bookedWhen = (iso, clock) => {
+  if (!iso) return '';
+  const part = klParts(iso);
+  const timeText = clock || (String(iso).length > 10 ? `${part.hour}:${part.minute}` : '');
+  return timeText ? `${part.weekday} ${part.day} ${part.month}, ${timeText}` : `${part.weekday} ${part.day} ${part.month}`;
+};
 
 export const date = (iso) => {
   if (!iso) return '–';

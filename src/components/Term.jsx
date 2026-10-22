@@ -64,7 +64,20 @@ export default function Term({ id, children }) {
   );
 }
 
-export function Tip({ label, children }) {
+function placeTip(rect, place) {
+  const width = 220;
+  const height = 36;
+  const margin = 8;
+  let top = place === 'right' ? rect.top + rect.height / 2 - height / 2 : rect.bottom + 6;
+  let left = place === 'right' ? rect.right + 8 : rect.left;
+  if (left + width > window.innerWidth - margin) left = Math.max(margin, rect.left - width - 8);
+  if (left + width > window.innerWidth - margin) left = window.innerWidth - width - margin;
+  if (top + height > window.innerHeight - margin) top = Math.max(margin, rect.top - height - 6);
+  if (top < margin) top = margin;
+  return { top, left, width };
+}
+
+export function Tip({ label, children, place = 'bottom' }) {
   const [box, setBox] = useState(null);
   const timer = useRef(null);
   const close = () => {
@@ -74,8 +87,7 @@ export function Tip({ label, children }) {
   const schedule = (el) => {
     window.clearTimeout(timer.current);
     timer.current = window.setTimeout(() => {
-      const rect = el.getBoundingClientRect();
-      setBox({ top: rect.bottom + 6, left: Math.max(8, rect.left) });
+      setBox(placeTip(el.getBoundingClientRect(), place));
     }, 150);
   };
   useEffect(() => () => window.clearTimeout(timer.current), []);
@@ -83,7 +95,7 @@ export function Tip({ label, children }) {
     <span className="tip" onMouseEnter={(event) => schedule(event.currentTarget)} onMouseLeave={close} onBlur={close}>
       {children}
       {box && createPortal(
-        <span className="term-pop is-open" role="tooltip" style={{ top: box.top, left: box.left }}>{label}</span>,
+        <span className="term-pop is-open" role="tooltip" style={{ top: box.top, left: box.left, maxWidth: box.width }}>{label}</span>,
         document.body,
       )}
     </span>

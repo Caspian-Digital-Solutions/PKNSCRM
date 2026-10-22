@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import logo from '../assets/pkns-logo.png';
+import Field from '../components/Field.jsx';
 import { ASSETS } from '../data/config.js';
 import { SPACE_TYPES } from '../qrEnquiry.js';
 import { insertQrEnquiry, qrStoreConfigured } from '../qrStore.js';
@@ -57,35 +58,30 @@ export default function QrForm() {
         <p className="qr-thanks" data-testid="qr-thanks">Sent. It will show on the enquiry pipeline under New.</p>
       ) : (
         <form noValidate onSubmit={submit}>
-          <label>
-            Name
-            <input name="name" autoComplete="name" required value={fields.name} onChange={set('name')} />
-          </label>
-          <label>
-            Business
-            <input name="business" autoComplete="organization" required value={fields.business} onChange={set('business')} />
-          </label>
-          <label>
-            Space type
-            <select name="spaceType" required value={fields.spaceType} onChange={set('spaceType')}>
-              <option value="">Choose</option>
+          <Field label="Name" error={errors.name}>
+            <input name="name" autoComplete="name" value={fields.name} onChange={set('name')} />
+          </Field>
+          <Field label="Business" error={errors.business}>
+            <input name="business" autoComplete="organization" value={fields.business} onChange={set('business')} />
+          </Field>
+          <Field label="Space type" error={errors.spaceType}>
+            <select name="spaceType" value={fields.spaceType} onChange={set('spaceType')}>
+              <option value="">Select…</option>
               {SPACE_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}
             </select>
-          </label>
-          <label>
-            Asset
-            <select name="asset" required value={fields.asset} onChange={set('asset')}>
-              <option value="">Choose</option>
+          </Field>
+          <Field label="Asset" error={errors.asset}>
+            <select name="asset" value={fields.asset} onChange={set('asset')}>
+              <option value="">Select…</option>
               {ASSETS.map((asset) => <option key={asset.id} value={asset.id}>{asset.name}</option>)}
             </select>
-          </label>
-          <label>
-            Phone
-            <input name="phone" type="tel" autoComplete="tel" required value={fields.phone} onChange={set('phone')} />
-          </label>
+          </Field>
+          <Field label="Phone" error={errors.phone}>
+            <input name="phone" type="tel" autoComplete="tel" value={fields.phone} onChange={set('phone')} />
+          </Field>
           <label className="check-line">
             <input type="checkbox" checked={fields.consent} onChange={(event) => setFields((cur) => ({ ...cur, consent: event.target.checked }))} />
-            I agree to be contacted by PKNS about this enquiry
+            <span>I agree to be contacted by PKNS about this enquiry</span>
           </label>
           {errors.consent ? <p className="field-error">{errors.consent}</p> : null}
           {problem ? <p className="qr-problem" role="status">{problem}</p> : null}

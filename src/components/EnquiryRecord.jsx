@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Calendar, Check, ChevronDown, FileText, Mail, MessageCircle, Phone, StickyNote } from 'lucide-react';
+import { Check, ChevronDown, FileText, Mail, MessageCircle, Phone, StickyNote, X } from 'lucide-react';
 import { useStore } from '../store.jsx';
 import { useUi } from '../ui.jsx';
 import { go } from '../router.js';
@@ -11,7 +11,8 @@ import { LostDialog, SignedDialog, commitStage } from './MoveDialogs.jsx';
 import { AS_AT, PIPELINE_STAGES } from '../data/config.js';
 import { contactLog, firstResponseMinutes, liveAssets, liveEnquiries, liveUnits } from '../data/selectors.js';
 import { useQrEnquiries } from '../qrStore.js';
-import { date, dayMonth, duration, num, rm, time } from '../format.js';
+import { bookedWhen, date, dayMonth, duration, num, rm, time, weekdayDate } from '../format.js';
+import { Tip } from './Term.jsx';
 import { addDays, dateUTC, ymd } from '../data/rng.js';
 import { displaySource, spaceLabel } from '../labels.js';
 
@@ -31,6 +32,12 @@ const SUBMIT = {
   Email: 'Log email',
   Viewing: 'Schedule viewing',
   Note: 'Add note',
+};
+const SAVED = {
+  Call: 'Call logged',
+  WhatsApp: 'WhatsApp logged',
+  Email: 'Email logged',
+  Note: 'Note saved',
 };
 
 function nextWorkingDay() {
@@ -82,6 +89,7 @@ export default function EnquiryRecord({ id, variant = 'page', onClose }) {
   const [entryText, setEntryText] = useState(stored.text || '');
   const seenStage = useRef(null);
   const followRef = useRef(null);
+  const entryRef = useRef(null);
   const [crest, setCrest] = useState(false);
   const enquiries = useMemo(() => liveEnquiries(data, state), [data, state]);
   const { enquiries: qrEnquiries, ready: qrReady } = useQrEnquiries();
@@ -108,6 +116,10 @@ export default function EnquiryRecord({ id, variant = 'page', onClose }) {
     setViewDate((current) => current || nextWorkingDay());
     setViewTime((current) => current || '11:00');
   }, [entryType]);
+
+  useEffect(() => {
+    if (enquiry?.stage === 'Signed' && entryType !== 'Note') setEntryType('Note');
+  }, [enquiry?.stage, entryType]);
 
   useEffect(() => {
     if (!enquiry) return undefined;
@@ -171,7 +183,7 @@ export default function EnquiryRecord({ id, variant = 'page', onClose }) {
   if (enquiry.receivedAt) feed.push({ at: enquiry.receivedAt, kind: 'received', text: `Enquiry received from ${displaySource(enquiry.source)}` });
   for (const [stage, at] of enquiry.history || []) {
     if (stage === 'New') continue;
-    feed.push({ at, kind: 'stage', stage, text: `Moved to ${stage} at ${time(at)}` });
+    feed.push({ at, kind: 'stage', stage, text: `Moved to ${stage}` });
   }
   for (const entry of log) feed.push({ at: entry.at, kind: entry.type || 'Note', text: entry.text, by: entry.by });
   if (Array.isArray(enquiry.whatsapp) && enquiry.whatsapp.length) {
@@ -201,6 +213,11 @@ export default function EnquiryRecord({ id, variant = 'page', onClose }) {
     }
   };
 
+  const focusEntry = (type) => {
+    setEntryType(type);
+    requestAnimationFrame(() => entryRef.current?.focus());
+  };
+
   const addEntry = (event) => {
     event.preventDefault();
     if (entryType === 'Viewing') {
@@ -210,23 +227,30 @@ export default function EnquiryRecord({ id, variant = 'page', onClose }) {
     const note = entryText.trim();
     if (!note) return;
     dispatch({ type: 'note', id: enquiry.id, note: { type: entryType, text: note, by: enquiry.officer } });
+    if (['Call', 'WhatsApp', 'Email'].includes(entryType) && enquiry.stage === 'New') {
+      commitStage(dispatch, enquiry, 'Contacted');
+    }
     setEntryText('');
-    ui.toastOnly({ title: `${SUBMIT[entryType] || 'Note'} saved` });
+    ui.toastOnly({ title: SAVED[entryType] || 'Note saved' });
   };
 
   const scheduleViewing = () => {
-    const note = entryText.trim() || `Viewing booked for ${viewDate || nextWorkingDay()} at ${viewTime || '11:00'}.`;
-    dispatch({ type: 'note', id: enquiry.id, note: { type: 'Viewing', text: note, by: enquiry.officer } });
     const when = viewDate || nextWorkingDay();
+    const clock = viewTime || '11:00';
+    const note = entryText.trim() || `Viewing booked for ${bookedWhen(when, clock)}.`;
+    dispatch({ type: 'note', id: enquiry.id, note: { type: 'Viewing', text: note, by: enquiry.officer } });
     dispatch({ type: 'followUp', id: enquiry.id, date: when });
+    if (STEPS.indexOf(enquiry.stage) > -1 && STEPS.indexOf(enquiry.stage) < STEPS.indexOf('Viewing Scheduled')) {
+      commitStage(dispatch, enquiry, 'Viewing Scheduled');
+    }
     setEntryText('');
-    ui.notify({ title: 'Viewing scheduled', detail: `${dayMonth(when)}, ${viewTime || '11:00'}`, href: `enquiry/${enquiry.id}`, action: 'Open' });
+    ui.notify({ title: 'Viewing scheduled', detail: `${dayMonth(when)}, ${clock}`, href: `enquiry/${enquiry.id}`, action: 'Open' });
   };
 
   const primary = {
-    New: { label: 'Log first contact', run: () => { setEntryType('Call'); } },
+    New: { label: 'Log first contact', run: () => focusEntry('Call') },
     Contacted: { label: 'Mark as qualified', run: () => requestStage('Qualified') },
-    Qualified: { label: 'Schedule viewing', run: () => setEntryType('Viewing') },
+    Qualified: { label: 'Schedule viewing', run: () => focusEntry('Viewing') },
     'Viewing Scheduled': { label: 'Send offer', run: () => requestStage('Negotiation') },
     Negotiation: { label: 'Mark as signed', run: () => requestStage('Signed') },
     Lost: { label: 'Reopen', run: () => requestStage('Contacted') },
@@ -239,7 +263,11 @@ export default function EnquiryRecord({ id, variant = 'page', onClose }) {
       {variant === 'drawer' && (
         <div className="drawer-tools">
           <button type="button" className="btn" onClick={() => { onClose?.(); go('enquiry', enquiry.id); }}>Open full page</button>
-          <button type="button" className="icon-btn" onClick={onClose} aria-label="Close">Close</button>
+          <Tip label="Close">
+            <button type="button" className="icon-btn" onClick={onClose} aria-label="Close">
+              <X size={16} strokeWidth={1.75} aria-hidden="true" />
+            </button>
+          </Tip>
         </div>
       )}
       <h1 className="page-title">{enquiry.business}</h1>
@@ -254,7 +282,7 @@ export default function EnquiryRecord({ id, variant = 'page', onClose }) {
         </p>
       )}
       {enquiry.stage === 'Lost' && <p className="banner">Lost. {enquiry.lostReason || 'No reason recorded'}.</p>}
-      {enquiry.stage === 'Signed' && <p className="stage-pill">Signed{signedStart ? ` · starts ${date(signedStart)}` : ''}</p>}
+      {enquiry.stage === 'Signed' && <p className="stage-pill">Signed{signedStart ? `, starts ${date(signedStart)}` : ''}</p>}
       {editable && !pending && (
         <div className="record-actions">
           {primary && <button type="button" className="btn btn-primary" onClick={primary.run}>{primary.label}</button>}
@@ -276,18 +304,15 @@ export default function EnquiryRecord({ id, variant = 'page', onClose }) {
       )}
       <ol className="stepper" aria-label="Stage">
         {STEPS.map((stage, index) => {
-          const stateName = enquiry.stage === stage ? 'current' : (currentIndex > index ? 'done' : 'future');
-          const body = (
-            <>
-              {stateName === 'done' && <Check size={14} strokeWidth={1.75} aria-hidden="true" />}
-              {stage}
-            </>
-          );
+          const signedDone = enquiry.stage === 'Signed';
+          const stateName = signedDone || currentIndex > index ? 'done' : (enquiry.stage === stage ? 'current' : 'future');
+          const mark = stateName === 'done' ? <Check size={14} strokeWidth={1.75} aria-hidden="true" /> : null;
           return (
             <li key={stage} className={`step ${stateName}`}>
               {editable ? (
-                <button type="button" className="step-btn" onClick={() => requestStage(stage)}>{body}</button>
-              ) : <span className="step-btn">{body}</span>}
+                <button type="button" className="step-btn" aria-label={stage} onClick={() => requestStage(stage)}>{mark}</button>
+              ) : <span className="step-btn" aria-hidden="true">{mark}</span>}
+              <span className="step-name">{stage}</span>
             </li>
           );
         })}
@@ -319,7 +344,6 @@ export default function EnquiryRecord({ id, variant = 'page', onClose }) {
               <p className="journey-value">{node.reached ? (node.at ? time(node.at) : node.body) : node.pending}</p>
             )}
             {node.id === 'contact' && node.reached && minutes != null && <span className="journey-gap">First contact {duration(minutes)}</span>}
-            {node.gap && node.id !== 'contact' && <span className="journey-gap">{node.gap}</span>}
           </li>
         ))}
       </ol>
@@ -334,15 +358,19 @@ export default function EnquiryRecord({ id, variant = 'page', onClose }) {
               </div>
               <label className="grow">
                 <span className="sr-only">Entry</span>
-                <textarea rows={3} aria-label="Entry" placeholder={PLACEHOLDER[entryType]} value={entryText} onChange={(event) => setEntryText(event.target.value)} />
+                <textarea ref={entryRef} rows={3} aria-label="Entry" placeholder={PLACEHOLDER[entryType]} value={entryText} onChange={(event) => setEntryText(event.target.value)} />
               </label>
               {entryType === 'Viewing' && (
                 <div className="composer-when">
-                  <Field label="Date"><input type="date" value={viewDate} onChange={(event) => setViewDate(event.target.value)} /></Field>
-                  <Field label="Time"><input type="time" value={viewTime} onChange={(event) => setViewTime(event.target.value)} /></Field>
+                  <Field label="Date" hint={viewDate ? weekdayDate(viewDate) : ''}>
+                    <input type="date" value={viewDate} onChange={(event) => setViewDate(event.target.value)} />
+                  </Field>
+                  <Field label="Time">
+                    <input type="time" value={viewTime} onChange={(event) => setViewTime(event.target.value)} />
+                  </Field>
                 </div>
               )}
-              <button type="submit" className="btn btn-primary">{SUBMIT[entryType]}</button>
+              <button type="submit" className={enquiry.stage === 'Signed' ? 'btn' : 'btn btn-primary'}>{SUBMIT[entryType]}</button>
             </form>
           )}
           <div className="timeline">
@@ -352,8 +380,16 @@ export default function EnquiryRecord({ id, variant = 'page', onClose }) {
                 <ol className="log">
                   {group.items.map((item, index) => (
                     <li key={`${item.at}-${index}`} className={item.kind === 'stage' ? 'log-compact' : ''}>
+                      {item.kind === 'stage' ? (
+                        <div className="stage-row">
+                          <span className="stage-dot" aria-hidden="true" />
+                          <span>{item.text}</span>
+                          <span className="stage-time">{time(item.at)}</span>
+                        </div>
+                      ) : (
+                      <>
                       <div className="log-meta">
-                        <strong>{item.kind === 'stage' ? 'Stage change' : (item.kind === 'received' ? 'Enquiry received' : item.kind)}</strong>
+                        <strong>{item.kind === 'received' ? 'Enquiry received' : item.kind}</strong>
                         <span>{time(item.at)}</span>
                       </div>
                       {item.thread ? (
@@ -364,6 +400,8 @@ export default function EnquiryRecord({ id, variant = 'page', onClose }) {
                           ))}
                         </div>
                       ) : <p>{item.text}</p>}
+                      </>
+                      )}
                     </li>
                   ))}
                 </ol>
@@ -413,7 +451,7 @@ export default function EnquiryRecord({ id, variant = 'page', onClose }) {
                     {Object.values(data.officers).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
                   </select>
                 </Field>
-                <Field label="Next follow-up">
+                <Field label="Next follow-up" hint={enquiry.nextFollowUp ? weekdayDate(enquiry.nextFollowUp) : ''}>
                   <input
                     ref={followRef}
                     type="date"

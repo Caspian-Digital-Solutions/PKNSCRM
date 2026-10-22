@@ -5,13 +5,15 @@ import { useStore } from '../store.jsx';
 import { go, useRoute } from '../router.js';
 import { useUi } from '../ui.jsx';
 import Filters from '../components/Filters.jsx';
+import Field from '../components/Field.jsx';
 import Num from '../components/Num.jsx';
 import SourceIcon from '../components/SourceIcon.jsx';
 import { LostDialog, SignedDialog, commitStage } from '../components/MoveDialogs.jsx';
 import { exportSheets } from '../components/ExportButton.jsx';
 import { AS_AT, PIPELINE_STAGES } from '../data/config.js';
 import { daysInStage, filteredEnquiries, firstResponseMinutes, liveAssets, liveEnquiries } from '../data/selectors.js';
-import { date, dayMonth, duration, num, rm, time } from '../format.js';
+import { date, dateTime, duration, num, rm } from '../format.js';
+import { officerMark, officerTint, initialsOf } from '../labels.js';
 import { addDays, dateUTC, ymd } from '../data/rng.js';
 import { QR_SOURCE } from '../qrEnquiry.js';
 import { qrPageUrl, useQrEnquiries } from '../qrStore.js';
@@ -19,10 +21,6 @@ import { qrPageUrl, useQrEnquiries } from '../qrStore.js';
 const OPEN = PIPELINE_STAGES.filter((stage) => stage !== 'Signed' && stage !== 'Lost');
 const WEEK_END = ymd(addDays(dateUTC(AS_AT), 7));
 const PAGE_SIZE = 25;
-
-function initials(name) {
-  return String(name || '').split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase() || '–';
-}
 
 function waitingText(enquiry) {
   if (enquiry.firstResponseAt || enquiry.stage === 'Lost' || enquiry.stage === 'Signed' || !enquiry.receivedAt) return null;
@@ -167,7 +165,7 @@ export default function Pipeline() {
     ['open', 'All open', countsFor('open') + (view === 'open' || !view ? shownQr.length : 0)],
     ...(state.role === 'leasing' ? [['mine', 'Mine', countsFor('mine')]] : []),
     ['awaiting', 'Awaiting first response', countsFor('awaiting')],
-    ['viewings', 'Viewings this week', countsFor('viewings')],
+    ['viewings', 'Viewings 26 Oct – 1 Nov', countsFor('viewings')],
     ['signed', 'Signed this month', countsFor('signed')],
   ];
 
@@ -240,8 +238,8 @@ export default function Pipeline() {
         </div>
         <div className="screen-actions">
           <div className="view-toggle" role="group" aria-label="Enquiry view">
-            <button type="button" className={!listView ? 'on' : ''} onClick={() => go('pipeline', { asset: filters.asset, campaign: filters.campaign, source: filters.source, officer: filters.officer, month, view })}>Board</button>
-            <button type="button" className={listView ? 'on' : ''} onClick={() => go('enquiries', { asset: filters.asset, campaign: filters.campaign, source: filters.source, officer: filters.officer, month, view })}>List</button>
+            <button type="button" aria-pressed={!listView} className={!listView ? 'on' : ''} onClick={() => go('pipeline', { asset: filters.asset, campaign: filters.campaign, source: filters.source, officer: filters.officer, month, view })}>Board</button>
+            <button type="button" aria-pressed={listView} className={listView ? 'on' : ''} onClick={() => go('enquiries', { asset: filters.asset, campaign: filters.campaign, source: filters.source, officer: filters.officer, month, view })}>List</button>
           </div>
           {canEdit && (
             <button type="button" className="btn" data-testid="qr-toggle" aria-expanded={showQr} onClick={() => setShowQr((open) => !open)}>
@@ -340,7 +338,24 @@ export default function Pipeline() {
                       } : undefined}
                     >
                       {fresh && <span className="crest-dot" aria-hidden="true" />}
-                      <a className="card-title" href={`#/enquiry/${enquiry.id}`} onClick={(event) => { event.preventDefault(); go('enquiry', enquiry.id); }}>{enquiry.business}</a>
+                      <div className="card-title-row">
+                        <a className="card-title" href={`#/enquiry/${enquiry.id}`} onClick={(event) => { event.preventDefault(); go('enquiry', enquiry.id); }}>{enquiry.business}</a>
+                        {canEdit && !enquiry.qr && (
+                          <div className="move-menu">
+                            <button type="button" className="btn move-btn" aria-label={`Actions for ${enquiry.business}`} aria-expanded={moveId === enquiry.id} onClick={() => setMoveId((current) => (current === enquiry.id ? null : enquiry.id))}>
+                              <MoreHorizontal size={18} strokeWidth={1.75} aria-hidden="true" />
+                            </button>
+                            {moveId === enquiry.id && (
+                              <div className="move-list" role="menu" aria-label={`Move ${enquiry.business}`}>
+                                <p className="overline move-heading">Move to</p>
+                                {PIPELINE_STAGES.map((item) => (
+                                  <button key={item} type="button" role="menuitem" disabled={item === enquiry.stage} onClick={() => { setMoveId(null); requestMove(enquiry, item); }}>{item}</button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
                       <span className="card-contact">{enquiry.contact || '–'}</span>
                       <span className="card-lot"><span className="lot-chip">{enquiry.lot || '–'}</span> {asset?.short || ''}</span>
                       <span className="source-line">
@@ -349,24 +364,8 @@ export default function Pipeline() {
                       </span>
                       <span className="card-foot">
                         <span>{enquiry.rent != null ? `${rm(enquiry.rent)}/mo` : '–'}</span>
-                        <span className="avatar" title={officer?.name || ''}>{initials(officer?.name)}</span>
+                        <span className={`avatar tint-${officerTint(officer?.id)}`} title={officer?.name || ''}>{officerMark(officer)}</span>
                         <span>{waiting || (days == null ? '' : `${num(days)} ${days === 1 ? 'day' : 'days'}`)}</span>
-                        {canEdit && !enquiry.qr && (
-                          <div className="move-menu">
-                            <button type="button" className="btn move-btn" aria-label={`Move ${enquiry.business}`} aria-expanded={moveId === enquiry.id} onClick={() => setMoveId((current) => (current === enquiry.id ? null : enquiry.id))}>
-                              <MoreHorizontal size={18} strokeWidth={1.75} aria-hidden="true" />
-                            </button>
-                            {moveId === enquiry.id && (
-                              <ul className="move-list" role="menu">
-                                {PIPELINE_STAGES.filter((item) => item !== enquiry.stage).map((item) => (
-                                  <li key={item}>
-                                    <button type="button" role="menuitem" onClick={() => { setMoveId(null); requestMove(enquiry, item); }}>{item}</button>
-                                  </li>
-                                ))}
-                              </ul>
-                            )}
-                          </div>
-                        )}
                       </span>
                       {enquiry.stage === 'Lost' && enquiry.lostReason && <span className="reason-pill">{enquiry.lostReason}</span>}
                     </article>
@@ -379,35 +378,38 @@ export default function Pipeline() {
       )}
       {listView && (
         <div className="list-tools">
-          <details>
-            <summary>Columns</summary>
-            {Object.keys(columnsOn).map((key) => (
-              <label key={key}>
-                <input type="checkbox" checked={columnsOn[key]} onChange={() => setColumnsOn((current) => ({ ...current, [key]: !current[key] }))} />
-                {key}
-              </label>
-            ))}
-          </details>
-          <button type="button" className="btn" onClick={() => exportRows(sorted)}>Export to Excel</button>
+          <div className="table-toolbar">
+            <button type="button" className="btn" aria-expanded={moveId === 'columns'} onClick={() => setMoveId((current) => (current === 'columns' ? null : 'columns'))}>Columns</button>
+            {moveId === 'columns' && (
+              <div className="col-pop" role="group" aria-label="Columns">
+                {Object.keys(columnsOn).map((key) => (
+                  <label key={key}>
+                    <input type="checkbox" checked={columnsOn[key]} onChange={() => setColumnsOn((current) => ({ ...current, [key]: !current[key] }))} />
+                    {key}
+                  </label>
+                ))}
+              </div>
+            )}
+            <button type="button" className="btn" onClick={() => exportRows(sorted)}>Export to Excel</button>
+          </div>
           {canEdit && selected.size > 0 && (
             <>
-              <label>
-                Reassign
+              <Field label="Reassign">
                 <select defaultValue="" onChange={(event) => {
                   const officer = event.target.value;
                   if (!officer) return;
                   selected.forEach((id) => dispatch({ type: 'reassign', id, officer }));
                   setSelected(new Set());
                 }}>
-                  <option value="">Choose officer</option>
+                  <option value="">Select…</option>
                   {Object.values(data.officers).map((officer) => <option key={officer.id} value={officer.id}>{officer.name}</option>)}
                 </select>
-              </label>
+              </Field>
               <button type="button" className="btn" onClick={() => exportRows(sorted.filter((enquiry) => selected.has(enquiry.id)))}>Export selected</button>
             </>
           )}
           <div className="table-scroll">
-            <table className="table data-table">
+            <table className="table data-table enquiry-list">
               <thead>
                 <tr>
                   {canEdit && <th />}
@@ -445,9 +447,11 @@ export default function Pipeline() {
                       {columnsOn.enquirer && (
                         <td>
                           <span className="name-cell">
-                            <span className="avatar" aria-hidden="true">{initials(enquiry.business)}</span>
-                            <strong>{enquiry.business}</strong>
-                            <span className="cell-note">{enquiry.contact || '–'}</span>
+                            <span className="avatar" aria-hidden="true">{initialsOf(enquiry.business)}</span>
+                            <span className="name-stack">
+                              <strong>{enquiry.business}</strong>
+                              <span className="cell-note">{enquiry.contact || '–'}</span>
+                            </span>
                           </span>
                         </td>
                       )}
@@ -459,8 +463,8 @@ export default function Pipeline() {
                         </td>
                       )}
                       {columnsOn.stage && <td><span className="stage-pill">{enquiry.stage}</span></td>}
-                      {columnsOn.officer && <td><span className="avatar" aria-hidden="true">{initials(officer?.name)}</span> {officer?.name?.split(' ')[0] || '–'}</td>}
-                      {columnsOn.received && <td>{dayMonth(enquiry.receivedAt)}, {time(enquiry.receivedAt)}</td>}
+                      {columnsOn.officer && <td><span className={`avatar tint-${officerTint(officer?.id)}`} aria-hidden="true">{officerMark(officer)}</span> {officer?.name?.split(' ')[0] || '–'}</td>}
+                      {columnsOn.received && <td>{dateTime(enquiry.receivedAt)}</td>}
                       {columnsOn.response && <td>{minutes == null ? 'Not yet' : duration(minutes)}</td>}
                       {columnsOn.follow && <td>{date(enquiry.nextFollowUp)}</td>}
                       {columnsOn.rent && <td className="r">{enquiry.rent != null ? `${rm(enquiry.rent)}/mo` : '–'}</td>}

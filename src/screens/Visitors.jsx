@@ -2,9 +2,10 @@ import { useEffect, useMemo, useState } from 'react';
 import { ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis, Tooltip, CartesianGrid, Legend } from 'recharts';
 import { useStore } from '../store.jsx';
 import Filters from '../components/Filters.jsx';
+import Field from '../components/Field.jsx';
 import Kpi from '../components/Kpi.jsx';
 import { liveAssets, visitorSummary } from '../data/selectors.js';
-import { num, rm, pct, dayMonth } from '../format.js';
+import { num, rm, pct, dayMonth, tooltipDate } from '../format.js';
 
 function VisitorDot({ cx, cy, payload }) {
   if (cx == null || cy == null) return null;
@@ -36,12 +37,11 @@ export default function Visitors({ params }) {
       <h1 className="page-title">Visitors</h1>
       <p className="banner" data-testid="visitors-banner">Future phase: connects to PKNS&apos;s visitor counting system when installed. Figures below are illustrative.</p>
       <div className="screen-head">
-        <label className="month-select">
-          Asset
+        <Field label="Asset">
           <select data-testid="visitor-asset" value={selected} onChange={(event) => setAssetId(event.target.value)}>
             {assets.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
           </select>
-        </label>
+        </Field>
         <Filters fields={['range']} value={range} onChange={setRange} />
       </div>
       <div className="kpi-row">
@@ -62,6 +62,7 @@ export default function Visitors({ params }) {
                 const row = payload[0]?.payload || {};
                 return (
                   <div className="chart-tip">
+                    <p>{tooltipDate(row.date)}</p>
                     <p>Visitors {num(row.visitors)}</p>
                     <p>SA Sentral spend {rm(row.spend)}</p>
                   </div>

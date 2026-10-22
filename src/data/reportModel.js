@@ -80,8 +80,6 @@ const DEFINITION_COLUMNS = [
   { key: 'note', label: 'Note' },
 ];
 
-export const BENCHMARK_NOTE = 'Residential references are indicative only and not shown as targets.';
-
 function block1Rows(block) {
   const rows = [
     fromPair('occupancy', 'Occupancy', block.occupancy, 'pct', { term: 'occupancy' }),
@@ -114,7 +112,7 @@ function block1Rows(block) {
     expiryOrder.forEach((label, index) => {
       rows.push(measure({
         id: `expiry-${index}`,
-        label: `Lease expiry · ${label}`,
+        label,
         term: 'lease-expiry',
         current: snapshot.expiryPct[label],
         format: 'pct',
@@ -218,7 +216,7 @@ function block3Rows(block) {
   if (block.topPost) {
     rows.push(measure({
       id: 'top-post',
-      label: `Top post · ${block.topPost.caption}`,
+      label: `Top post: ${block.topPost.caption}`,
       current: block.topPost.reach,
       format: 'num',
     }));
@@ -240,7 +238,6 @@ export function reportModel(data, state, month) {
       source: item.source,
       note: item.note || '',
     })),
-    { name: 'Benchmarks', formula: '', source: 'CDS calculation', note: BENCHMARK_NOTE },
   ];
   return {
     month,

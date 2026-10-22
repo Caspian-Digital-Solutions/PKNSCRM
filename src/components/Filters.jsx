@@ -1,3 +1,5 @@
+import { useEffect, useRef, useState } from 'react';
+
 export const RANGE_PRESETS = [
   { id: '2026-10', label: 'October 2026', from: '2026-10-01', to: '2026-10-31' },
   { id: '2026-09', label: 'September 2026', from: '2026-09-01', to: '2026-09-30' },
@@ -135,40 +137,59 @@ export default function Filters({
   }
   const shownChips = [...chips, ...extraChips];
   const active = shownChips.length > 0;
+  const controls = [
+    onQuery ? (
+      <label className="filter-search" key="search">
+        Search
+        <input type="search" value={query} placeholder="Search" onChange={(event) => onQuery(event.target.value)} />
+      </label>
+    ) : null,
+    show('asset') ? <Select key="asset" label="Asset" value={v.asset} options={assets} onChange={(asset) => set({ asset })} /> : null,
+    show('type') ? <Select key="type" label="Type" value={v.type} options={types} onChange={(type) => set({ type })} /> : null,
+    show('location') ? <Select key="location" label="Location" value={v.location} options={locations} onChange={(location) => set({ location })} /> : null,
+    show('campaign') ? <Select key="campaign" label="Campaign" value={v.campaign} options={campaigns} onChange={(campaign) => set({ campaign })} /> : null,
+    show('channel') ? <Select key="channel" label="Channel" value={v.channel} options={channels} onChange={(channel) => set({ channel })} /> : null,
+    show('source') ? <Select key="source" label="Source" value={v.source} options={sources} onChange={(source) => set({ source })} /> : null,
+    show('officer') ? <Select key="officer" label="Officer" value={v.officer} options={officers} onChange={(officer) => set({ officer })} /> : null,
+    show('stage') ? <Select key="stage" label="Stage" value={v.stage} options={stages} onChange={(stage) => set({ stage })} /> : null,
+    show('status') ? <Select key="status" label="Status" value={v.status} options={statuses} onChange={(status) => set({ status })} /> : null,
+    show('floor') ? <Select key="floor" label="Floor" value={v.floor} options={floors} onChange={(floor) => set({ floor })} /> : null,
+    show('range') ? (
+      <label key="range">
+        Period
+        <select value={v.preset} onChange={(e) => onPreset(e.target.value)}>
+          {rangePresets.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
+        </select>
+      </label>
+    ) : null,
+    children ? <span className="filter-extra" key="extra">{children}</span> : null,
+  ].filter(Boolean);
+  const [more, setMore] = useState(false);
+  const [wide, setWide] = useState(true);
+  const barRef = useRef(null);
+  useEffect(() => {
+    const node = barRef.current;
+    if (!node) return undefined;
+    const fit = 240 + Math.max(0, controls.length - 1) * 188 + 48;
+    const measure = () => setWide(node.clientWidth >= fit);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [controls.length]);
+  const inline = wide ? controls : controls.slice(0, 4);
+  const overflow = wide ? [] : controls.slice(4);
 
   return (
-    <div className="filter-bar" data-testid="filter-bar">
+    <div className="filter-bar" data-testid="filter-bar" ref={barRef}>
       <div className="filters">
-        {onQuery && (
-          <label className="filter-search">
-            Search
-            <input
-              type="search"
-              value={query}
-              placeholder="Search"
-              onChange={(event) => onQuery(event.target.value)}
-            />
-          </label>
+        {inline}
+        {overflow.length > 0 && (
+          <div className="more-wrap">
+            <button type="button" className="btn more-filters" aria-expanded={more} onClick={() => setMore((open) => !open)}>More filters</button>
+            {more && <div className="col-pop filter-pop">{overflow}</div>}
+          </div>
         )}
-        {show('asset') && <Select label="Asset" value={v.asset} options={assets} onChange={(asset) => set({ asset })} />}
-        {show('type') && <Select label="Type" value={v.type} options={types} onChange={(type) => set({ type })} />}
-        {show('location') && <Select label="Location" value={v.location} options={locations} onChange={(location) => set({ location })} />}
-        {show('campaign') && <Select label="Campaign" value={v.campaign} options={campaigns} onChange={(campaign) => set({ campaign })} />}
-        {show('channel') && <Select label="Channel" value={v.channel} options={channels} onChange={(channel) => set({ channel })} />}
-        {show('source') && <Select label="Source" value={v.source} options={sources} onChange={(source) => set({ source })} />}
-        {show('officer') && <Select label="Officer" value={v.officer} options={officers} onChange={(officer) => set({ officer })} />}
-        {show('stage') && <Select label="Stage" value={v.stage} options={stages} onChange={(stage) => set({ stage })} />}
-        {show('status') && <Select label="Status" value={v.status} options={statuses} onChange={(status) => set({ status })} />}
-        {show('floor') && <Select label="Floor" value={v.floor} options={floors} onChange={(floor) => set({ floor })} />}
-        {show('range') && (
-          <label>
-            Period
-            <select value={v.preset} onChange={(e) => onPreset(e.target.value)}>
-              {rangePresets.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
-            </select>
-          </label>
-        )}
-        {children}
         {clearable && active && (
           <button type="button" className="text-btn" onClick={clearAll}>Clear filters</button>
         )}

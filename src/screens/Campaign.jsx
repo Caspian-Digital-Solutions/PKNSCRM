@@ -302,9 +302,16 @@ export default function Campaign({ params }) {
             <YAxis yAxisId="spend" stroke="var(--ink)" strokeWidth={2} tick={{ fontSize: 14, fill: 'var(--ink)' }} tickFormatter={(value) => num(value)} />
             <YAxis yAxisId="enquiries" orientation="right" stroke="var(--ink)" strokeWidth={2} tick={{ fontSize: 14, fill: 'var(--ink)' }} tickFormatter={(value) => num(value)} />
             <Tooltip
-              formatter={(value, name) => (name === 'Spend (RM)' ? rm(value) : num(value))}
-              contentStyle={{ fontSize: 16, color: 'var(--ink)' }}
-              labelStyle={{ fontSize: 16, color: 'var(--ink)' }}
+              separator=" "
+              content={({ active, payload, label }) => {
+                if (!active || !payload?.length) return null;
+                return (
+                  <div className="chart-tip">
+                    <p>{label}</p>
+                    {payload.map((item) => <p key={item.dataKey}>{item.name} {item.name === 'Spend (RM)' ? rm(item.value) : num(item.value)}</p>)}
+                  </div>
+                );
+              }}
             />
             <Legend wrapperStyle={{ fontSize: 14, color: 'var(--ink)' }} />
             <Bar yAxisId="spend" dataKey="spend" name="Spend (RM)" fill="var(--s1)" maxBarSize={28} />
@@ -316,12 +323,12 @@ export default function Campaign({ params }) {
                   stroke="var(--crest)"
                   strokeWidth={2}
                   label={({ viewBox }) => {
-                    const x = (viewBox?.x ?? 0) - 8;
-                    const y = (viewBox?.y ?? 24) + 18;
+                    const x = (viewBox?.x ?? 0) - 136;
+                    const y = 8;
                     return (
                       <g>
-                        <rect x={x - 132} y={y - 14} width="128" height="20" rx="8" fill="#ffffff" stroke="#E2E5EA" />
-                        <text x={x - 126} y={y} fill="#231F20" fontSize="14" fontFamily="Inter, sans-serif">Suite 4-07 signed</text>
+                        <rect x={x} y={y} width="128" height="20" rx="8" fill="#ffffff" stroke="#E2E5EA" />
+                        <text x={x + 8} y={y + 14} fill="#231F20" fontSize="14" fontFamily="Inter, sans-serif">Suite 4-07 signed</text>
                       </g>
                     );
                   }}
@@ -350,8 +357,9 @@ export default function Campaign({ params }) {
         totals
         exportName={`campaign-${campaign.id}-unpaid`}
       />
-      <p className="footnote" data-testid="owned-to-paid">
-        <Term id="owned-to-paid">Owned-to-paid ratio</Term>: <Num value={ownedToPaid} format={ratio} />
+      <p className="ratio-row" data-testid="owned-to-paid">
+        <Term id="owned-to-paid">Owned-to-paid ratio</Term>
+        <Num value={ownedToPaid} format={ratio} />
       </p>
       <h2 className="section-title">Recent enquiries</h2>
       <ul className="recent" data-testid="recent-enquiries">

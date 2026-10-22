@@ -4,7 +4,7 @@ import Field from './Field.jsx';
 import { DescriptionList } from './DescriptionList.jsx';
 import { HERO, LOST_REASONS } from '../data/config.js';
 import { spaceLabel } from '../labels.js';
-import { rm } from '../format.js';
+import { rm, weekdayDate, num } from '../format.js';
 
 export const LOST_OPTIONS = [...LOST_REASONS.map(([name]) => name), 'Other'];
 export const SIGNED_START = HERO.signedTerms.start;
@@ -59,10 +59,10 @@ export function SignedDialog({ open, enquiry, assetName, onClose, onConfirm }) {
         <Field label="Confirmed monthly rent" error={rentError}>
           <span className="affix">
             <span className="affix-prefix">RM</span>
-            <input name="rent" inputMode="numeric" defaultValue={enquiry?.rent ?? ''} />
+            <input name="rent" inputMode="decimal" defaultValue={enquiry?.rent != null ? num(enquiry.rent) : ''} />
           </span>
         </Field>
-        <Field label="Start date" error={startError}>
+        <Field label="Start date" error={startError} hint={weekdayDate(SIGNED_START)}>
           <input name="start" type="date" defaultValue={SIGNED_START} />
         </Field>
         <div className="dialog-actions">
@@ -86,15 +86,17 @@ export function LostDialog({ open, enquiry, onClose, onConfirm }) {
   return (
     <Modal open={open} title={enquiry?.business ? `Mark ${enquiry.business} as lost?` : 'Mark as lost?'} onClose={onClose}>
       <form className="dialog-form" noValidate onSubmit={submit}>
-        <fieldset className="reason-list">
-          <legend>Reason</legend>
+        <p className="field-label">Reason</p>
+        <ul className="reason-list">
           {LOST_OPTIONS.map((item) => (
-            <label key={item}>
-              <input type="radio" name="reason" value={item} checked={reason === item} onChange={() => setReason(item)} />
-              {item}
-            </label>
+            <li key={item}>
+              <label className="reason-row">
+                <input type="radio" name="reason" value={item} checked={reason === item} onChange={() => setReason(item)} />
+                <span>{item}</span>
+              </label>
+            </li>
           ))}
-        </fieldset>
+        </ul>
         <div className="dialog-actions">
           <button type="button" className="btn" onClick={onClose}>Cancel</button>
           <button type="submit" className="btn btn-primary" disabled={!reason}>Mark as lost</button>
