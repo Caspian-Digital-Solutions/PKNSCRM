@@ -4,7 +4,7 @@ import Field from './Field.jsx';
 import { DescriptionList } from './DescriptionList.jsx';
 import { HERO, LOST_REASONS } from '../data/config.js';
 import { unitLabel, spaceLabel } from '../labels.js';
-import { rm, weekdayDate, num } from '../format.js';
+import { rm, weekdayDate, num, date } from '../format.js';
 
 export const LOST_OPTIONS = [...LOST_REASONS.map(([name]) => name), 'Other'];
 export const SIGNED_START = HERO.signedTerms.start;
@@ -102,6 +102,51 @@ export function LostDialog({ open, enquiry, onClose, onConfirm }) {
           <button type="submit" className="btn btn-primary" disabled={!reason}>Mark as lost</button>
         </div>
       </form>
+    </Modal>
+  );
+}
+
+export function ZoneMoveDialog({ open, fromLabel, toLabel, openItems, onStay, onMove }) {
+  const count = openItems?.length || 0;
+  return (
+    <Modal open={open} title={`Move to ${toLabel} with ${count} ${count === 1 ? 'requirement' : 'requirements'} open?`} onClose={onStay}>
+      <ul className="reason-list">
+        {(openItems || []).map((item) => <li key={item.id}>{item.id} {item.title}</li>)}
+      </ul>
+      <p className="cell-note">Qualifiers guide the decision. They never block a move.</p>
+      <div className="dialog-actions">
+        <button type="button" className="btn" onClick={onMove}>Move anyway</button>
+        <button type="button" className="btn btn-primary" onClick={onStay}>Stay in {fromLabel}</button>
+      </div>
+    </Modal>
+  );
+}
+
+export function HandoffDialog({ open, enquiry, assetName, unitText, officerName, start, onClose, onConfirm }) {
+  if (!enquiry) return null;
+  const rent = enquiry.confirmedRent ?? enquiry.rent;
+  const deposit = rent != null ? `${rm(rent * 2)} (2 months' rent) + 1 month utilities` : '–';
+  return (
+    <Modal open={open} title="Hand over to property management" onClose={onClose}>
+      <DescriptionList
+        rows={[
+          { label: 'Business', value: enquiry.business },
+          { label: 'Contact', value: enquiry.contact || '–' },
+          { label: 'SSM number', value: `${enquiry.ssmSample || '–'} (sample)` },
+          { label: 'Unit', value: unitText || '–' },
+          { label: 'Asset', value: assetName || '–' },
+          { label: 'Monthly rent', value: rent != null ? `${rm(rent)} a month` : '–' },
+          { label: 'Start date', value: date(start || '2026-12-01') },
+          { label: 'Term', value: '2 years' },
+          { label: 'Deposit', value: deposit },
+          { label: 'Officer', value: officerName || '–' },
+        ]}
+      />
+      <p className="cell-note">Sent to PREC property management (in the full system: their own system via API or scheduled file).</p>
+      <div className="dialog-actions">
+        <button type="button" className="btn" onClick={onClose}>Cancel</button>
+        <button type="button" className="btn btn-primary" onClick={onConfirm}>Hand over</button>
+      </div>
     </Modal>
   );
 }

@@ -430,3 +430,132 @@ td { font: var(--t-ui); font-weight: 400; }
     overflow: visible;
   }
 }
+
+.zone-band {
+  font: var(--t-overline);
+  letter-spacing: 0.04em;
+  text-transform: none;
+  color: var(--ink);
+  min-width: 0;
+  overflow: hidden;
+  padding: 6px 8px;
+  border-radius: 8px;
+}
+.zone-band.zone-suspect { background: color-mix(in srgb, var(--s1) 10%, white); }
+.zone-band.zone-prospect { background: color-mix(in srgb, var(--s2) 10%, white); }
+.zone-band.zone-customer { background: color-mix(in srgb, var(--s5) 10%, white); }
+.zone-band.zone-withdrawn { background: var(--line); }
+
+.zone-board {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 0.72fr);
+  column-gap: 12px;
+  align-items: start;
+  min-width: 0;
+}
+.zone-panel {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  display: flex;
+  flex-direction: column;
+}
+.zone-panel.zone-withdrawn { margin-left: 12px; }
+.zone-panel-head { padding: 12px; }
+.zone-panel.zone-suspect .zone-panel-head { background: color-mix(in srgb, var(--s1) 10%, white); }
+.zone-panel.zone-prospect .zone-panel-head { background: color-mix(in srgb, var(--s2) 10%, white); }
+.zone-panel.zone-customer .zone-panel-head { background: color-mix(in srgb, var(--s5) 10%, white); }
+.zone-panel.zone-withdrawn .zone-panel-head { background: var(--line); }
+.zone-panel-head .overline { color: var(--ink-2); }
+.zone-stats { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.zone-figure {
+  font: var(--t-fig-l);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+}
+.zone-rent, .zone-meta { font: var(--t-meta); color: var(--ink-2); margin: 0; }
+.zone-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px;
+  max-height: calc(100vh - 560px);
+  min-height: 180px;
+  overflow: auto;
+}
+.zone-flow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px 12px;
+  margin-top: 16px;
+  color: var(--ink);
+}
+.zone-flow p, .zone-flow span { font: var(--t-ui); margin: 0; }
+
+.zone-chip {
+  display: inline-flex;
+  align-items: center;
+  margin: 0 8px;
+  padding: 0 8px;
+  height: 24px;
+  border-radius: 999px;
+  font: var(--t-meta);
+  font-weight: 600;
+  color: var(--ink);
+}
+.zone-chip.zone-suspect { background: color-mix(in srgb, var(--s1) 10%, white); }
+.zone-chip.zone-prospect { background: color-mix(in srgb, var(--s2) 10%, white); }
+.zone-chip.zone-customer { background: color-mix(in srgb, var(--s5) 10%, white); }
+.zone-chip.zone-withdrawn { background: var(--line); }
+
+.zone-brackets { display: flex; gap: 8px; margin: 12px 0 4px; }
+.zone-brackets span {
+  min-width: 0;
+  font: var(--t-meta);
+  color: var(--muted);
+  border-top: 2px solid var(--line-strong);
+  padding-top: 4px;
+}
+.zone-brackets span.on { color: var(--ink); font-weight: 600; border-top-color: var(--ink); }
+
+.requirements-card { min-width: 0; margin: 0 0 16px; }
+.requirements-head { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; }
+.requirements-head span { font: var(--t-ui); }
+.requirement-list { list-style: none; margin: 8px 0; padding: 0; }
+.requirement-list li {
+  display: grid;
+  grid-template-columns: 32px 40px minmax(0, 1.6fr) minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  padding: 4px 0;
+  font: var(--t-ui);
+}
+.req-mark {
+  width: 32px;
+  height: 32px;
+  min-height: 32px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface);
+  color: var(--ink);
+  border: 1px solid var(--line-strong);
+}
+.req-mark.is-done { color: var(--s2); }
+.alert-dot, .due-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  display: inline-block;
+}
+.due-dot { background: var(--line-strong); }
+.alert-dot { background: var(--brand-ink); }
+.req-when.is-overdue, .req-line.is-overdue, .requirement-list li.is-overdue .req-title { color: var(--brand-ink); }
+.req-docs { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 12px; font: var(--t-meta); }
+.req-line { font: var(--t-meta); color: var(--ink-2); }
+.qualifier-line { display: flex; flex-wrap: wrap; gap: 8px 12px; font: var(--t-meta); }
+.signal-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font: var(--t-ui); }
+.zone-settings, .zone-settings .table-scroll { min-width: 0; }

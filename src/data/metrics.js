@@ -1,4 +1,4 @@
-import { CHANNELS, HERO, LEASING_OCT, AS_AT } from './config.js';
+import { CHANNELS, HERO, LEASING_OCT, AS_AT, ZONES, WITHDRAWN_STAGE } from './config.js';
 import { daysBetween, lastDayOf } from './generate.js';
 
 const sum = (a) => a.reduce((s, v) => s + v, 0);
@@ -101,6 +101,13 @@ export function leasingKpis(units, heroStage) {
 export function medianFirstResponseHours(enquiries) {
   const mins = enquiries.filter((e) => e.firstResponseAt).map((e) => (new Date(e.firstResponseAt) - new Date(e.receivedAt)) / 60000);
   return median(mins) / 60;
+}
+
+// The only stage-to-zone mapping. Zones group stages; they do not replace them.
+export function zoneOf(stage) {
+  if (stage === WITHDRAWN_STAGE) return 'withdrawn';
+  const zone = ZONES.find((item) => item.stages.includes(stage));
+  return zone ? zone.id : 'withdrawn';
 }
 
 export function occupancyAtMonthEnd(units, month) {

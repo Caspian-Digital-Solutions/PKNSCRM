@@ -35,6 +35,10 @@ function norm(state) {
     officers: s.officers || {},
     customTypes: s.customTypes || [],
     customAssets: s.customAssets || [],
+    triggers: s.triggers || {},
+    requirementDone: s.requirementDone || {},
+    documents: s.documents || {},
+    handover: s.handover || {},
     flash: s.flash || 0,
   };
 }
@@ -224,6 +228,9 @@ function heroRecord(data, s) {
     consent: { given: true, via: 'Lead form', at: receivedAt },
     attribution: { adSet: AD_CREATIVES.sa.fb.adSet, ad: HERO.ad },
     whatsapp: [],
+    visits: 4,
+    ssmSample: '202601234567',
+    zoneReqs: [],
   };
 }
 

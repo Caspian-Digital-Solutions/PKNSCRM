@@ -92,6 +92,13 @@ export function UiProvider({ children }) {
         href: 'enquiry/ENQ-HERO',
         action: 'Open',
       });
+      if (state.triggers?.T1 !== false) {
+        notify({
+          title: 'New Suspect: Teras Niaga Consulting Sdn Bhd',
+          href: 'enquiry/ENQ-HERO',
+          action: 'Open',
+        });
+      }
     }
     if (state.heroStage === 'Signed' && from !== 'Signed') {
       const totals = totalRow(campaignRows(data, state, 'sa'));
@@ -101,6 +108,13 @@ export function UiProvider({ children }) {
         href: 'campaign/sa',
         action: 'View campaign',
       });
+      if (state.triggers?.T6 !== false) {
+        notify({
+          title: 'Teras Niaga Consulting Sdn Bhd became a Customer',
+          href: 'enquiry/ENQ-HERO',
+          action: 'Open',
+        });
+      }
     }
   }, [state.heroStage, state, data, notify]);
 

@@ -8,6 +8,9 @@ import { exportSheets } from '../components/ExportButton.jsx';
 import { MONTHS } from '../data/config.js';
 import { DEFINITIONS } from '../data/definitions.js';
 import { reportModel } from '../data/reportModel.js';
+import { liveEnquiries } from '../data/selectors.js';
+import { medianDaysInZone, octoberMovements, zoneSnapshot } from '../data/zones.js';
+import { num, rm } from '../format.js';
 import { buildReportPdf } from '../reportPdf.js';
 
 function MeasureTable({ title, rows }) {
@@ -61,6 +64,93 @@ function MeasureTable({ title, rows }) {
         </table>
       </div>
       )}
+    </section>
+  );
+}
+
+function AudienceZones({ enquiries, state }) {
+  const snap = zoneSnapshot(enquiries, state);
+  const move = octoberMovements(enquiries);
+  const medians = medianDaysInZone(enquiries.filter((enquiry) => !enquiry.hero));
+  const zones = [
+    ['Suspect', snap.suspect],
+    ['Prospect', snap.prospect],
+    ['Customer', snap.customer],
+  ];
+  return (
+    <section data-testid="audience-zones">
+      <h3 className="section-title">Audience zones</h3>
+      <div className="table-scroll">
+        <table className="table data-table">
+          <thead>
+            <tr>
+              <th>Zone</th>
+              <th className="r">Enquiries</th>
+              <th className="r">Monthly rent</th>
+            </tr>
+          </thead>
+          <tbody>
+            {zones.map(([label, row]) => (
+              <tr key={label}>
+                <td>{label}</td>
+                <td className="r">{num(row.count)}</td>
+                <td className="r">{rm(row.rent)}</td>
+              </tr>
+            ))}
+            <tr>
+              <td>Withdrawn</td>
+              <td className="r">{num(snap.withdrawn.count)}</td>
+              <td className="r">{num(snap.withdrawn.from.suspect)} from Suspect, {num(snap.withdrawn.from.prospect)} from Prospect</td>
+            </tr>
+            <tr>
+              <td>Handed over</td>
+              <td className="r">{num(snap.handed)}</td>
+              <td className="r">{num(snap.ready)} ready</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <h3 className="section-title">October movements</h3>
+      <div className="table-scroll">
+        <table className="table data-table">
+          <thead>
+            <tr>
+              <th>Measure</th>
+              <th className="r">October</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Enquiries received</td>
+              <td className="r">{num(move.received)}</td>
+            </tr>
+            <tr>
+              <td>Entered Prospect</td>
+              <td className="r">{num(move.enteredProspect)}</td>
+            </tr>
+            <tr>
+              <td>Became Customer</td>
+              <td className="r">{num(move.becameCustomer)}</td>
+            </tr>
+            <tr>
+              <td>Withdrawn</td>
+              <td className="r">{num(move.withdrawn)}</td>
+            </tr>
+            <tr>
+              <td>Median days, enquiry to Prospect</td>
+              <td className="r">{move.medianToProspect ?? '–'}</td>
+            </tr>
+            <tr>
+              <td>Median days, Prospect to Customer</td>
+              <td className="r">{move.medianToCustomer ?? '–'}</td>
+            </tr>
+            <tr>
+              <td>Median days in zone now</td>
+              <td className="r">Suspect {medians.suspect ?? '–'}, Prospect {medians.prospect ?? '–'}, Customer {medians.customer ?? '–'}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </section>
   );
 }
@@ -144,6 +234,7 @@ export default function Report() {
   const [month, setMonth] = useState('2026-10');
   const [query, setQuery] = useState('');
   const model = useMemo(() => reportModel(data, state, month), [data, state, month]);
+  const zoneRows = useMemo(() => liveEnquiries(data, state), [data, state]);
   const needle = query.trim().toLowerCase();
   const matchRows = (rows) => (needle ? rows.filter((row) => `${row.label || ''} ${row.note || ''}`.toLowerCase().includes(needle)) : rows);
 
@@ -193,6 +284,7 @@ export default function Report() {
         <p className="report-month">{MONTHS.find((item) => item.key === month)?.label}</p>
         <MeasureTable title="1. Portfolio and leasing" rows={matchRows(model.block1)} />
         <MeasureTable title="2. Marketing to tenancy" rows={matchRows(model.block2)} />
+        {month === '2026-10' && <AudienceZones enquiries={zoneRows} state={state} />}
         <DigitalReach rows={matchRows(model.block3)} />
       <details className="definitions" open data-testid="definitions">
         <summary>Definitions</summary>

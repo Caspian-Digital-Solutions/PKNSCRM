@@ -69,6 +69,7 @@ export default function Filters({
   extraChips = [],
   onClear,
   children,
+  alwaysMore = null,
 }) {
   const v = {
     asset: '',
@@ -178,7 +179,10 @@ export default function Filters({
     return () => observer.disconnect();
   }, [controls.length]);
   const inline = wide ? controls : controls.slice(0, 4);
-  const overflow = wide ? [] : controls.slice(4);
+  const overflow = [
+    ...(wide ? [] : controls.slice(4)),
+    ...(alwaysMore ? [<div className="filter-extra" key="always-more">{alwaysMore}</div>] : []),
+  ];
 
   return (
     <div className="filter-bar" data-testid="filter-bar" ref={barRef}>
