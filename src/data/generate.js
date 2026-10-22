@@ -1,4 +1,5 @@
 import { makeRng, allocate, scatter, ymd, addDays, dateUTC, daysBetween } from './rng.js';
+import { attachZoneData } from './zones.js';
 import {
   AS_AT, PERIOD, MONTHS, ASSETS, CAMPAIGNS, CHANNELS, SIGNED, OFFICERS, SOCIAL_PAGES, WEBSITE_OCT,
   STAGE_COUNTS, SOURCE_MIX, LOST_REASONS, HERO, AD_CREATIVES,
@@ -567,6 +568,7 @@ export function generate() {
   const visitors = buildVisitors(rng, campaigns.find((c) => c.id === 'sa'));
   buildContactLogs(enquiries);
   enrichEnquiries(enquiries, units);
+  attachZoneData(enquiries);
   return { asAt: AS_AT, months: MONTHS, assets: ASSETS, officers: OFFICERS, units, signed, campaigns, enquiries, website, social, visitors };
 }
 

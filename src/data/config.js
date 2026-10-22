@@ -179,5 +179,51 @@ export const LEASING_OCT = { ...LEASING_BY_MONTH['2026-10'], newLeases: 9 };
 
 export const PIPELINE_STAGES = ['New', 'Contacted', 'Qualified', 'Viewing Scheduled', 'Negotiation', 'Signed', 'Lost'];
 export const STAGE_COUNTS = { New: 18, Contacted: 24, Qualified: 22, 'Viewing Scheduled': 16, Negotiation: 12, Signed: 9, Lost: 19 };
+
+// Audience zones group the stages. Stages stay the unit of work.
+export const ZONES = [
+  { id: 'suspect', n: 1, label: 'Suspect', stages: ['New', 'Contacted'] },
+  { id: 'prospect', n: 2, label: 'Prospect', stages: ['Qualified', 'Viewing Scheduled', 'Negotiation'] },
+  { id: 'customer', n: 3, label: 'Customer', stages: ['Signed'] },
+];
+export const WITHDRAWN_STAGE = 'Lost';
+export const AS_AT_END = '2026-10-31T23:59:00+08:00';
+
+export const ZONE_RULES = {
+  requirements: [
+    { id: 'S1', zone: 'suspect', title: 'First contact', due: '1 working hour after received', doneWhen: 'First call, WhatsApp or email is logged' },
+    { id: 'S2', zone: 'suspect', title: 'Confirm the need: use, size, budget, move-in', due: '2 days', doneWhen: 'All four fields are filled (lead-form answers count)' },
+    { id: 'S3', zone: 'suspect', title: 'Match a unit and send the rate card', due: '3 days', doneWhen: 'A unit is linked and a rate card note or email is logged' },
+    { id: 'P1', zone: 'prospect', title: 'Book the viewing', due: '3 days', doneWhen: 'Viewing date set' },
+    { id: 'P2', zone: 'prospect', title: 'Log the viewing outcome', due: '1 day after the viewing date', doneWhen: 'Outcome note logged (Attended, No-show or Rescheduled)' },
+    { id: 'P3', zone: 'prospect', title: 'Collect business documents', due: '7 days', doneWhen: 'SSM certificate, director IC and company profile are ticked', documents: ['SSM certificate', 'Director IC', 'Company profile'] },
+    { id: 'P4', zone: 'prospect', title: 'Agree terms: rent, term, fit-out period', due: '10 days', doneWhen: 'Terms filled' },
+    { id: 'P5', zone: 'prospect', title: 'Offer letter accepted', due: '14 days', doneWhen: 'Ticked' },
+    { id: 'C1', zone: 'customer', title: "Deposit received (2 months' rent + 1 month utilities)", due: '7 days', doneWhen: 'Ticked' },
+    { id: 'C2', zone: 'customer', title: 'Tenancy agreement signed and stamping submitted', due: '14 days', doneWhen: 'Ticked' },
+    { id: 'C3', zone: 'customer', title: 'Handover date and access cards arranged', due: '7 days before the start date', doneWhen: 'Date set' },
+    { id: 'C4', zone: 'customer', title: 'Tenant record ready for property management', due: 'Before the start date', doneWhen: 'Ticked. This enables Hand over' },
+  ],
+  qualifiers: [
+    { id: 'need', from: 'suspect', to: 'Prospect', label: 'Need stated', when: 'Use and size are known' },
+    { id: 'budget', from: 'suspect', to: 'Prospect', label: 'Budget fits', when: "Budget is at least 80% of the matched unit's asking rent" },
+    { id: 'movein', from: 'suspect', to: 'Prospect', label: 'Move-in within 6 months', when: 'Move-in month is within 6 months of 31 Oct 2026' },
+    { id: 'reachable', from: 'suspect', to: 'Prospect', label: 'Reachable', when: 'First contact is logged' },
+    { id: 'attended', from: 'prospect', to: 'Customer', label: 'Viewing attended', when: 'Viewing outcome is Attended' },
+    { id: 'documents', from: 'prospect', to: 'Customer', label: 'Documents complete', when: 'Business documents are complete' },
+    { id: 'terms', from: 'prospect', to: 'Customer', label: 'Terms agreed', when: 'Rent, term and fit-out are filled' },
+  ],
+  triggers: [
+    { id: 'T1', when: 'A new enquiry arrives', then: 'Assign by the round-robin rule, create S1 to S3, and show New Suspect: {business}' },
+    { id: 'T2', when: 'First contact is still open 2 hours after the enquiry arrived', then: 'Show First contact overdue on the card and the record, and notify the officer' },
+    { id: 'T3', when: 'A Suspect has no reply 7 days after first contact', then: 'Create a task Follow up, due today' },
+    { id: 'T4', when: 'The viewing date has passed and no outcome is logged', then: 'P2 becomes Overdue, and notify the officer' },
+    { id: 'T5', when: 'The offer was sent and there is no reply after 5 days', then: 'Create a task Chase offer' },
+    { id: 'T6', when: 'The enquiry moves to Signed', then: 'The zone becomes Customer, C1 to C4 are created, and show {business} became a Customer' },
+    { id: 'T7', when: 'Withdrawn with reason Timing', then: 'Set the re-engage date 60 days later. The date is shown. Nothing moves in this demo.' },
+  ],
+  assignment: "Round robin within the asset's officer team. In this demo each asset has one officer, so the officer already on the enquiry is the result.",
+  mappingNote: 'Configurable for each client in the full system. PKNS to confirm stages on 28 Oct.',
+};
 export const SOURCE_MIX = [['Facebook Lead Ad', 38], ['Google Ads', 24], ['Instagram', 10], ['Website form', 14], ['WhatsApp', 8], ['Walk-in / call', 6]];
 export const LOST_REASONS = [['Price', 37], ['Size', 21], ['Location', 16], ['Timing', 26]];

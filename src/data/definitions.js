@@ -112,6 +112,36 @@ export const DEFINITIONS = [
     formula: 'Count of signed tenancies dated in the month',
     source: 'Page 04 §5',
   },
+  {
+    id: 'suspect',
+    name: 'Suspect',
+    formula: 'An enquiry in New or Contacted. The source is known and the fit is still being checked.',
+    source: 'CDS enquiry lifecycle model (Pollen Track)',
+  },
+  {
+    id: 'prospect',
+    name: 'Prospect',
+    formula: 'An enquiry in Qualified, Viewing Scheduled or Negotiation.',
+    source: 'CDS enquiry lifecycle model (Pollen Track)',
+  },
+  {
+    id: 'customer',
+    name: 'Customer',
+    formula: 'An enquiry that has been signed.',
+    source: 'CDS enquiry lifecycle model (Pollen Track)',
+  },
+  {
+    id: 'handed-over',
+    name: 'Handed over',
+    formula: 'A Customer whose tenant record has been sent to property management. The Signed count does not change.',
+    source: 'CDS enquiry lifecycle model (Pollen Track)',
+  },
+  {
+    id: 'withdrawn',
+    name: 'Withdrawn',
+    formula: 'An enquiry marked Lost. The zone it left is recorded.',
+    source: 'CDS enquiry lifecycle model (Pollen Track)',
+  },
 ];
 
 const PLAIN_SOURCE = {
@@ -133,6 +163,11 @@ const PLAIN_SOURCE = {
   engagements: 'CDS calculation',
   'follower-change': 'CDS calculation',
   'new-leases': 'CDS calculation',
+  suspect: 'CDS enquiry lifecycle model (Pollen Track)',
+  prospect: 'CDS enquiry lifecycle model (Pollen Track)',
+  customer: 'CDS enquiry lifecycle model (Pollen Track)',
+  'handed-over': 'CDS enquiry lifecycle model (Pollen Track)',
+  withdrawn: 'CDS enquiry lifecycle model (Pollen Track)',
 };
 for (const item of DEFINITIONS) item.source = PLAIN_SOURCE[item.id] || 'CDS calculation';
 

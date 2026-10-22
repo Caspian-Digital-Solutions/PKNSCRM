@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useReducer } from 'react';
 import { generate } from './data/generate.js';
 import { AS_AT } from './data/config.js';
+import { defaultTriggers } from './data/zones.js';
 
 const DATA = generate();
 const KEY = 'pkns-hub-demo-v2';
@@ -68,6 +69,10 @@ export function freshState(role = null) {
     officers: {},
     customTypes: [],
     customAssets: [],
+    triggers: defaultTriggers(),
+    requirementDone: {},
+    documents: {},
+    handover: {},
     flash: 0,
   };
 }
@@ -151,6 +156,32 @@ function reducer(state, action) {
     case 'addAsset':
       if (!action.asset) return state;
       return { ...state, customAssets: [...state.customAssets, action.asset], flash: state.flash + 1 };
+    case 'setTrigger':
+      return { ...state, triggers: { ...defaultTriggers(), ...state.triggers, [action.id]: Boolean(action.on) }, flash: state.flash + 1 };
+    case 'requirementDone':
+      return {
+        ...state,
+        requirementDone: {
+          ...state.requirementDone,
+          [action.id]: { ...(state.requirementDone[action.id] || {}), [action.req]: true },
+        },
+        flash: state.flash + 1,
+      };
+    case 'documents':
+      return {
+        ...state,
+        documents: {
+          ...state.documents,
+          [action.id]: { ...(state.documents[action.id] || {}), ...action.documents },
+        },
+        flash: state.flash + 1,
+      };
+    case 'handover':
+      return {
+        ...state,
+        handover: { ...state.handover, [action.id]: { status: 'handed', at: asAtNow() } },
+        flash: state.flash + 1,
+      };
     case 'reset':
       return freshState(state.role);
     default:

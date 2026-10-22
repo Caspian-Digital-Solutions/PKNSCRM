@@ -7,8 +7,12 @@ import Num from './Num.jsx';
 import { SourceBadge } from './SourceIcon.jsx';
 import { DescriptionList } from './DescriptionList.jsx';
 import Field from './Field.jsx';
-import { LostDialog, SignedDialog, commitStage } from './MoveDialogs.jsx';
-import { AS_AT, PIPELINE_STAGES } from '../data/config.js';
+import { HandoffDialog, LostDialog, SignedDialog, ZoneMoveDialog, commitStage } from './MoveDialogs.jsx';
+import { AS_AT, PIPELINE_STAGES, ZONES } from '../data/config.js';
+import { zoneOf } from '../data/metrics.js';
+import {
+  handoverOf, presentRequirements, qualifiersFor, requirementLine, signalsFor, zoneLabel, zoneMovePlan, zoneTasks,
+} from '../data/zones.js';
 import { contactLog, firstResponseMinutes, liveAssets, liveEnquiries, liveUnits } from '../data/selectors.js';
 import { useQrEnquiries } from '../qrStore.js';
 import { bookedWhen, date, dayMonth, duration, num, rm, time, weekdayDate } from '../format.js';
@@ -80,6 +84,8 @@ export default function EnquiryRecord({ id, variant = 'page', onClose }) {
   const ui = useUi();
   const canEdit = state.role === 'leasing';
   const [pending, setPending] = useState(null);
+  const [zonePrompt, setZonePrompt] = useState(null);
+  const [handoffOpen, setHandoffOpen] = useState(false);
   const [menu, setMenu] = useState(false);
   const [openThread, setOpenThread] = useState(false);
   const [viewDate, setViewDate] = useState('');
@@ -198,18 +204,85 @@ export default function EnquiryRecord({ id, variant = 'page', onClose }) {
     else last.items.push(item);
   }
 
+  const clock = enquiry.hero ? (state.heroReceivedAt || undefined) : undefined;
+  const reqs = presentRequirements(enquiry, state, clock);
+  const zoneId = zoneOf(enquiry.stage);
+  const zoneMeta = ZONES.find((item) => item.id === zoneId);
+  const qualifiers = qualifiersFor(enquiry, reqs);
+  const signals = signalsFor(enquiry, log);
+  const tasks = zoneTasks(enquiry, reqs, state.triggers);
+  const handover = handoverOf(enquiry, state);
+  const activeZone = enquiry.stage === 'Lost' ? (enquiry.leftZone || zoneOf((enquiry.history || []).map((entry) => entry[0]).filter((stage) => stage !== 'Lost').at(-1) || 'New')) : zoneId;
+  const lostAt = atOf(enquiry, 'Lost');
+  const reengage = state.triggers?.T7 === false ? null : (enquiry.reengageAt || (enquiry.lostReason === 'Timing' && lostAt ? ymd(addDays(dateUTC(String(lostAt).slice(0, 10)), 60)) : null));
+
+  const finishMove = (stage) => {
+    commitStage(dispatch, enquiry, stage);
+    if (stage === 'Signed' && !enquiry.hero && state.triggers?.T6 !== false) {
+      ui.notify({ title: `${enquiry.business} became a Customer`, href: `enquiry/${enquiry.id}`, action: 'Open' });
+    }
+    if (stage === 'Viewing Scheduled' && !enquiry.nextFollowUp) {
+      const when = nextWorkingDay();
+      dispatch({ type: 'followUp', id: enquiry.id, date: when });
+      ui.notify({ title: `Viewing scheduled: ${enquiry.business}`, detail: `${dayMonth(when)}, 11:00`, href: `enquiry/${enquiry.id}`, action: 'Open' });
+    }
+  };
+
   const requestStage = (stage) => {
     if (!editable || stage === enquiry.stage) return;
+    const plan = zoneMovePlan(enquiry, stage, state, clock);
+    if (plan.needsAlert) {
+      setZonePrompt({ stage, open: plan.open, from: zoneLabel(plan.from), to: zoneLabel(plan.to) });
+      setMenu(false);
+      return;
+    }
     if (stage === 'Signed' || stage === 'Lost') {
       setPending(stage);
       setMenu(false);
       return;
     }
-    commitStage(dispatch, enquiry, stage);
-    if (stage === 'Viewing Scheduled' && !enquiry.nextFollowUp) {
-      const when = nextWorkingDay();
-      dispatch({ type: 'followUp', id: enquiry.id, date: when });
-      ui.notify({ title: `Viewing scheduled: ${enquiry.business}`, detail: `${dayMonth(when)}, 11:00`, href: `enquiry/${enquiry.id}`, action: 'Open' });
+    finishMove(stage);
+  };
+
+  const confirmZoneMove = () => {
+    if (!zonePrompt) return;
+    const count = zonePrompt.open.length;
+    dispatch({
+      type: 'note',
+      id: enquiry.id,
+      note: { type: 'Note', text: `Moved with ${count} ${count === 1 ? 'requirement' : 'requirements'} open`, by: enquiry.officer },
+    });
+    const stage = zonePrompt.stage;
+    setZonePrompt(null);
+    if (stage === 'Signed' || stage === 'Lost') {
+      setPending(stage);
+      return;
+    }
+    finishMove(stage);
+  };
+
+  const markRequirement = (req) => {
+    if (!editable || req.status === 'done') return;
+    dispatch({ type: 'requirementDone', id: enquiry.id, req: req.id });
+    dispatch({
+      type: 'note',
+      id: enquiry.id,
+      note: { type: 'Note', text: `Requirement done: ${req.id} ${req.title}`, by: enquiry.officer },
+    });
+  };
+
+  const toggleDocument = (key) => {
+    if (!editable) return;
+    const current = reqs.find((req) => req.id === 'P3')?.documents || { ssm: false, ic: false, profile: false };
+    const documents = { ...current, [key]: !current[key] };
+    dispatch({ type: 'documents', id: enquiry.id, documents });
+    if (documents.ssm && documents.ic && documents.profile) {
+      dispatch({ type: 'requirementDone', id: enquiry.id, req: 'P3' });
+      dispatch({
+        type: 'note',
+        id: enquiry.id,
+        note: { type: 'Note', text: 'Requirement done: P3 Collect business documents', by: enquiry.officer },
+      });
     }
   };
 
@@ -274,6 +347,7 @@ export default function EnquiryRecord({ id, variant = 'page', onClose }) {
       <h1 className="page-title">{enquiry.business}</h1>
       <p className="lead">
         {enquiry.contact || '–'}{enquiry.title ? `, ${enquiry.title}` : ''}
+        <span className={`zone-chip zone-${zoneId}`}>{zoneId === 'withdrawn' ? 'Withdrawn' : `Zone ${zoneMeta?.n} · ${zoneMeta?.label}`}</span>
         <span className="stage-pill">{enquiry.stage}</span>
         <span data-testid="first-response">{minutes == null ? 'Not contacted' : `First contact ${duration(minutes)}`}</span>
       </p>
@@ -282,7 +356,14 @@ export default function EnquiryRecord({ id, variant = 'page', onClose }) {
           <a href={`#/campaign/${campaign.id}`} onClick={(event) => { event.preventDefault(); go('campaign', campaign.id); }}>Back to campaign</a>
         </p>
       )}
-      {enquiry.stage === 'Lost' && <p className="banner">Lost. {enquiry.lostReason || 'No reason recorded'}.</p>}
+      {enquiry.stage === 'Lost' && (
+        <p className="banner">
+          Withdrawn from {zoneLabel(activeZone)}{lostAt ? `, ${dayMonth(lostAt)}` : ''} · Reason: {enquiry.lostReason || 'No reason recorded'}
+          {reengage ? ` · Re-engage ${date(reengage)} (returns to Suspect)` : ''}
+          {editable && <button type="button" className="btn" onClick={() => finishMove('New')}>Return to Suspect now</button>}
+        </p>
+      )}
+      {handover === 'handed' && <p className="banner">Handed over{enquiry.handedAt || state.handover?.[enquiry.id]?.at ? ` ${dayMonth(enquiry.handedAt || state.handover[enquiry.id].at)}` : ''}.</p>}
       {enquiry.stage === 'Signed' && <p className="stage-pill">Signed{signedStart ? `, starts ${date(signedStart)}` : ''}</p>}
       {editable && !pending && (
         <div className="record-actions">
@@ -301,6 +382,13 @@ export default function EnquiryRecord({ id, variant = 'page', onClose }) {
               </ul>
             )}
           </div>
+        </div>
+      )}
+      {zoneId !== 'withdrawn' && (
+        <div className="zone-brackets" aria-hidden="true">
+          {ZONES.map((zone) => (
+            <span key={zone.id} className={zone.id === zoneId ? 'on' : ''} style={{ flex: zone.stages.length }}>{zone.label}</span>
+          ))}
         </div>
       )}
       <ol className="stepper" aria-label="Stage">
@@ -348,6 +436,22 @@ export default function EnquiryRecord({ id, variant = 'page', onClose }) {
           </li>
         ))}
       </ol>
+      <RequirementsPanel
+        enquiry={enquiry}
+        reqs={reqs}
+        activeZone={activeZone}
+        qualifiers={qualifiers}
+        tasks={tasks}
+        editable={editable}
+        officerName={officer?.name}
+        onDone={markRequirement}
+        onDocument={toggleDocument}
+      />
+      {zoneId === 'customer' && editable && handover !== 'handed' && reqs.some((req) => req.id === 'C4' && req.status === 'done') && (
+        <div className="stage-actions">
+          <button type="button" className="btn" onClick={() => setHandoffOpen(true)}>Hand over to property management</button>
+        </div>
+      )}
       <div className="record-grid">
         <div>
           {editable && (
@@ -422,6 +526,7 @@ export default function EnquiryRecord({ id, variant = 'page', onClose }) {
               { label: 'Message', value: form.message ? <q>{form.message}</q> : '–' },
             ]}
           />
+          <SignalsCard signals={signals} />
           <DescriptionList
             title="Unit"
             rows={[
@@ -445,6 +550,7 @@ export default function EnquiryRecord({ id, variant = 'page', onClose }) {
           />
           <section className="desc-group">
             <h2 className="overline">Owner and next step</h2>
+            <p className="cell-note">Assigned to {officer?.name || '–'} · round robin · {officer?.area || 'the asset'} team</p>
             {editable ? (
               <>
                 <Field label="Officer">
@@ -490,6 +596,34 @@ export default function EnquiryRecord({ id, variant = 'page', onClose }) {
           </section>
         </aside>
       </div>
+      <ZoneMoveDialog
+        open={Boolean(zonePrompt)}
+        fromLabel={zonePrompt?.from}
+        toLabel={zonePrompt?.to}
+        openItems={zonePrompt?.open || []}
+        onStay={() => setZonePrompt(null)}
+        onMove={confirmZoneMove}
+      />
+      <HandoffDialog
+        open={handoffOpen}
+        enquiry={enquiry}
+        assetName={asset?.name}
+        unitText={unitLabel(unit)}
+        officerName={officer?.name}
+        start={signedStart || '2026-12-01'}
+        onClose={() => setHandoffOpen(false)}
+        onConfirm={() => {
+          dispatch({ type: 'handover', id: enquiry.id });
+          dispatch({
+            type: 'note',
+            id: enquiry.id,
+            note: { type: 'Note', text: 'Handed over to property management', by: enquiry.officer },
+          });
+          const short = enquiry.id === 'ENQ-HERO' ? 'Teras Niaga' : enquiry.business;
+          ui.notify({ title: `${short} handed over to property management`, href: `enquiry/${enquiry.id}`, action: 'Open' });
+          setHandoffOpen(false);
+        }}
+      />
       <SignedDialog
         open={pending === 'Signed'}
         enquiry={enquiry}
@@ -513,6 +647,92 @@ export default function EnquiryRecord({ id, variant = 'page', onClose }) {
           setPending(null);
         }}
       />
+    </section>
+  );
+}
+
+const DOC_FIELDS = [
+  ['ssm', 'SSM'],
+  ['ic', 'Director IC'],
+  ['profile', 'Company profile'],
+];
+
+function RequirementsPanel({ reqs, activeZone, qualifiers, tasks, editable, officerName, onDone, onDocument }) {
+  const rank = { suspect: 1, prospect: 2, customer: 3, withdrawn: 0 };
+  const earlier = ZONES.filter((zone) => rank[zone.id] < (rank[activeZone] || 0));
+  const meta = ZONES.find((zone) => zone.id === activeZone);
+  const current = reqs.filter((req) => req.zone === activeZone);
+  const done = current.filter((req) => req.status === 'done').length;
+  return (
+    <section className="requirements-card" data-testid="requirements">
+      {earlier.map((zone) => {
+        const rows = reqs.filter((req) => req.zone === zone.id);
+        if (!rows.length) return null;
+        const finished = rows.filter((req) => req.status === 'done').length;
+        const times = rows.map((req) => req.doneAt).filter(Boolean).sort();
+        const span = times.length > 1 ? `, ${dayMonth(times[0])}–${dayMonth(times[times.length - 1])}` : times.length ? `, ${dayMonth(times[0])}` : '';
+        return <p key={zone.id} className="cell-note">Zone {zone.n} · {zone.label}: {finished} of {rows.length} done{span}</p>;
+      })}
+      {meta && (
+        <header className="requirements-head">
+          <h2 className="overline">Zone {meta.n} · {meta.label} — requirements</h2>
+          <span>{done} of {current.length} done</span>
+        </header>
+      )}
+      <ul className="requirement-list">
+        {current.map((req) => (
+          <li key={req.id} className={req.status === 'overdue' ? 'is-overdue' : ''}>
+            <button type="button" className={req.status === 'done' ? 'req-mark is-done' : 'req-mark'} disabled={!editable || req.status === 'done'} onClick={() => onDone(req)} aria-label={`${req.id} ${req.title}`}>
+              {req.status === 'done' ? <Check size={14} strokeWidth={1.75} aria-hidden="true" /> : <span className={req.status === 'overdue' ? 'alert-dot' : 'due-dot'} aria-hidden="true" />}
+            </button>
+            <span className="req-id">{req.id}</span>
+            <span className="req-title">{req.title}{req.outcome ? ` · ${req.outcome}` : ''}</span>
+            <span className="req-who">{officerName || '–'}</span>
+            <span className={req.status === 'overdue' ? 'req-when is-overdue' : 'req-when'}>
+              {req.status === 'done' ? `done ${dayMonth(req.doneAt)}` : requirementLine(req).replace(`${req.id} · `, '')}
+            </span>
+            {req.id === 'P3' && req.documents && (
+              <span className="req-docs">
+                {DOC_FIELDS.map(([key, label]) => (
+                  <label key={key}>
+                    <input type="checkbox" checked={Boolean(req.documents[key])} disabled={!editable} onChange={() => onDocument(key)} />
+                    {label}
+                  </label>
+                ))}
+              </span>
+            )}
+          </li>
+        ))}
+      </ul>
+      {!!tasks.length && (
+        <ul className="signal-list">
+          {tasks.map((task) => <li key={task.id}>{task.label} · {task.due}</li>)}
+        </ul>
+      )}
+      <p className="cell-note">Qualifiers guide the decision. They never block a move.</p>
+      {!!qualifiers.length && (
+        <p className="qualifier-line">
+          {qualifiers.map((item) => (
+            <span key={item.id}>{item.label} {item.state === 'met' ? '✓' : item.state === 'not' ? '–' : '?'}</span>
+          ))}
+        </p>
+      )}
+    </section>
+  );
+}
+
+function SignalsCard({ signals }) {
+  const from = signals.ad ? `Came from ${signals.source} · '${signals.ad}'` : `Came from ${signals.source}`;
+  return (
+    <section className="desc-group" data-testid="signals">
+      <h2 className="overline">Signals</h2>
+      <ul className="signal-list">
+        <li>{from}</li>
+        <li>Lead form answered: {signals.answered ? 'yes' : 'no'}</li>
+        <li>Website visits before enquiry: {signals.visits} (sample)</li>
+        <li>Replies logged: {signals.replies}</li>
+        <li>Last contact: {signals.since}</li>
+      </ul>
     </section>
   );
 }

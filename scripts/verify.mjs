@@ -1,6 +1,7 @@
 // Reconciles the generated dummy data against Confluence page 06. Exits non-zero on any mismatch.
 import { generate } from '../src/data/generate.js';
 import { campaignChannels, totalRow, statusCounts, leasingKpis, medianFirstResponseHours } from '../src/data/metrics.js';
+import { zoneSnapshot, octoberMovements, medianDaysInZone, presentRequirements, firstContactOverdue } from '../src/data/zones.js';
 import { ASSETS, CAMPAIGNS, STAGE_COUNTS, SITC_TEMPLATE } from '../src/data/config.js';
 import {
   liveUnits, liveEnquiries, campaignRows, assetMarketing, portfolioRows, pipelineSummary, marketingSummary, reportBlocks, contactLog,
@@ -442,5 +443,48 @@ console.log('  Lease expiry profile:', Object.entries(kSigned.expiryPct).map(([a
 console.log('  Rent expiring next 12 months:', (kSigned.rentNext12 * 100).toFixed(1) + '%');
 console.log('  Median days vacant:', kSigned.medianDaysVacant);
 console.log('  Median first response (hours):', medianFirstResponseHours(liveEnquiries(D, { heroStage: 'Signed' })).toFixed(1));
+function zoneLine(state) {
+  const rows = liveEnquiries(D, state);
+  const snap = zoneSnapshot(rows, state);
+  const move = octoberMovements(rows);
+  return { snap, move, medians: medianDaysInZone(rows.filter((enquiry) => !enquiry.hero)) };
+}
+const zoneStart = zoneLine({});
+const zoneArrive = zoneLine({ heroStage: 'New' });
+const zoneQualified = zoneLine({ heroStage: 'Qualified' });
+const zoneSigned = zoneLine({ heroStage: 'Signed' });
+const pair = (snap, zone) => `${snap[zone].count}, ${snap[zone].rent}`;
+check('Zone Suspect start', pair(zoneStart.snap, 'suspect'), '42, 377830');
+check('Zone Prospect start', pair(zoneStart.snap, 'prospect'), '50, 436730');
+check('Zone Customer start', pair(zoneStart.snap, 'customer'), '9, 35340');
+check('Zone Withdrawn start', `${zoneStart.snap.withdrawn.count} (${zoneStart.snap.withdrawn.from.suspect} / ${zoneStart.snap.withdrawn.from.prospect})`, '19 (5 / 14)');
+check('Zone handover start', `${zoneStart.snap.handed} / ${zoneStart.snap.ready}`, '6 / 3');
+check('Zone Suspect hero arrives', pair(zoneArrive.snap, 'suspect'), '43, 381190');
+check('Zone Prospect hero arrives', zoneArrive.snap.prospect.count, 50);
+check('Zone Customer hero arrives', zoneArrive.snap.customer.count, 9);
+check('Zone handover hero arrives', `${zoneArrive.snap.handed} / ${zoneArrive.snap.ready}`, '6 / 3');
+check('Zone Suspect hero qualified', pair(zoneQualified.snap, 'suspect'), '42, 377830');
+check('Zone Prospect hero qualified', pair(zoneQualified.snap, 'prospect'), '51, 440090');
+check('Zone Customer hero qualified', zoneQualified.snap.customer.count, 9);
+check('Zone Suspect hero signed', pair(zoneSigned.snap, 'suspect'), '42, 377830');
+check('Zone Prospect hero signed', pair(zoneSigned.snap, 'prospect'), '50, 436730');
+check('Zone Customer hero signed', pair(zoneSigned.snap, 'customer'), '10, 38700');
+check('Zone handover hero signed', `${zoneSigned.snap.handed} / ${zoneSigned.snap.ready}`, '6 / 4');
+check('Zone Withdrawn stays 19', zoneSigned.snap.withdrawn.count, 19);
+check('October enquiries received', zoneStart.move.received, 98);
+check('October enquiries received after hero', zoneArrive.move.received, 99);
+check('October entered Prospect', zoneStart.move.enteredProspect, 58);
+check('October entered Prospect after hero qualified', zoneQualified.move.enteredProspect, 59);
+check('October became Customer', zoneStart.move.becameCustomer, 9);
+check('October became Customer after signing', zoneSigned.move.becameCustomer, 10);
+check('October withdrawn', zoneStart.move.withdrawn, 19);
+check('Median days enquiry to Prospect', zoneStart.move.medianToProspect, '3.1');
+check('Median days Prospect to Customer', zoneStart.move.medianToCustomer, '28.1');
+check('Median days in Suspect', zoneStart.medians.suspect, '3.5');
+check('Median days in Prospect', zoneStart.medians.prospect, '15.4');
+check('Median days in Customer', zoneStart.medians.customer, '18.4');
+check('First contact overdue at start', D.enquiries.filter((enquiry) => firstContactOverdue(presentRequirements(enquiry))).length, 18);
+check('Zone layer leaves the enquiry count', D.enquiries.length, 120);
+
 console.log(`\n${fails ? fails + ' FAILED' : 'ALL CHECKS PASSED'}`);
 process.exit(fails ? 1 : 0);

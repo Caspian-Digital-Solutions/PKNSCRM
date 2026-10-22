@@ -107,6 +107,7 @@ test('storyline figures from portfolio through reset', async ({ page }) => {
   await expect(page.locator('.lead')).toContainText('Contacted');
 
   await page.getByRole('button', { name: 'Qualified', exact: true }).click();
+  await page.getByRole('button', { name: 'Move anyway' }).click();
   await page.getByRole('tab', { name: 'Viewing' }).click();
   await page.getByRole('textbox', { name: 'Entry' }).fill('Viewing booked for this week.');
   await page.locator('.composer').getByRole('button', { name: 'Schedule viewing' }).click();
@@ -114,6 +115,7 @@ test('storyline figures from portfolio through reset', async ({ page }) => {
   await page.getByRole('button', { name: 'Negotiation', exact: true }).click();
   await expect(page.getByTestId('unit-status')).toHaveText('Reserved');
   await page.getByRole('button', { name: 'Signed', exact: true }).click();
+  await page.getByRole('button', { name: 'Move anyway' }).click();
   await expect(page.locator('.modal input[name="rent"]')).toHaveValue('3,360');
   await expect(page.locator('.modal input[name="start"]')).toHaveValue('2026-12-01');
   await page.getByRole('button', { name: 'Mark as signed' }).click();

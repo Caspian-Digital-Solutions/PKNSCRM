@@ -8,9 +8,14 @@ import Filters from '../components/Filters.jsx';
 import Field from '../components/Field.jsx';
 import Num from '../components/Num.jsx';
 import SourceIcon from '../components/SourceIcon.jsx';
-import { LostDialog, SignedDialog, commitStage } from '../components/MoveDialogs.jsx';
+import { LostDialog, SignedDialog, ZoneMoveDialog, commitStage } from '../components/MoveDialogs.jsx';
 import { exportSheets } from '../components/ExportButton.jsx';
-import { AS_AT, PIPELINE_STAGES } from '../data/config.js';
+import { AS_AT, PIPELINE_STAGES, ZONES } from '../data/config.js';
+import { zoneOf } from '../data/metrics.js';
+import {
+  cardAlert, firstContactOverdue, handoverOf, medianDaysInZone, nextRequirement, octoberMovements, presentRequirements,
+  requirementLine, zoneLabel, zoneMovePlan, zoneSnapshot,
+} from '../data/zones.js';
 import { daysInStage, filteredEnquiries, firstResponseMinutes, liveAssets, liveEnquiries } from '../data/selectors.js';
 import { date, dateTime, duration, num, rm } from '../format.js';
 import { officerMark, officerTint, initialsOf, unitLabel } from '../labels.js';
@@ -22,6 +27,41 @@ const OPEN = PIPELINE_STAGES.filter((stage) => stage !== 'Signed' && stage !== '
 const WEEK_END = ymd(addDays(dateUTC(AS_AT), 7));
 const PAGE_SIZE = 25;
 
+function cardLine(enquiry, zoneState) {
+  const clock = enquiry.hero ? zoneState.heroReceivedAt : undefined;
+  const reqs = presentRequirements(enquiry, zoneState, clock);
+  const alert = cardAlert(enquiry, reqs, zoneState.triggers);
+  if (alert) return alert;
+  const next = nextRequirement(reqs);
+  return next ? requirementLine(next) : '';
+}
+
+function zoneCardLine(enquiry, zoneState) {
+  if (enquiry.qr) return '';
+  const clock = enquiry.hero ? zoneState.heroReceivedAt : undefined;
+  const reqs = presentRequirements(enquiry, zoneState, clock);
+  const alert = cardAlert(enquiry, reqs, zoneState.triggers);
+  if (alert) return alert;
+  const zone = enquiry.stage === 'Lost' ? (enquiry.leftZone || 'suspect') : zoneOf(enquiry.stage);
+  const current = reqs.filter((req) => req.zone === zone);
+  const done = current.filter((req) => req.status === 'done').length;
+  const next = nextRequirement(current.length ? current : reqs);
+  if (!next) return current.length ? `${done} of ${current.length} done` : '';
+  const detail = requirementLine(next).replace(`${next.id} · `, '');
+  if (!current.length) return requirementLine(next);
+  return `${done} of ${current.length} done · ${next.id} ${detail}`;
+}
+
+function oldestOpen(enquiry, zoneState) {
+  if (enquiry.qr) return '9999-12-31';
+  const clock = enquiry.hero ? zoneState.heroReceivedAt : undefined;
+  const reqs = presentRequirements(enquiry, zoneState, clock);
+  const zone = enquiry.stage === 'Lost' ? (enquiry.leftZone || 'suspect') : zoneOf(enquiry.stage);
+  const open = reqs.filter((req) => req.zone === zone && req.status !== 'done' && req.dueAt);
+  if (!open.length) return '9999-12-31';
+  return open.map((req) => req.dueAt).sort()[0];
+}
+
 function waitingText(enquiry) {
   if (enquiry.firstResponseAt || enquiry.stage === 'Lost' || enquiry.stage === 'Signed' || !enquiry.receivedAt) return null;
   const minutes = Math.round((new Date(`${AS_AT}T18:00:00+08:00`) - new Date(enquiry.receivedAt)) / 60000);
@@ -31,7 +71,7 @@ function waitingText(enquiry) {
   return `Waiting ${hours} h`;
 }
 
-function matchesView(enquiry, view, role) {
+function matchesView(enquiry, view, role, zoneState) {
   if (!view) return true;
   if (view === 'open') return OPEN.includes(enquiry.stage);
   if (view === 'mine') return role === 'leasing' && enquiry.officer === 'aina';
@@ -41,6 +81,8 @@ function matchesView(enquiry, view, role) {
     return Boolean(when) && when >= '2026-10-26' && when <= '2026-11-01';
   }
   if (view === 'signed') return enquiry.stage === 'Signed';
+  if (view === 'suspect' || view === 'prospect' || view === 'customer' || view === 'withdrawn') return zoneOf(enquiry.stage) === view;
+  if (view === 'overdue') return presentRequirements(enquiry, zoneState).some((req) => req.status === 'overdue');
   return true;
 }
 
@@ -50,6 +92,8 @@ export default function Pipeline() {
   const ui = useUi();
   const canEdit = state.role === 'leasing';
   const listView = screen === 'enquiries';
+  const zonesView = !listView && search.layout === 'zones';
+  const boardView = !listView && !zonesView;
   const filters = {
     asset: search.asset || '',
     campaign: search.campaign || '',
@@ -58,9 +102,12 @@ export default function Pipeline() {
   };
   const month = search.month || '';
   const view = search.view || '';
+  const zoneFilter = search.zone || '';
+  const layout = zonesView ? 'zones' : '';
   const query = search.q || '';
   const stage = search.stage || '';
   const [pending, setPending] = useState(null);
+  const [zonePrompt, setZonePrompt] = useState(null);
   const [showQr, setShowQr] = useState(false);
   const [freshQr, setFreshQr] = useState(() => new Set());
   const [moveId, setMoveId] = useState(null);
@@ -68,7 +115,7 @@ export default function Pipeline() {
   const [sort, setSort] = useState({ key: 'receivedAt', dir: 'desc' });
   const [selected, setSelected] = useState(() => new Set());
   const [columnsOn, setColumnsOn] = useState({
-    enquirer: true, unit: true, source: true, stage: true, officer: true, received: true, response: true, follow: true, rent: true,
+    enquirer: true, unit: true, source: true, stage: true, zone: true, next: true, officer: true, received: true, response: true, follow: true, rent: true,
   });
   const seenQr = useRef(new Set());
   const qrReady = useRef(false);
@@ -76,7 +123,7 @@ export default function Pipeline() {
   const { rows: qrRows, enquiries: qrEnquiries } = useQrEnquiries();
   const assets = useMemo(() => liveAssets(data, state), [data, state]);
   const base = useMemo(() => filteredEnquiries(data, state, filters).filter((enquiry) => !month || String(enquiry.receivedAt || '').startsWith(month)), [data, state, filters.asset, filters.campaign, filters.source, filters.officer, month]);
-  const countsFor = (name) => base.filter((enquiry) => matchesView(enquiry, name, state.role)).length;
+  const countsFor = (name) => base.filter((enquiry) => matchesView(enquiry, name, state.role, state)).length;
   const textMatch = (enquiry, q) => {
     if (!q.trim()) return true;
     const asset = assets.find((item) => item.id === enquiry.asset);
@@ -84,8 +131,8 @@ export default function Pipeline() {
     return blob.includes(q.trim().toLowerCase());
   };
   const enquiries = useMemo(
-    () => base.filter((enquiry) => matchesView(enquiry, view, state.role) && (!stage || enquiry.stage === stage) && textMatch(enquiry, query)),
-    [base, view, state.role, stage, query, assets],
+    () => base.filter((enquiry) => matchesView(enquiry, view, state.role, state) && (!stage || enquiry.stage === stage) && (!zoneFilter || zoneOf(enquiry.stage) === zoneFilter) && textMatch(enquiry, query)),
+    [base, view, state.role, state, stage, zoneFilter, query, assets],
   );
   const byId = useMemo(() => new Map(enquiries.map((enquiry) => [enquiry.id, enquiry])), [enquiries]);
   const shownQr = useMemo(() => qrEnquiries.filter((enquiry) => {
@@ -114,14 +161,16 @@ export default function Pipeline() {
       officer: filters.officer,
       month,
       view,
+      zone: zoneFilter,
       q: query,
       stage,
+      ...(layout ? { layout } : {}),
       ...patch,
     });
   };
 
   const clearFilters = () => go(listView ? 'enquiries' : 'pipeline');
-  const dirty = Boolean(filters.asset || filters.campaign || filters.source || filters.officer || month || view || query || stage);
+  const dirty = Boolean(filters.asset || filters.campaign || filters.source || filters.officer || month || view || query || stage || zoneFilter);
 
   useEffect(() => { setPage(0); }, [filters.asset, filters.campaign, filters.source, filters.officer, month, view, listView]);
 
@@ -145,13 +194,41 @@ export default function Pipeline() {
     return () => clearTimeout(pulseTimer.current);
   }, [qrRows]);
 
-  const requestMove = (enquiry, stage) => {
-    if (!canEdit || !enquiry || enquiry.qr || enquiry.stage === stage) return;
-    if (stage === 'Signed' || stage === 'Lost') {
-      setPending({ enquiry, stage });
+  const finishMove = (enquiry, stage) => {
+    commitStage(dispatch, enquiry, stage);
+    if (stage === 'Signed' && !enquiry.hero && state.triggers?.T6 !== false) {
+      ui.notify({ title: `${enquiry.business} became a Customer`, href: `enquiry/${enquiry.id}`, action: 'Open' });
+    }
+  };
+  const requestMove = (enquiry, stageName) => {
+    if (!canEdit || !enquiry || enquiry.qr || enquiry.stage === stageName) return;
+    const clock = enquiry.hero ? state.heroReceivedAt : undefined;
+    const plan = zoneMovePlan(enquiry, stageName, state, clock);
+    if (plan.needsAlert) {
+      setZonePrompt({ enquiry, stage: stageName, open: plan.open, from: zoneLabel(plan.from), to: zoneLabel(plan.to) });
       return;
     }
-    commitStage(dispatch, enquiry, stage);
+    if (stageName === 'Signed' || stageName === 'Lost') {
+      setPending({ enquiry, stage: stageName });
+      return;
+    }
+    finishMove(enquiry, stageName);
+  };
+  const confirmZoneMove = () => {
+    if (!zonePrompt) return;
+    const count = zonePrompt.open.length;
+    dispatch({
+      type: 'note',
+      id: zonePrompt.enquiry.id,
+      note: { type: 'Note', text: `Moved with ${count} ${count === 1 ? 'requirement' : 'requirements'} open`, by: zonePrompt.enquiry.officer },
+    });
+    const { enquiry, stage: stageName } = zonePrompt;
+    setZonePrompt(null);
+    if (stageName === 'Signed' || stageName === 'Lost') {
+      setPending({ enquiry, stage: stageName });
+      return;
+    }
+    finishMove(enquiry, stageName);
   };
 
   const stageCount = (stage) => enquiries.filter((enquiry) => enquiry.stage === stage).length + (stage === 'New' ? shownQr.length : 0);
@@ -167,6 +244,11 @@ export default function Pipeline() {
     ['awaiting', 'Awaiting first response', countsFor('awaiting')],
     ['viewings', 'Viewings 26 Oct – 1 Nov', countsFor('viewings')],
     ['signed', 'Signed this month', countsFor('signed')],
+    ['suspect', 'Suspect', countsFor('suspect')],
+    ['prospect', 'Prospect', countsFor('prospect')],
+    ['customer', 'Customer', countsFor('customer')],
+    ['withdrawn', 'Withdrawn', countsFor('withdrawn')],
+    ['overdue', 'Requirements overdue', countsFor('overdue')],
   ];
 
   const sorted = useMemo(() => {
@@ -238,8 +320,9 @@ export default function Pipeline() {
         </div>
         <div className="screen-actions">
           <div className="view-toggle" role="group" aria-label="Enquiry view">
-            <button type="button" aria-pressed={!listView} className={!listView ? 'on' : ''} onClick={() => go('pipeline', { asset: filters.asset, campaign: filters.campaign, source: filters.source, officer: filters.officer, month, view })}>Board</button>
-            <button type="button" aria-pressed={listView} className={listView ? 'on' : ''} onClick={() => go('enquiries', { asset: filters.asset, campaign: filters.campaign, source: filters.source, officer: filters.officer, month, view })}>List</button>
+            <button type="button" aria-pressed={boardView} className={boardView ? 'on' : ''} onClick={() => go('pipeline', { asset: filters.asset, campaign: filters.campaign, source: filters.source, officer: filters.officer, month, view, zone: zoneFilter })}>Board</button>
+            <button type="button" aria-pressed={zonesView} className={zonesView ? 'on' : ''} onClick={() => go('pipeline', { asset: filters.asset, campaign: filters.campaign, source: filters.source, officer: filters.officer, month, view, zone: zoneFilter, layout: 'zones' })}>Zones</button>
+            <button type="button" aria-pressed={listView} className={listView ? 'on' : ''} onClick={() => go('enquiries', { asset: filters.asset, campaign: filters.campaign, source: filters.source, officer: filters.officer, month, view, zone: zoneFilter })}>List</button>
           </div>
           {canEdit && (
             <button type="button" className="btn" data-testid="qr-toggle" aria-expanded={showQr} onClick={() => setShowQr((open) => !open)}>
@@ -273,9 +356,20 @@ export default function Pipeline() {
         officers={Object.values(data.officers)}
         stages={PIPELINE_STAGES}
         onClear={clearFilters}
+        alwaysMore={(
+          <label className="filter-chip">
+            Zone
+            <select data-testid="zone-filter" value={zoneFilter} onChange={(event) => writeQuery({ zone: event.target.value })}>
+              <option value="">All</option>
+              {ZONES.map((zone) => <option key={zone.id} value={zone.id}>{zone.label}</option>)}
+              <option value="withdrawn">Withdrawn</option>
+            </select>
+          </label>
+        )}
         extraChips={[
           month ? { key: 'month', label: `Period: ${data.months.find((item) => item.key === month)?.label || month}`, remove: () => writeQuery({ month: '' }) } : null,
           view ? { key: 'view', label: `View: ${saved.find(([id]) => id === view)?.[1] || view}`, remove: () => writeQuery({ view: '' }) } : null,
+          zoneFilter ? { key: 'zone', label: `Zone: ${zoneLabel(zoneFilter)}`, remove: () => writeQuery({ zone: '' }) } : null,
         ].filter(Boolean)}
       >
         <label className="filter-chip">
@@ -296,8 +390,18 @@ export default function Pipeline() {
       {enquiries.length === 0 && shownQr.length === 0 && (
         <p className="empty-state">No enquiries match these filters. <button type="button" className="text-btn" onClick={clearFilters}>Clear filters</button> to see all {num(allCount)}.</p>
       )}
-      {!listView && (
+      {boardView && (
         <div className="board">
+          {ZONES.map((zone) => {
+            const count = zone.stages.reduce((sum, stage) => sum + stageCount(stage), 0);
+            const rent = zone.stages.reduce((sum, stage) => sum + stageRent(stage), 0);
+            return (
+              <div key={zone.id} className={`zone-band zone-${zone.id}`} style={{ gridColumn: `span ${zone.stages.length}` }}>
+                {`ZONE ${zone.n} · ${zone.label.toUpperCase()} · ${num(count)} · ${rm(rent)}/mo`}
+              </div>
+            );
+          })}
+          <div className="zone-band zone-withdrawn">{`WITHDRAWN · ${num(stageCount('Lost'))}`}</div>
           {PIPELINE_STAGES.map((stage) => (
             <section
               key={stage}
@@ -315,66 +419,40 @@ export default function Pipeline() {
                 <span className="pipe-rent">{rm(stageRent(stage))}/mo</span>
               </header>
               <div className="pipe-cards">
-                {[...(stage === 'New' ? shownQr : []), ...enquiries.filter((enquiry) => enquiry.stage === stage)].map((enquiry) => {
-                  const asset = assets.find((item) => item.id === enquiry.asset);
-                  const officer = data.officers[enquiry.officer];
-                  const campaign = data.campaigns.find((item) => item.id === enquiry.campaign);
-                  const days = daysInStage(enquiry);
-                  const waiting = waitingText(enquiry);
-                  const fresh = enquiry.hero || freshQr.has(String(enquiry.id).replace(/^qr-/, ''));
-                  return (
-                    <article
-                      key={enquiry.id}
-                      className={`pipe-card${fresh ? ' is-new' : ''}`}
-                      draggable={canEdit && !enquiry.qr}
-                      data-testid={enquiry.hero ? 'hero-card' : (enquiry.qr ? 'qr-card' : undefined)}
-                      onClick={(event) => {
-                        if (event.target.closest('a, button')) return;
-                        ui.openRecord(enquiry.id);
-                      }}
-                      onDragStart={canEdit && !enquiry.qr ? (event) => {
-                        event.dataTransfer.setData('text/plain', enquiry.id);
-                        event.dataTransfer.effectAllowed = 'move';
-                      } : undefined}
-                    >
-                      {fresh && <span className="crest-dot" aria-hidden="true" />}
-                      <div className="card-title-row">
-                        <a className="card-title" href={`#/enquiry/${enquiry.id}`} onClick={(event) => { event.preventDefault(); go('enquiry', enquiry.id); }}>{enquiry.business}</a>
-                        {canEdit && !enquiry.qr && (
-                          <div className="move-menu">
-                            <button type="button" className="btn move-btn" aria-label={`Actions for ${enquiry.business}`} aria-expanded={moveId === enquiry.id} onClick={() => setMoveId((current) => (current === enquiry.id ? null : enquiry.id))}>
-                              <MoreHorizontal size={18} strokeWidth={1.75} aria-hidden="true" />
-                            </button>
-                            {moveId === enquiry.id && (
-                              <div className="move-list" role="menu" aria-label={`Move ${enquiry.business}`}>
-                                <p className="overline move-heading">Move to</p>
-                                {PIPELINE_STAGES.map((item) => (
-                                  <button key={item} type="button" role="menuitem" disabled={item === enquiry.stage} onClick={() => { setMoveId(null); requestMove(enquiry, item); }}>{item}</button>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                      <span className="card-contact">{enquiry.contact || '–'}</span>
-                      <span className="card-lot"><span className="lot-chip">{enquiry.lot || '–'}</span> {asset?.short || ''}</span>
-                      <span className="source-line">
-                        <SourceIcon source={enquiry.source} />
-                        <span>{campaign?.short || enquiry.source || '–'}</span>
-                      </span>
-                      <span className="card-foot">
-                        <span>{enquiry.rent != null ? `${rm(enquiry.rent)}/mo` : '–'}</span>
-                        <span className={`avatar tint-${officerTint(officer?.id)}`} title={officer?.name || ''}>{officerMark(officer)}</span>
-                        <span>{waiting || (days == null ? '' : `${num(days)} ${days === 1 ? 'day' : 'days'}`)}</span>
-                      </span>
-                      {enquiry.stage === 'Lost' && enquiry.lostReason && <span className="reason-pill">{enquiry.lostReason}</span>}
-                    </article>
-                  );
-                })}
+                {[...(stage === 'New' ? shownQr : []), ...enquiries.filter((enquiry) => enquiry.stage === stage)].map((enquiry) => (
+                  <PipeCard
+                    key={enquiry.id}
+                    enquiry={enquiry}
+                    assets={assets}
+                    data={data}
+                    canEdit={canEdit}
+                    fresh={enquiry.hero || freshQr.has(String(enquiry.id).replace(/^qr-/, ''))}
+                    moveId={moveId}
+                    setMoveId={setMoveId}
+                    requestMove={requestMove}
+                    onOpen={() => ui.openRecord(enquiry.id)}
+                    line={enquiry.qr ? '' : cardLine(enquiry, state)}
+                  />
+                ))}
               </div>
             </section>
           ))}
         </div>
+      )}
+      {zonesView && (
+        <ZonePanels
+          enquiries={enquiries}
+          shownQr={shownQr}
+          state={state}
+          canEdit={canEdit}
+          assets={assets}
+          data={data}
+          freshQr={freshQr}
+          moveId={moveId}
+          setMoveId={setMoveId}
+          requestMove={requestMove}
+          ui={ui}
+        />
       )}
       {listView && (
         <>
@@ -419,6 +497,8 @@ export default function Pipeline() {
                   {columnsOn.unit && <th><button type="button" className="th-btn" onClick={() => toggleSort('lot')}>Unit</button></th>}
                   {columnsOn.source && <th><span className="th-label">Source and campaign</span></th>}
                   {columnsOn.stage && <th><button type="button" className="th-btn" onClick={() => toggleSort('stage')}>Stage</button></th>}
+                  {columnsOn.zone && <th><span className="th-label">Zone</span></th>}
+                  {columnsOn.next && <th><span className="th-label">Next requirement</span></th>}
                   {columnsOn.officer && <th><button type="button" className="th-btn" onClick={() => toggleSort('officer')}>Officer</button></th>}
                   {columnsOn.received && <th><button type="button" className="th-btn" onClick={() => toggleSort('receivedAt')}>Received</button></th>}
                   {columnsOn.response && <th><button type="button" className="th-btn" onClick={() => toggleSort('response')}>First response</button></th>}
@@ -465,6 +545,8 @@ export default function Pipeline() {
                         </td>
                       )}
                       {columnsOn.stage && <td><span className="stage-pill">{enquiry.stage}</span></td>}
+                      {columnsOn.zone && <td><span className={`zone-chip zone-${zoneOf(enquiry.stage)}`}>{zoneLabel(zoneOf(enquiry.stage))}</span></td>}
+                      {columnsOn.next && <td>{cardLine(enquiry, state)}</td>}
                       {columnsOn.officer && <td><span className={`avatar tint-${officerTint(officer?.id)}`} aria-hidden="true">{officerMark(officer)}</span> {officer?.name?.split(' ')[0] || '–'}</td>}
                       {columnsOn.received && <td>{dateTime(enquiry.receivedAt)}</td>}
                       {columnsOn.response && <td>{minutes == null ? 'Not yet' : duration(minutes)}</td>}
@@ -483,13 +565,27 @@ export default function Pipeline() {
           </div>
         </>
       )}
+      <ZoneMoveDialog
+        open={Boolean(zonePrompt)}
+        fromLabel={zonePrompt?.from}
+        toLabel={zonePrompt?.to}
+        openItems={zonePrompt?.open || []}
+        onStay={() => setZonePrompt(null)}
+        onMove={confirmZoneMove}
+      />
       <SignedDialog
         open={pending?.stage === 'Signed'}
         enquiry={pending?.enquiry}
         assetName={assets.find((item) => item.id === pending?.enquiry?.asset)?.name}
         unit={data.units.find((item) => item.id === pending?.enquiry?.unitId) || data.units.find((item) => item.asset === pending?.enquiry?.asset && item.lot === pending?.enquiry?.lot)}
         onClose={() => setPending(null)}
-        onConfirm={(extra) => { commitStage(dispatch, pending.enquiry, 'Signed', extra); setPending(null); }}
+        onConfirm={(extra) => {
+          commitStage(dispatch, pending.enquiry, 'Signed', extra);
+          if (!pending.enquiry.hero && state.triggers?.T6 !== false) {
+            ui.notify({ title: `${pending.enquiry.business} became a Customer`, href: `enquiry/${pending.enquiry.id}`, action: 'Open' });
+          }
+          setPending(null);
+        }}
       />
       <LostDialog
         open={pending?.stage === 'Lost'}
@@ -507,5 +603,163 @@ export default function Pipeline() {
         }}
       />
     </section>
+  );
+}
+
+function PipeCard({ enquiry, assets, data, canEdit, fresh, moveId, setMoveId, requestMove, onOpen, line }) {
+  const asset = assets.find((item) => item.id === enquiry.asset);
+  const officer = data.officers[enquiry.officer];
+  const campaign = data.campaigns.find((item) => item.id === enquiry.campaign);
+  const days = daysInStage(enquiry);
+  const waiting = waitingText(enquiry);
+  const overdue = /overdue/i.test(line || '');
+  return (
+    <article
+      className={`pipe-card${fresh ? ' is-new' : ''}`}
+      draggable={canEdit && !enquiry.qr}
+      data-testid={enquiry.hero ? 'hero-card' : (enquiry.qr ? 'qr-card' : undefined)}
+      onClick={(event) => {
+        if (event.target.closest('a, button')) return;
+        onOpen();
+      }}
+      onDragStart={canEdit && !enquiry.qr ? (event) => {
+        event.dataTransfer.setData('text/plain', enquiry.id);
+        event.dataTransfer.effectAllowed = 'move';
+      } : undefined}
+    >
+      {fresh && <span className="crest-dot" aria-hidden="true" />}
+      <div className="card-title-row">
+        <a className="card-title" href={`#/enquiry/${enquiry.id}`} onClick={(event) => { event.preventDefault(); go('enquiry', enquiry.id); }}>{enquiry.business}</a>
+        {canEdit && !enquiry.qr && (
+          <div className="move-menu">
+            <button type="button" className="btn move-btn" aria-label={`Actions for ${enquiry.business}`} aria-expanded={moveId === enquiry.id} onClick={() => setMoveId((current) => (current === enquiry.id ? null : enquiry.id))}>
+              <MoreHorizontal size={18} strokeWidth={1.75} aria-hidden="true" />
+            </button>
+            {moveId === enquiry.id && (
+              <div className="move-list" role="menu" aria-label={`Move ${enquiry.business}`}>
+                <p className="overline move-heading">Move to</p>
+                {PIPELINE_STAGES.map((item) => (
+                  <button key={item} type="button" role="menuitem" disabled={item === enquiry.stage} onClick={() => { setMoveId(null); requestMove(enquiry, item); }}>{item}</button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+      <span className="card-contact">{enquiry.contact || '–'}</span>
+      <span className="card-lot"><span className="lot-chip">{enquiry.lot || '–'}</span> {asset?.short || ''}</span>
+      <span className="source-line">
+        <SourceIcon source={enquiry.source} />
+        <span>{campaign?.short || enquiry.source || '–'}</span>
+      </span>
+      <span className="stage-pill">{enquiry.stage}</span>
+      <span className="card-foot">
+        <span>{enquiry.rent != null ? `${rm(enquiry.rent)}/mo` : '–'}</span>
+        <span className={`avatar tint-${officerTint(officer?.id)}`} title={officer?.name || ''}>{officerMark(officer)}</span>
+        <span>{waiting || (days == null ? '' : `${num(days)} ${days === 1 ? 'day' : 'days'}`)}</span>
+      </span>
+      {enquiry.stage === 'Lost' && enquiry.lostReason && <span className="reason-pill">{enquiry.lostReason}</span>}
+      {line ? <span className={overdue ? 'req-line is-overdue' : 'req-line'}>{line}</span> : null}
+    </article>
+  );
+}
+
+function reachedProspect(enquiry) {
+  const stages = new Set([enquiry.stage, ...(enquiry.history || []).map((entry) => entry[0])]);
+  return ['Qualified', 'Viewing Scheduled', 'Negotiation', 'Signed'].some((stage) => stages.has(stage));
+}
+
+function leftFrom(enquiry) {
+  if (enquiry.leftZone) return enquiry.leftZone;
+  const prior = (enquiry.history || []).map((entry) => entry[0]).filter((stage) => stage !== 'Lost').at(-1);
+  return zoneOf(prior || 'New');
+}
+
+function ZonePanels({ enquiries, shownQr, state, canEdit, assets, data, freshQr, moveId, setMoveId, requestMove, ui }) {
+  const medians = medianDaysInZone(enquiries.filter((enquiry) => !enquiry.hero));
+  const flow = octoberMovements(enquiries);
+  const reached = enquiries.filter(reachedProspect).length;
+  const panels = [
+    ...ZONES.map((zone) => ({ ...zone, target: zone.stages[0] })),
+    { id: 'withdrawn', label: 'Withdrawn', stages: ['Lost'], target: 'Lost' },
+  ];
+  const rowsFor = (zone) => {
+    const seeded = enquiries.filter((enquiry) => zoneOf(enquiry.stage) === zone.id);
+    const extra = zone.id === 'suspect' ? shownQr : [];
+    return [...extra, ...seeded].slice().sort((a, b) => String(oldestOpen(a, state)).localeCompare(String(oldestOpen(b, state))));
+  };
+  return (
+    <div data-testid="zones-view">
+      <div className="zone-board">
+        {panels.map((zone) => {
+          const rows = rowsFor(zone);
+          const rent = rows.reduce((sum, enquiry) => sum + (Number(enquiry.rent) || 0), 0);
+          const late = rows.filter((enquiry) => {
+            const clock = enquiry.hero ? state.heroReceivedAt : undefined;
+            return firstContactOverdue(presentRequirements(enquiry, state, clock), state.triggers);
+          }).length;
+          const viewings = state.triggers?.T4 === false ? 0 : rows.filter((enquiry) => {
+            const clock = enquiry.hero ? state.heroReceivedAt : undefined;
+            return presentRequirements(enquiry, state, clock).some((req) => req.id === 'P2' && req.status === 'overdue');
+          }).length;
+          const handed = rows.filter((enquiry) => handoverOf(enquiry, state) === 'handed').length;
+          const ready = zone.id === 'customer' ? rows.length - handed : 0;
+          const fromSuspect = rows.filter((enquiry) => leftFrom(enquiry) === 'suspect').length;
+          const fromProspect = rows.filter((enquiry) => leftFrom(enquiry) === 'prospect').length;
+          return (
+            <section
+              key={zone.id}
+              className={`zone-panel zone-${zone.id}`}
+              data-testid={`zone-${zone.id}`}
+              onDragOver={canEdit ? (event) => event.preventDefault() : undefined}
+              onDrop={canEdit ? (event) => {
+                event.preventDefault();
+                const enquiry = enquiries.find((item) => item.id === event.dataTransfer.getData('text/plain'));
+                requestMove(enquiry, zone.target);
+              } : undefined}
+            >
+              <header className="zone-panel-head">
+                <p className="overline">{zone.id === 'withdrawn' ? 'Withdrawn' : `Zone ${zone.n} · ${zone.label}`}</p>
+                <div className="zone-stats">
+                  <span className="zone-figure" data-testid={`zone-count-${zone.id}`}>{num(rows.length)}</span>
+                  {zone.id !== 'withdrawn' && <span className="zone-rent">{rm(rent)}/mo</span>}
+                </div>
+                {zone.id === 'suspect' && <p className="zone-meta">median {medians.suspect ?? '–'} days in zone</p>}
+                {zone.id === 'suspect' && state.triggers?.T2 !== false && <p className="zone-meta">{num(late)} first contact overdue</p>}
+                {zone.id === 'prospect' && <p className="zone-meta">median {medians.prospect ?? '–'} days in zone</p>}
+                {zone.id === 'prospect' && state.triggers?.T4 !== false && <p className="zone-meta">{num(viewings)} viewings to log</p>}
+                {zone.id === 'customer' && <p className="zone-meta">{num(handed)} handed over · {num(ready)} ready</p>}
+                {zone.id === 'customer' && <p className="zone-meta">{num(ready)} handovers due</p>}
+                {zone.id === 'withdrawn' && <p className="zone-meta">{num(fromSuspect)} from Suspect</p>}
+                {zone.id === 'withdrawn' && <p className="zone-meta">{num(fromProspect)} from Prospect</p>}
+              </header>
+              <div className="zone-cards">
+                {rows.map((enquiry) => (
+                  <PipeCard
+                    key={enquiry.id}
+                    enquiry={enquiry}
+                    assets={assets}
+                    data={data}
+                    canEdit={canEdit}
+                    fresh={enquiry.hero || freshQr.has(String(enquiry.id).replace(/^qr-/, ''))}
+                    moveId={moveId}
+                    setMoveId={setMoveId}
+                    requestMove={requestMove}
+                    onOpen={() => ui.openRecord(enquiry.id)}
+                    line={zoneCardLine(enquiry, state)}
+                  />
+                ))}
+              </div>
+            </section>
+          );
+        })}
+      </div>
+      <div className="zone-flow" data-testid="zone-flow">
+        <p>{num(reached)} have reached Prospect · median {flow.medianToProspect ?? '–'} days</p>
+        <span aria-hidden="true">→</span>
+        <p>{num(flow.becameCustomer)} became Customer this month · median {flow.medianToCustomer ?? '–'} days</p>
+        <span aria-hidden="true">→</span>
+      </div>
+    </div>
   );
 }
