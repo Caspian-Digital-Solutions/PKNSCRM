@@ -13,7 +13,7 @@ import { PIPELINE_STAGES, ZONES } from '../data/config.js';
 import { nextWorkingSlot } from '../time.js';
 import { zoneOf } from '../data/metrics.js';
 import {
-  handoverOf, presentRequirements, qualifiersFor, requirementLine, signalsFor, zoneLabel, zoneMovePlan, zoneTasks,
+  handoverOf, presentRequirements, qualifiersFor, requirementClock, requirementLine, signalsFor, zoneLabel, zoneMovePlan, zoneTasks,
 } from '../data/zones.js';
 import { contactLog, firstResponseMinutes, liveAssets, liveEnquiries, liveUnits } from '../data/selectors.js';
 import { useQrEnquiries } from '../qrStore.js';
@@ -102,6 +102,7 @@ export default function EnquiryRecord({ id, variant = 'page', onClose }) {
   const seenStage = useRef(null);
   const followRef = useRef(null);
   const entryRef = useRef(null);
+  const outcomeRef = useRef(null);
   const [crest, setCrest] = useState(false);
   const enquiries = useMemo(() => liveEnquiries(data, state), [data, state]);
   const { enquiries: qrEnquiries, ready: qrReady } = useQrEnquiries();
@@ -146,6 +147,15 @@ export default function EnquiryRecord({ id, variant = 'page', onClose }) {
     }
     return undefined;
   }, [enquiry?.stage]);
+
+  useEffect(() => {
+    if (!outcomeOpen) return undefined;
+    const node = outcomeRef.current;
+    if (!node) return undefined;
+    node.scrollIntoView({ block: 'center' });
+    node.querySelector('textarea, input')?.focus();
+    return undefined;
+  }, [outcomeOpen]);
 
   if (!enquiry) {
     return (
@@ -211,12 +221,12 @@ export default function EnquiryRecord({ id, variant = 'page', onClose }) {
     else last.items.push(item);
   }
 
-  const clock = state.now;
+  const clock = requirementClock(enquiry, state, state.now);
   const reqs = presentRequirements(enquiry, state, clock);
   const zoneId = zoneOf(enquiry.stage);
   const zoneMeta = ZONES.find((item) => item.id === zoneId);
   const qualifiers = qualifiersFor(enquiry, reqs);
-  const signals = signalsFor(enquiry, log);
+  const signals = signalsFor(enquiry, log, clock);
   const tasks = zoneTasks(enquiry, reqs, state.triggers);
   const handover = handoverOf(enquiry, state);
   const activeZone = enquiry.stage === 'Lost' ? (enquiry.leftZone || zoneOf((enquiry.history || []).map((entry) => entry[0]).filter((stage) => stage !== 'Lost').at(-1) || 'New')) : zoneId;
@@ -310,7 +320,7 @@ export default function EnquiryRecord({ id, variant = 'page', onClose }) {
     }
     setEntryText('');
     setEntryType('Note');
-    ui.notify({ title: 'Viewing scheduled', detail: bookedWhen(viewingAt), href: `enquiry/${enquiry.id}`, action: 'Open' });
+    ui.toastOnly({ title: 'Viewing scheduled', detail: bookedWhen(viewingAt), duration: 4000 });
   };
 
   const openOutcome = () => {
@@ -318,6 +328,7 @@ export default function EnquiryRecord({ id, variant = 'page', onClose }) {
       setSkipOpen(true);
       return;
     }
+    setEntryType('Viewing');
     setOutcomeOpen(true);
   };
 
@@ -325,6 +336,7 @@ export default function EnquiryRecord({ id, variant = 'page', onClose }) {
     const moved = plusMinutes(enquiry.viewingAt, 60);
     dispatch({ type: 'setNow', now: moved });
     setSkipOpen(false);
+    setEntryType('Viewing');
     setOutcomeOpen(true);
     ui.toastOnly({ title: `Demo time moved to ${bookedWhen(moved)}`, duration: 4000 });
   };
@@ -384,12 +396,11 @@ export default function EnquiryRecord({ id, variant = 'page', onClose }) {
           </Tip>
         </div>
       )}
-      <p className="crumb">
-        <a href="#/pipeline" onClick={(event) => { event.preventDefault(); go('pipeline'); }}>Enquiries</a>
-        {campaign && (
-          <a href={`#/campaign/${campaign.id}`} onClick={(event) => { event.preventDefault(); go('campaign', campaign.id); }}>Back to campaign</a>
-        )}
-      </p>
+      {campaign && (
+        <p className="back-link">
+          <a href={`#/campaign/${campaign.id}`} onClick={(event) => { event.preventDefault(); go('campaign', campaign.id); }}>← Back to campaign</a>
+        </p>
+      )}
       <h1 className="page-title">{enquiry.business}</h1>
       <p className="lead">
         {enquiry.contact || '–'}{enquiry.title ? `, ${enquiry.title}` : ''}
@@ -459,7 +470,7 @@ export default function EnquiryRecord({ id, variant = 'page', onClose }) {
                 {enquiry.ad && <div className="ad-mock"><p>{enquiry.ad}</p></div>}
               </>
             ) : node.id === 'viewing' && enquiry.viewingAt ? (
-              <p className="journey-value">Viewing {bookedWhen(enquiry.viewingAt)}</p>
+              <p className="journey-value">{enquiry.viewingHeld ? 'Viewed' : 'Viewing'} {bookedWhen(enquiry.viewingAt)}</p>
             ) : node.id === 'tenancy' && enquiry.stage === 'Lost' ? (
               <div className="journey-end">
                 Lost
@@ -498,7 +509,23 @@ export default function EnquiryRecord({ id, variant = 'page', onClose }) {
       )}
       <div className="record-grid">
         <div>
-          {editable && (
+          {editable && outcomeOpen ? (
+            <form ref={outcomeRef} className="composer" data-testid="viewing-outcome" onSubmit={saveOutcome}>
+              <div className="composer-tabs" role="tablist" aria-label="Composer">
+                {LOG_TYPES.map((item) => (
+                  <button key={item} type="button" role="tab" aria-selected={item === 'Viewing'} className={item === 'Viewing' ? 'on' : ''} onClick={() => { setOutcomeOpen(false); setEntryType(item); }}>{item}</button>
+                ))}
+              </div>
+              <p className="field-label">Viewing outcome</p>
+              <label className="reason-row"><input type="checkbox" checked={attended} onChange={() => setAttended((on) => !on)} /> Attended</label>
+              <label className="reason-row"><input type="checkbox" checked={interested} onChange={() => setInterested((on) => !on)} /> Interested</label>
+              <label className="grow">
+                <span className="sr-only">Note</span>
+                <textarea rows={3} value={outcomeNote} onChange={(event) => setOutcomeNote(event.target.value)} />
+              </label>
+              <button type="submit" className="btn btn-primary">Save outcome</button>
+            </form>
+          ) : editable && (
             <form className="composer" onSubmit={addEntry}>
               <div className="composer-tabs" role="tablist" aria-label="Composer">
                 {LOG_TYPES.map((item) => (
@@ -675,18 +702,6 @@ export default function EnquiryRecord({ id, variant = 'page', onClose }) {
           <button type="button" className="btn btn-primary" data-testid="skip-ahead-confirm" onClick={skipAhead}>Skip ahead</button>
         </div>
       </Modal>
-      {outcomeOpen && (
-        <form className="composer" data-testid="viewing-outcome" onSubmit={saveOutcome}>
-          <p className="field-label">Viewing outcome</p>
-          <label className="reason-row"><input type="checkbox" checked={attended} onChange={() => setAttended((on) => !on)} /> Attended</label>
-          <label className="reason-row"><input type="checkbox" checked={interested} onChange={() => setInterested((on) => !on)} /> Interested</label>
-          <label className="grow">
-            <span className="sr-only">Note</span>
-            <textarea rows={3} value={outcomeNote} onChange={(event) => setOutcomeNote(event.target.value)} />
-          </label>
-          <button type="submit" className="btn btn-primary">Save outcome</button>
-        </form>
-      )}
       <SignedDialog
         open={pending === 'Signed'}
         enquiry={enquiry}
@@ -734,7 +749,9 @@ function RequirementsPanel({ reqs, activeZone, qualifiers, tasks, editable, offi
         if (!rows.length) return null;
         const finished = rows.filter((req) => req.status === 'done').length;
         const times = rows.map((req) => req.doneAt).filter(Boolean).sort();
-        const span = times.length > 1 ? `, ${dayMonth(times[0])}–${dayMonth(times[times.length - 1])}` : times.length ? `, ${dayMonth(times[0])}` : '';
+        const startLabel = times.length ? dayMonth(times[0]) : '';
+        const endLabel = times.length ? dayMonth(times[times.length - 1]) : '';
+        const span = times.length ? `, ${startLabel === endLabel ? startLabel : `${startLabel}–${endLabel}`}` : '';
         return <p key={zone.id} className="cell-note">Zone {zone.n} · {zone.label}: {finished} of {rows.length} done{span}</p>;
       })}
       {meta && (
@@ -786,7 +803,8 @@ function RequirementsPanel({ reqs, activeZone, qualifiers, tasks, editable, offi
 }
 
 function SignalsCard({ signals }) {
-  const from = signals.ad ? `Came from ${signals.source} · '${signals.ad}'` : `Came from ${signals.source}`;
+  const source = displaySource(signals.source);
+  const from = signals.ad ? `Came from ${source} · '${signals.ad}'` : `Came from ${source}`;
   return (
     <section className="desc-group" data-testid="signals">
       <h2 className="overline">Signals</h2>

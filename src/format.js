@@ -82,6 +82,20 @@ export const time = (iso) => {
 export const ratio = (v) => (v == null ? '–' : round(v, 2).toFixed(2));
 export const years = (v) => (v == null || !Number.isFinite(Number(v)) ? '–' : `${round(Number(v), 2).toFixed(2)} years`);
 export const hours = (v) => (v == null || !Number.isFinite(Number(v)) ? '–' : `${round(Number(v), 1).toFixed(1)} h`);
+export const workingHours = (v) => {
+  const text = hours(v);
+  return text === '–' ? text : text.replace(/ h$/, ' working hours');
+};
+export const snapshotLabel = (iso) => {
+  if (!iso) return 'Snapshot';
+  const part = klParts(iso);
+  return `Snapshot as at ${part.weekday} ${part.day} ${part.month} ${part.year}, ${part.hour}:${part.minute}`;
+};
+export function monthSelectLabel(label, key, now) {
+  const end = String(now || '').slice(0, 10);
+  if (key && end.startsWith(key) && end < `${key}-31`) return `${label} (to ${dayMonth(end)})`;
+  return label;
+}
 export const dec1 = (v) => (v == null || !Number.isFinite(Number(v)) ? '–' : round(Number(v), 1).toFixed(1));
 // Values already stored as a percent (4.2 means 4.2%, not 420%).
 export const pctPlain = (v, d = 1) => (v == null || !Number.isFinite(Number(v)) ? '–' : `${round(Number(v), d).toFixed(d)}%`);

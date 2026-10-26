@@ -9,7 +9,7 @@ import Num from '../components/Num.jsx';
 import Sparkline from '../components/Sparkline.jsx';
 import { portfolioRows, reportBlocks, liveUnits, liveEnquiries, campaignRows, periodWindow, comparisonWindow, clockOf } from '../data/selectors.js';
 import { leasingKpis, medianDaysVacant, totalRow, withRatios } from '../data/metrics.js';
-import { delta, dayMonth, num, rm, rm2, pct, x } from '../format.js';
+import { delta, dayMonth, monthSelectLabel, num, rm, rm2, pct, x } from '../format.js';
 
 const DEFAULT_COLUMNS = ['name', 'units', 'occupied', 'vacant', 'occupancy', 'medianDaysVacant', 'paidEnquiries', 'spend', 'cpl', 'signed', 'roas'];
 
@@ -24,6 +24,7 @@ function changeLine(current, previous, format, label) {
   if (previous == null || !label) return null;
   if (format === 'pct') return `${delta(current, previous, format)} vs ${label}`;
   const shown = format === 'rm' ? rm(previous) : format === 'rm2' ? rm2(previous) : num(previous);
+  if (format === 'rm' || format === 'rm2') return `vs ${shown}, ${label}`;
   return `vs ${shown} in ${label}`;
 }
 
@@ -253,10 +254,12 @@ export default function Portfolio() {
       <div className="screen-head">
         <div>
           <h1 className="page-title">Portfolio overview</h1>
-          <p className="lead">One view across every PKNS asset: what is empty, how long it has been empty, and what it cost to fill.</p>
+          <p className="lead">One view across every PKNS asset: what is empty, how long it has been empty, and the cost to fill it.</p>
         </div>
       </div>
       <Filters
+        className="overview-filters"
+        keepInline
         query={query}
         onQuery={setQuery}
         fields={['type', 'location', 'campaign']}
@@ -276,8 +279,7 @@ export default function Portfolio() {
           Month
           <select value={month} onChange={(e) => setMonth(e.target.value)}>
             {data.months.map((item) => {
-              const end = now.slice(0, 10);
-              const label = item.key === end.slice(0, 7) && end < `${item.key}-31` ? `${item.label} (to ${dayMonth(end)})` : item.label;
+              const label = monthSelectLabel(item.label, item.key, now);
               return <option key={item.key} value={item.key}>{label}</option>;
             })}
           </select>

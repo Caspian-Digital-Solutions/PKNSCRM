@@ -10,12 +10,12 @@ import { DEFINITIONS } from '../data/definitions.js';
 import { reportModel } from '../data/reportModel.js';
 import { liveEnquiries, periodWindow, portfolioRows } from '../data/selectors.js';
 import { go } from '../router.js';
-import { medianDaysInZone, octoberMovements, zoneSnapshot } from '../data/zones.js';
+import { boardAudience, medianDaysInZone, octoberMovements } from '../data/zones.js';
 import { medianFirstResponseHours, withinOneWorkingHourShare } from '../data/metrics.js';
-import { dayMonth, hours, num, pct, rm } from '../format.js';
+import { hours, monthSelectLabel, num, pct, rm, snapshotLabel } from '../format.js';
 import { buildReportPdf } from '../reportPdf.js';
 
-function MeasureTable({ title, rows }) {
+function MeasureTable({ title, rows, asAt }) {
   return (
     <section>
       <h2 className="section-title">{title}</h2>
@@ -34,11 +34,15 @@ function MeasureTable({ title, rows }) {
           </thead>
           <tbody>
             {rows.reduce((nodes, row, index) => {
+              if (row.kind === 'heading') {
+                nodes.push(<tr key={row.id}><td colSpan={4}>{row.label}</td></tr>);
+                return nodes;
+              }
               const snapshot = row.kind === 'snapshot';
               const trade = String(row.id).startsWith('trade-');
               const expiry = String(row.id).startsWith('expiry-');
               if (snapshot && !rows.slice(0, index).some((item) => item.kind === 'snapshot')) {
-                nodes.push(<tr key="snapshot-head"><td colSpan={4}>Snapshot as at 31 Oct 2026</td></tr>);
+                nodes.push(<tr key="snapshot-head"><td colSpan={4}>{snapshotLabel(asAt)}</td></tr>);
               }
               if (expiry && !rows.slice(0, index).some((item) => String(item.id).startsWith('expiry-'))) {
                 nodes.push(<tr key="expiry-head"><td colSpan={4}>Lease expiry profile</td></tr>);
@@ -77,7 +81,7 @@ function EnquiryLink({ query }) {
 }
 
 function AudienceZones({ enquiries, state }) {
-  const snap = zoneSnapshot(enquiries, state);
+  const board = boardAudience(enquiries, state);
   const span = periodWindow('2026-10', state.now);
   const moveBase = octoberMovements(enquiries);
   const october = enquiries.filter((enquiry) => String(enquiry.receivedAt || '').startsWith('2026-10'));
@@ -96,13 +100,13 @@ function AudienceZones({ enquiries, state }) {
     beforeProspect,
     fromProspect: withdrawnRows.length - beforeProspect,
     responseText: `${hours(responseHours).replace(' h', '')} working hours`,
-    withinHour: `${pct(withinOneWorkingHourShare(october))} within 1 working hour`,
+    withinHour: pct(withinOneWorkingHourShare(october), 0),
   };
   const medians = medianDaysInZone(enquiries.filter((enquiry) => !enquiry.hero));
   const zones = [
-    ['Suspect', snap.suspect],
-    ['Prospect', snap.prospect],
-    ['Customer', snap.customer],
+    ['Suspect', board.suspect],
+    ['Prospect', board.prospect],
+    ['Customer, handover pending', board.pending],
   ];
   return (
     <section data-testid="audience-zones">
@@ -125,14 +129,14 @@ function AudienceZones({ enquiries, state }) {
               </tr>
             ))}
             <tr>
-              <td>Withdrawn</td>
-              <td className="r">{num(snap.withdrawn.count)}</td>
-              <td className="r">{num(snap.withdrawn.from.suspect)} from Suspect, {num(snap.withdrawn.from.prospect)} from Prospect</td>
+              <td>Withdrawn in October</td>
+              <td className="r">{num(board.withdrawn.count)}</td>
+              <td className="r">{num(board.withdrawn.fromSuspect)} from Suspect, {num(board.withdrawn.fromProspect)} from Prospect</td>
             </tr>
             <tr>
               <td>Handed over</td>
-              <td className="r">{num(snap.handed)}</td>
-              <td className="r">{num(snap.ready)} ready</td>
+              <td className="r">{num(board.handed)}</td>
+              <td className="r">{num(board.handoversDue)} handovers due</td>
             </tr>
           </tbody>
         </table>
@@ -311,16 +315,16 @@ export default function Report() {
         <label className="month-select">
           Month
           <select data-testid="report-month" value={month} onChange={(event) => setMonth(event.target.value)}>
-            {MONTHS.map((item) => <option key={item.key} value={item.key}>{item.label}</option>)}
+            {MONTHS.map((item) => <option key={item.key} value={item.key}>{monthSelectLabel(item.label, item.key, state.now)}</option>)}
           </select>
         </label>
       </Filters>
       <article className="report-page">
         <img className="report-logo" src={logo} alt="PKNS" />
-        <p className="report-month">{MONTHS.find((item) => item.key === month)?.label}{month === '2026-10' ? ` (to ${dayMonth(state.now)}) · October to date` : ''}</p>
+        <p className="report-month">{monthSelectLabel(MONTHS.find((item) => item.key === month)?.label || month, month, state.now)}</p>
         <p data-testid="report-occupancy">Occupancy {pct(portfolio?.occupancy)}. Committed occupancy {pct(portfolio?.committedOccupancy)}. Occupancy counts tenants in place. Committed occupancy also counts leases signed but not started.</p>
-        <MeasureTable title="1. Portfolio and leasing" rows={matchRows(model.block1)} />
-        <MeasureTable title="2. Marketing to tenancy" rows={matchRows(model.block2)} />
+        <MeasureTable title="1. Portfolio and leasing" rows={matchRows(model.block1)} asAt={state.now} />
+        <MeasureTable title="2. Marketing to tenancy" rows={matchRows(model.block2)} asAt={state.now} />
         {month === '2026-10' && <AudienceZones enquiries={zoneRows} state={state} />}
         <DigitalReach rows={matchRows(model.block3)} />
       <details className="definitions" open data-testid="definitions">

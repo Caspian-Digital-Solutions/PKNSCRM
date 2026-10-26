@@ -35,7 +35,7 @@ function openHref(href) {
   document.querySelectorAll('.content, .main-col').forEach((node) => { node.scrollTop = 0; });
 }
 
-function ToastCard({ toast, onDismiss }) {
+function ToastCard({ toast, onDismiss, onFollow }) {
   const sticky = Boolean(toast.action);
   const [paused, setPaused] = useState(false);
   const remaining = useRef(toast.duration || 5000);
@@ -63,8 +63,8 @@ function ToastCard({ toast, onDismiss }) {
             onClick={(event) => {
               event.preventDefault();
               event.stopPropagation();
-              onDismiss(toast.id);
-              openHref(toast.href);
+              if (onFollow) onFollow(toast);
+              else onDismiss(toast.id);
             }}
           >
             {toast.action || 'Open'}
@@ -262,12 +262,19 @@ export default function Shell({ current, children }) {
               <span className="demo-pill">Demo data</span>
               {ui.presenter && <span className="demo-pill">Presenter mode</span>}
             </div>
-            <Tip label="Reset demo" place="right">
+            {ui.collapsed ? (
+              <Tip label="Reset demo" place="right">
+                <button type="button" className="icon-btn nav-quiet" aria-label="Reset demo" onClick={() => ui.setResetOpen(true)}>
+                  <RotateCcw size={18} strokeWidth={1.75} aria-hidden="true" />
+                  <span className="nav-label">Reset demo</span>
+                </button>
+              </Tip>
+            ) : (
               <button type="button" className="icon-btn nav-quiet" aria-label="Reset demo" onClick={() => ui.setResetOpen(true)}>
                 <RotateCcw size={18} strokeWidth={1.75} aria-hidden="true" />
                 <span className="nav-label">Reset demo</span>
               </button>
-            </Tip>
+            )}
             <button type="button" className="icon-btn nav-quiet" onClick={() => ui.setCollapsed((on) => {
               const next = !on;
               if (navHold.current !== null) navHold.current = next;
@@ -306,12 +313,19 @@ export default function Shell({ current, children }) {
                 </button>
               </Tip>
               <div className="bell-wrap">
-                <Tip label="Notifications">
+                {bell ? (
                   <button type="button" className="icon-btn" aria-label="Notifications" aria-expanded={bell} onClick={(event) => { event.stopPropagation(); bellGuard.current = true; setBell((open) => !open); }}>
                     <Bell size={18} strokeWidth={1.75} aria-hidden="true" />
                     {ui.events.some((event) => !event.read) && <span className="nav-badge" aria-hidden="true">{ui.events.filter((event) => !event.read).length}</span>}
                   </button>
-                </Tip>
+                ) : (
+                  <Tip label="Notifications">
+                    <button type="button" className="icon-btn" aria-label="Notifications" aria-expanded={bell} onClick={(event) => { event.stopPropagation(); bellGuard.current = true; setBell((open) => !open); }}>
+                      <Bell size={18} strokeWidth={1.75} aria-hidden="true" />
+                      {ui.events.some((event) => !event.read) && <span className="nav-badge" aria-hidden="true">{ui.events.filter((event) => !event.read).length}</span>}
+                    </button>
+                  </Tip>
+                )}
                 {bell && (
                   <div className="role-menu bell-menu" role="menu">
                     {ui.events.length === 0 && <p className="menu-empty">New enquiries, viewings and signed tenancies appear here.</p>}
@@ -320,7 +334,7 @@ export default function Shell({ current, children }) {
                         key={event.id}
                         role="menuitem"
                         className={event.read ? 'is-read' : ''}
-                        onClick={() => { ui.markRead(event.id); setBell(false); openHref(event.href); }}
+                        onClick={() => { if (event.href) ui.dismissHref(event.href); else ui.markRead(event.id); setBell(false); openHref(event.href); }}
                       >
                         <strong>{event.title}</strong>
                         {event.detail && <span>{event.detail}</span>}
@@ -342,7 +356,7 @@ export default function Shell({ current, children }) {
       <CommandPalette />
       <div className="toaster" aria-live="polite">
         {ui.toasts.map((toast) => (
-          <ToastCard key={toast.id} toast={toast} onDismiss={ui.dismissToast} />
+          <ToastCard key={toast.id} toast={toast} onDismiss={ui.dismissToast} onFollow={(item) => { if (item.href) ui.dismissHref(item.href); else ui.dismissToast(item.id); openHref(item.href); }} />
         ))}
       </div>
       {ui.drawerId && (

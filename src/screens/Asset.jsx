@@ -9,8 +9,6 @@ import { PIPELINE_STAGES } from '../data/config.js';
 import { assetDetail, liveAssets } from '../data/selectors.js';
 import { num, rm, rm2, pct, x, date } from '../format.js';
 import { assetMark, unitLabel } from '../labels.js';
-import { Abbr } from '../components/Term.jsx';
-
 const STATUSES = ['Occupied', 'Let', 'Reserved', 'Vacant', 'Under redevelopment'];
 
 function lotClass(status) {
@@ -189,7 +187,7 @@ export default function Asset({ params }) {
         <dl className="fact-grid">
           <div><dt className="fact-label">Type</dt><dd className="fact-value">{asset.type}</dd></div>
           <div><dt className="fact-label">Location</dt><dd className="fact-value">{asset.location}</dd></div>
-          <div><dt className="fact-label">Managing entity</dt><dd className="fact-value">{asset.entity === 'PREC' ? <Abbr title="PKNS Real Estate Sdn Bhd (PREC)">PREC</Abbr> : asset.entity}</dd></div>
+          <div><dt className="fact-label">Managing entity</dt><dd className="fact-value">{asset.entity === 'PREC' ? 'PKNS Real Estate Sdn Bhd (PREC)' : asset.entity}</dd></div>
           <div><dt className="fact-label">Campaign grouping</dt><dd className="fact-value">{grouping}</dd></div>
           <div>
             <dt className="fact-label">{detail.eventSpace ? 'Spaces' : 'Total units'}</dt>
@@ -271,10 +269,9 @@ export default function Asset({ params }) {
                       </button>
                       <span className="lot-pop">
                         <strong>{unitLabel(unit)}</strong>
-                        <span>{unit.use}, {num(unit.size)} sq ft</span>
-                        <span>{rm(unit.rent)} a month</span>
-                        <span>{unit.status}</span>
-                        <span>{num(unit.openEnquiryIds?.length || 0)} open enquiries</span>
+                        <span>{unit.use} · {num(unit.size)} sq ft · {rm(unit.rent)} a month</span>
+                        <span>{unit.status === 'Let' && unit.leaseStart ? `Let, lease starts ${date(unit.leaseStart)}` : unit.status}</span>
+                        <span>{unit.openEnquiryIds?.length ? `${num(unit.openEnquiryIds.length)} open enquiries` : 'No open enquiries'}</span>
                       </span>
                       </span>
                     ))}
