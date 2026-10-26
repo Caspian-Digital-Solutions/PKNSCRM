@@ -1,8 +1,8 @@
 import { makeRng, allocate, scatter, ymd, addDays, dateUTC, daysBetween } from './rng.js';
 import { attachZoneData } from './zones.js';
 import {
-  AS_AT, PERIOD, MONTHS, ASSETS, CAMPAIGNS, CHANNELS, SIGNED, OFFICERS, SOCIAL_PAGES, WEBSITE_OCT,
-  STAGE_COUNTS, SOURCE_MIX, LOST_REASONS, HERO, AD_CREATIVES,
+  AS_AT, DEMO_START, LAST_DAY_SHARE, PERIOD, MONTHS, ASSETS, CAMPAIGNS, CHANNELS, SIGNED, OFFICERS, SOCIAL_PAGES, WEBSITE_OCT,
+  LOST_REASONS_BEFORE_VIEWING, LOST_REASONS_AFTER_VIEWING, NON_CAMPAIGN, HERO, AD_CREATIVES,
 } from './config.js';
 import { BUSINESSES } from './businesses.js';
 
@@ -79,7 +79,9 @@ function attachLeases(rng, units, signed) {
     lot.leaseStart = ymd(start);
     lot.leaseExpiry = ymd(addDays(new Date(Date.UTC(start.getUTCFullYear() + 2, start.getUTCMonth(), start.getUTCDate())), -1));
     lot.signedDate = s.date;
+    if (lot.leaseStart > AS_AT) lot.status = 'Let'; // signed, lease not started yet: let, not occupied
     s.lot = lot.lot;
+    s.leaseStart = lot.leaseStart;
     s.unitId = lot.id;
   }
   for (const u of units) {
@@ -110,11 +112,11 @@ function attachLeases(rng, units, signed) {
 
 function buildCampaigns(rng, signed, spreadRng) {
   return CAMPAIGNS.map((c) => {
-    const days = dateRange(c.start, c.end);
+    const days = dateRange(c.start, c.end < AS_AT ? c.end : AS_AT); // figures to date: nothing after the demo clock
     const T = days.length;
     const base = days.map((d, t) => {
       const dow = dateUTC(d).getUTCDay();
-      return (1 + 0.35 * (t / T)) * (dow === 0 || dow === 6 ? 0.88 : 1) * (0.85 + 0.3 * rng.next());
+      return (1 + 0.35 * (t / T)) * (dow === 0 || dow === 6 ? 0.88 : 1) * (0.85 + 0.3 * rng.next()) * (d === AS_AT ? LAST_DAY_SHARE : 1);
     });
     const daily = {};
     for (const ch of CHANNELS) {
@@ -144,94 +146,229 @@ const CONTACTS = ['Puan Rohana Ismail', 'Encik Lim Wei Jie', 'Cik Nurul Aisyah',
 
 const PAID_SOURCES = { 'Facebook Lead Ad': 'fb', 'Google Ads': 'gads', Instagram: 'ig' };
 
-function buildEnquiries(rng, units, signed, campaigns) {
-  const asAt = dateUTC(AS_AT);
-  const out = [];
-  let n = 0;
-  const nextId = () => `ENQ-${String(4100 + ++n)}`;
-  // Tuned so October's displayed median first response is 3.5 h, and verify still prints 3.5.
-  const respMinutes = () => Math.min(2880, Math.max(10, Math.round(Math.exp(Math.log(189.85) + 0.95 * gaussian(rng)))));
-  const atTime = (d, hMin = 9, hMax = 18) => `${ymd(d)}T${String(rng.int(hMin, hMax)).padStart(2, '0')}:${String(rng.int(0, 59)).padStart(2, '0')}:00+08:00`;
-  const plusMin = (iso, m) => new Date(new Date(iso).getTime() + m * 60000).toISOString();
-  // Each enquiry gets its own business: no name appears twice on the board.
-  const bizQueue = rng.shuffle(BUSINESSES);
-  const business = () => bizQueue.pop();
-  // A reserved unit is under negotiation with one prospect only.
-  const negotiating = new Set();
-  const leasable = ASSETS.filter((a) => a.counts.redev === 0);
+// ---------------------------------------------------------------------------------------------
+// Enquiry records: ONE record for every enquiry that any screen counts.
+// The campaign daily arrays (enq, views, signed) decide how many records exist on each day and
+// which of them had a viewing or signed; the records are then the single source of truth, so a
+// count taken from any dashboard equals the count of records behind it.
+// ---------------------------------------------------------------------------------------------
+const pad2 = (n) => String(n).padStart(2, '0');
+const MYT = 8 * 3600000;
+const tsOf = (iso) => new Date(iso).getTime();
+const isoOf = (t) => new Date(t + MYT).toISOString().slice(0, 19) + '+08:00';
+const dayOf = (iso) => iso.slice(0, 10);
+const at = (day, h, m) => `${day}T${pad2(h)}:${pad2(m)}:00+08:00`;
+const HOUR = 3600000, DAY = 24 * HOUR;
 
-  // Signed this month: the October signed tenancies.
-  for (const s of signed.filter((x) => monthOf(x.date) === '2026-10')) {
-    const ch = CHANNELS.find((c) => c.id === s.channel);
-    const received = atTime(addDays(dateUTC(s.date), -rng.int(25, 45)));
-    const first = plusMin(received, respMinutes());
-    out.push({
-      id: nextId(), business: business(), contact: rng.pick(CONTACTS), source: ch.source, channel: s.channel, campaign: s.campaign,
-      asset: s.asset, unitId: s.unitId, lot: s.lot, rent: s.rent, stage: 'Signed', officer: ASSETS.find((a) => a.id === s.asset).officer,
-      receivedAt: received, firstResponseAt: first, signedId: s.id,
-      history: [['New', received], ['Contacted', first], ['Qualified', plusMin(first, 1440 * 3)], ['Viewing Scheduled', plusMin(first, 1440 * 8)], ['Negotiation', plusMin(first, 1440 * 15)], ['Signed', `${s.date}T15:00:00+08:00`]],
-    });
+const NAME_TYPES = ['Kedai Runcit', 'Butik', 'Restoran', 'Kafe', 'Klinik Gigi', 'Pusat Tuisyen', 'Salon', 'Farmasi', 'Studio', 'Akademi',
+  'Perunding', 'Agensi', 'Kedai Kek', 'Bakeri', 'Optik', 'Pusat Kecergasan', 'Tadika', 'Pusat Latihan', 'Kedai Telefon', 'Dobi',
+  'Spa', 'Firma Guaman', 'Syarikat Teknologi', 'Pusat Rawatan', 'Kedai Buku', 'Kedai Kasut', 'Kedai Perabot', 'Pusat Servis', 'Kedai Bunga', 'Kedai Jam'];
+const NAME_WORDS = ['Seri Mawar', 'Bestari', 'Cahaya', 'Mutiara', 'Permata', 'Gemilang', 'Harmoni', 'Sinar', 'Damai', 'Jaya',
+  'Murni', 'Indah', 'Ceria', 'Setia', 'Bistari', 'Kenanga', 'Melati', 'Delima', 'Nilam', 'Zamrud',
+  'Intan', 'Suria', 'Bayu', 'Pelangi', 'Teratai', 'Cempaka', 'Seroja', 'Anggerik', 'Kemboja', 'Tanjung',
+  'Wawasan', 'Perdana', 'Utama', 'Mesra', 'Ikhlas', 'Amanah', 'Sejahtera', 'Bahagia', 'Lestari', 'Tekun'];
+
+function lognormalMinutes(rng, median, sigma) {
+  return Math.exp(Math.log(median) + sigma * gaussian(rng));
+}
+const isWorking = (t) => {
+  const d = new Date(t + MYT);
+  const dow = d.getUTCDay(), h = d.getUTCHours() + d.getUTCMinutes() / 60;
+  return dow >= 1 && dow <= 5 && h >= 9 && h < 18;
+};
+const nextWorkingMorning = (t) => {
+  let d = new Date(t + MYT);
+  d = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+  const hour = new Date(t + MYT).getUTCHours();
+  if (hour >= 9) d = addDays(d, 1);
+  while (d.getUTCDay() === 0 || d.getUTCDay() === 6) d = addDays(d, 1);
+  return d.getTime() - MYT + 9 * HOUR;
+};
+
+function buildEnquiries(rng, units, signed, campaigns) {
+  const NOW = tsOf(DEMO_START);
+  const out = [];
+  const leasable = ASSETS.filter((a) => a.counts.redev === 0);
+  const unitsAt = (asset, statuses) => units.filter((u) => u.asset === asset && statuses.includes(u.status) && u.lot !== HERO.lot);
+
+  const receivedTime = (day, isLast) => {
+    if (isLast) return at(day, rng.int(7, 9), rng.int(0, 50)); // the part day ends at 10:00
+    const h = rng.weighted([8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22], [2, 5, 7, 7, 6, 6, 7, 7, 7, 6, 5, 6, 7, 6, 3]);
+    return at(day, h, rng.int(0, 59));
+  };
+  const make = (base) => {
+    const rec = { ...base, history: [['New', base.receivedAt]] };
+    out.push(rec);
+    return rec;
+  };
+
+  // 1. Paid and unpaid records from every campaign, day by day.
+  for (const c of campaigns) {
+    const last = c.days.length - 1;
+    for (const ch of CHANNELS) {
+      c.daily[ch.id].enq.forEach((n, i) => {
+        for (let k = 0; k < n; k++) {
+          const asset = rng.weighted(Object.keys(c.assets), Object.values(c.assets));
+          make({ source: ch.source, channel: ch.id, campaign: c.id, paid: true, asset, receivedAt: receivedTime(c.days[i], c.days[i] === AS_AT && i === last) });
+        }
+      });
+    }
+    for (const [src, arr] of Object.entries(c.unpaidDaily)) {
+      arr.forEach((n, i) => {
+        for (let k = 0; k < n; k++) {
+          const asset = rng.weighted(Object.keys(c.assets), Object.values(c.assets));
+          make({ source: src === 'Walk-in' ? 'Walk-in / call' : src, channel: null, campaign: c.id, paid: false, asset, receivedAt: receivedTime(c.days[i], c.days[i] === AS_AT && i === last) });
+        }
+      });
+    }
+  }
+  // 2. Enquiries not linked to any campaign.
+  const allDays = dateRange(PERIOD.start, AS_AT);
+  const ncPerDay = scatter(NON_CAMPAIGN.total, allDays.map((d) => (d === AS_AT ? LAST_DAY_SHARE : 1)), rng);
+  ncPerDay.forEach((n, i) => {
+    for (let k = 0; k < n; k++) {
+      const a = rng.weighted(leasable, leasable.map((x) => x.counts.vacant + x.counts.reserved));
+      make({ source: rng.weighted(NON_CAMPAIGN.sources.map((s) => s[0]), NON_CAMPAIGN.sources.map((s) => s[1])), channel: null, campaign: null, paid: false, asset: a.id, receivedAt: receivedTime(allDays[i], allDays[i] === AS_AT) });
+    }
+  });
+  out.sort((x, y) => tsOf(x.receivedAt) - tsOf(y.receivedAt));
+
+  // 3. First contact. Inside working hours: a few hours. Outside: the next working morning.
+  for (const r of out) {
+    const t0 = tsOf(r.receivedAt);
+    const first = isWorking(t0) ? t0 + Math.max(4, Math.min(480, lognormalMinutes(rng, 140, 0.9))) * 60000
+      : nextWorkingMorning(t0) + Math.max(5, Math.min(240, lognormalMinutes(rng, 50, 0.8))) * 60000;
+    // A few enquiries from the last two days were missed: nobody has replied yet, so the first-contact alert has something to show.
+    r._first = NOW - t0 <= 2 * DAY && NOW - t0 > 3 * HOUR && rng.next() < 0.12 ? Infinity : first;
   }
 
-  const ageRange = { New: [0, 2], Contacted: [2, 10], Qualified: [5, 20], 'Viewing Scheduled': [7, 25], Negotiation: [15, 40], Lost: [10, 45] };
-  const flow = ['New', 'Contacted', 'Qualified', 'Viewing Scheduled', 'Negotiation'];
-  for (const [stage, count] of Object.entries(STAGE_COUNTS)) {
-    if (stage === 'Signed') continue;
-    for (let i = 0; i < count; i++) {
-      let source = rng.weighted(SOURCE_MIX.map((s) => s[0]), SOURCE_MIX.map((s) => s[1]));
-      let campaign = null, channel = null, asset, unit;
-      const active = campaigns.filter((c) => c.end >= '2026-10-01');
-      if (stage === 'Negotiation') {
-        // Negotiation holds a Reserved unit, one prospect per unit. Pick the unit first, then a campaign that covers it.
-        const free = units.filter((u) => u.status === 'Reserved' && !negotiating.has(u.id));
-        unit = rng.pick(free);
-        asset = unit.asset;
-        negotiating.add(unit.id);
-        const covering = active.filter((c) => c.assets[asset]);
-        if (PAID_SOURCES[source] && covering.length) {
-          channel = PAID_SOURCES[source];
-          campaign = rng.weighted(covering, covering.map((x) => x.channels[channel][3] + 1)).id;
-        } else if (PAID_SOURCES[source]) {
-          source = 'Website form';
-        }
-      } else {
-        if (PAID_SOURCES[source]) {
-          channel = PAID_SOURCES[source];
-          const c = rng.weighted(active, active.map((x) => x.channels[channel][3] + 1));
-          campaign = c.id;
-          asset = rng.weighted(Object.keys(c.assets), Object.values(c.assets));
-        } else {
-          const a = rng.weighted(leasable, leasable.map((x) => x.counts.vacant + x.counts.reserved));
-          asset = a.id;
-        }
-        unit = rng.pick(units.filter((u) => u.asset === asset && u.status === 'Vacant' && u.lot !== HERO.lot));
+  // 4–5. Viewings and signings. Each signed tenancy goes to a paid enquiry of the same campaign and channel that
+  // viewed at least 2 days before signing. The rest of each channel's viewings go to other enquiries of that channel,
+  // 2 to 21 days after they arrived. The daily viewing counts are then rebuilt FROM the records.
+  const viewAt = (t) => { const d = ymd(new Date(t + MYT)); return tsOf(at(d, rng.pick([10, 11, 12, 14, 15, 16]), rng.pick([0, 30]))); };
+  for (const s of signed) {
+    const st = tsOf(at(s.date, 15, 0));
+    let cand = out.filter((r) => r.campaign === s.campaign && r.channel === s.channel && !r._signed && st - tsOf(r.receivedAt) >= 6 * DAY && st - tsOf(r.receivedAt) <= 50 * DAY);
+    const sameAsset = cand.filter((r) => r.asset === s.asset);
+    if (sameAsset.length) cand = sameAsset;
+    if (!cand.length) throw new Error(`no enquiry for signed ${s.id}`);
+    const r = rng.pick(cand);
+    const lo = Math.max(r._first + DAY, tsOf(r.receivedAt) + 2 * DAY), hi = st - 2 * DAY;
+    r._view = viewAt(lo + rng.next() * Math.max(0, hi - lo));
+    r._signed = st; r.asset = s.asset; r.unitId = s.unitId; r.lot = s.lot; r.rent = s.rent; r.signedId = s.id; r.leaseStart = s.leaseStart;
+  }
+  for (const c of campaigns) {
+    for (const ch of CHANNELS) {
+      const total = c.daily[ch.id].views.reduce((x, y) => x + y, 0);
+      const mine = out.filter((r) => r.campaign === c.id && r.channel === ch.id);
+      let need = total - mine.filter((r) => r._view).length;
+      const pool = rng.shuffle(mine.filter((r) => !r._view && NOW - tsOf(r.receivedAt) >= 3 * DAY));
+      for (const r of pool) {
+        if (need <= 0) break;
+        const t = viewAt(Math.max(r._first + DAY, tsOf(r.receivedAt) + rng.int(2, 21) * DAY));
+        if (t >= NOW - 6 * HOUR) continue;
+        r._view = t; need -= 1;
       }
-      const [lo, hi] = ageRange[stage];
-      const received = atTime(addDays(asAt, -rng.int(lo, hi)));
-      const reached = stage === 'Lost' ? rng.int(1, 4) : flow.indexOf(stage);
-      const first = reached >= 1 ? plusMin(received, respMinutes()) : null;
-      const history = [['New', received]];
-      let t = first;
-      for (let k = 1; k <= reached; k++) {
-        history.push([flow[k], t]);
-        t = plusMin(t, 1440 * rng.int(1, 5));
-      }
-      const rec = {
-        id: nextId(), business: business(), contact: rng.pick(CONTACTS), source, channel, campaign, asset, unitId: unit.id, lot: unit.lot,
-        rent: unit.rent, stage, officer: ASSETS.find((a) => a.id === asset).officer, receivedAt: received, firstResponseAt: first, history,
-      };
-      if (stage === 'Lost') {
-        rec.lostReason = rng.weighted(LOST_REASONS.map((x) => x[0]), LOST_REASONS.map((x) => x[1]));
-        const lostAt = `2026-10-${String(rng.int(1, 30)).padStart(2, '0')}T16:00:00+08:00`;
-        rec.history.push(['Lost', lostAt]);
-      } else {
-        rec.nextFollowUp = ymd(addDays(asAt, rng.int(0, 6)));
-      }
-      out.push(rec);
+      if (need > 0) throw new Error(`not enough enquiries for viewings ${c.id} ${ch.id}`);
+      c.daily[ch.id].views = c.days.map((d) => mine.filter((r) => r._view && ymd(new Date(r._view + MYT)) === d).length);
     }
+  }
+  // Unpaid and walk-in enquiries are warmer: about one in four gets a viewing (they never touch the paid figures).
+  for (const r of out.filter((x) => !x.paid)) {
+    if (rng.next() < 0.25) {
+      const t = viewAt(Math.max(r._first + DAY, tsOf(r.receivedAt) + rng.int(3, 12) * DAY));
+      if (t < NOW - DAY) r._view = t;
+    }
+  }
+
+  // 6. Negotiation: every Reserved unit is held by exactly one enquiry that has viewed.
+  for (const u of units.filter((x) => x.status === 'Reserved')) {
+    const viewed = out.filter((r) => r.asset === u.asset && r._view && !r._signed && !r._nego && NOW - r._view <= 35 * DAY && NOW - r._view >= DAY);
+    let r = viewed.sort((x, y) => y._view - x._view)[0];
+    if (!r) {
+      // No viewing at this asset yet: an unpaid enquiry at this asset that has been contacted views now. Never a paid one.
+      r = out.filter((x) => x.asset === u.asset && !x.paid && !x._view && x._first < NOW - 5 * DAY && NOW - tsOf(x.receivedAt) <= 40 * DAY).sort((x, y) => tsOf(y.receivedAt) - tsOf(x.receivedAt))[0];
+      if (!r) {
+        const day = ymd(addDays(dateUTC(AS_AT), -rng.int(12, 20)));
+        r = make({ source: rng.pick(['WhatsApp', 'Walk-in / call']), channel: null, campaign: null, paid: false, asset: u.asset, receivedAt: at(day, rng.int(10, 16), rng.int(0, 59)) });
+        r._first = tsOf(r.receivedAt) + rng.int(30, 180) * 60000;
+      }
+      r._view = Math.min(NOW - 2 * DAY, Math.max(r._first + 2 * DAY, NOW - rng.int(4, 9) * DAY));
+    }
+    r._nego = Math.min(NOW - 6 * HOUR, r._view + rng.int(1, 4) * DAY);
+    r.unitId = u.id; r.lot = u.lot; r.rent = u.rent;
+  }
+
+  // 7. Status of everything else as at the demo clock.
+  const pickReason = (list) => rng.weighted(list.map((x) => x[0]), list.map((x) => x[1]));
+  for (const r of out) {
+    const age = (NOW - tsOf(r.receivedAt)) / DAY;
+    if (r._signed) { r.stage = 'Signed'; continue; }
+    if (r._nego) { r.stage = 'Negotiation'; continue; }
+    if (r._view && r._view <= NOW) {
+      if (NOW - r._view <= 4 * DAY) r.stage = 'Viewing Scheduled'; // viewing held, outcome still to log
+      else { r.stage = 'Lost'; r.lostReason = pickReason(LOST_REASONS_AFTER_VIEWING); r._lost = Math.min(NOW - HOUR, r._view + rng.int(2, 14) * DAY); }
+      continue;
+    }
+    if (r._first > NOW) { r.stage = 'New'; continue; }
+    if (age <= 3) { r.stage = age > 1.5 && rng.next() < 0.4 ? 'Qualified' : 'Contacted'; continue; }
+    if (age <= 14) {
+      const x = rng.next();
+      if (x < 0.20) r.stage = 'Qualified';
+      else if (x < 0.35) { r.stage = 'Viewing Scheduled'; r._view = tsOf(at(ymd(addDays(dateUTC(AS_AT), rng.int(1, 7))), rng.pick([10, 11, 14, 15, 16]), rng.pick([0, 30]))); r._viewFuture = true; }
+      else if (x < 0.70) r.stage = 'Contacted';
+      else { r.stage = 'Lost'; r.lostReason = pickReason(LOST_REASONS_BEFORE_VIEWING); r._lost = Math.min(NOW - HOUR, r._first + rng.int(3, 10) * DAY); }
+      continue;
+    }
+    if (age <= 40 && rng.next() < 0.06) { r.stage = 'Qualified'; continue; } // still looking, moving in next year
+    r.stage = 'Lost'; r.lostReason = pickReason(LOST_REASONS_BEFORE_VIEWING); r._lost = Math.min(NOW - HOUR, r._first + rng.int(5, 21) * DAY);
+  }
+
+  // 8. Units, names, officers, history.
+  const bizQueue = rng.shuffle(BUSINESSES);
+  const generated = rng.shuffle(NAME_TYPES.flatMap((t) => NAME_WORDS.map((w) => `${t} ${w}`))).filter((n) => !BUSINESSES.includes(n));
+  const openFirst = out.slice().sort((x, y) => {
+    const rank = (r) => (r.stage !== 'Lost' && (r.stage !== 'Signed' || r._signed >= tsOf(at('2026-10-01', 0, 0))) ? 0 : 1);
+    return rank(x) - rank(y) || tsOf(y.receivedAt) - tsOf(x.receivedAt);
+  });
+  for (const r of openFirst) r.business = bizQueue.length ? bizQueue.pop() : generated.pop();
+  out.sort((x, y) => tsOf(x.receivedAt) - tsOf(y.receivedAt));
+  let n = 0;
+  for (const r of out) {
+    r.id = `ENQ-${String(5000 + ++n)}`;
+    r.contact = rng.pick(CONTACTS);
+    r.officer = ASSETS.find((a) => a.id === r.asset).officer;
+    if (!r.unitId) {
+      const open = r.stage !== 'Lost';
+      const pool = unitsAt(r.asset, open ? ['Vacant'] : ['Vacant', 'Reserved', 'Occupied', 'Let']);
+      const u = rng.pick(pool.length ? pool : unitsAt(r.asset, ['Vacant', 'Reserved', 'Occupied', 'Let']));
+      r.unitId = u.id; r.lot = u.lot; r.rent = u.rent;
+    }
+    const first = r._first <= NOW ? r._first : null;
+    r.firstResponseAt = first ? isoOf(first) : null;
+    const h = [['New', r.receivedAt]];
+    if (first) h.push(['Contacted', isoOf(first)]);
+    const reachedQualified = ['Qualified', 'Viewing Scheduled', 'Negotiation', 'Signed'].includes(r.stage) || (r.stage === 'Lost' && r._view);
+    if (reachedQualified) {
+      const q = Math.min(r._view ? Math.min(r._view, NOW) - DAY : NOW - 2 * HOUR, first + rng.int(1, 3) * DAY);
+      h.push(['Qualified', isoOf(Math.max(first + HOUR, q))]);
+    }
+    if (r._view) {
+      const booked = Math.max(tsOf(h[h.length - 1][1]) + HOUR, Math.min(NOW - HOUR, r._view - rng.int(2, 5) * DAY));
+      h.push(['Viewing Scheduled', isoOf(booked)]);
+      r.viewingAt = isoOf(r._view);
+      r.viewingHeld = !r._viewFuture;
+    }
+    if (r._nego || r._signed) h.push(['Negotiation', isoOf(r._nego || Math.min(r._signed - DAY, r._view + rng.int(1, 5) * DAY))]);
+    if (r._signed) { h.push(['Signed', isoOf(r._signed)]); r.signedAt = isoOf(r._signed); }
+    if (r.stage === 'Lost') { h.push(['Lost', isoOf(Math.max(tsOf(h[h.length - 1][1]) + HOUR, r._lost))]); r.withdrawnAt = h[h.length - 1][1]; }
+    r.history = h;
+    if (r.stage !== 'Lost' && r.stage !== 'Signed') r.nextFollowUp = ymd(addDays(dateUTC(AS_AT), rng.int(0, 6)));
+    for (const k of Object.keys(r)) if (k.startsWith('_')) delete r[k];
   }
   return out;
 }
+
 
 function buildWebsite(rng) {
   const monthly = { '2026-07': 71000, '2026-08': 74500, '2026-09': 79000, '2026-10': WEBSITE_OCT.sessions };

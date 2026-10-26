@@ -21,7 +21,7 @@ export default function Visitors({ params }) {
   const requested = params?.[0];
   const initial = assets.some((asset) => asset.id === requested) ? requested : (assets[0]?.id || '');
   const [assetId, setAssetId] = useState(initial);
-  const [range, setRange] = useState({ preset: '2026-10', from: '2026-10-01', to: '2026-10-31' });
+  const [range, setRange] = useState({ preset: '2026-10', from: '2026-10-01', to: '2026-10-28' });
   useEffect(() => {
     if (requested && assets.some((asset) => asset.id === requested)) setAssetId(requested);
   }, [requested, assets]);

@@ -9,11 +9,13 @@ import { PIPELINE_STAGES } from '../data/config.js';
 import { assetDetail, liveAssets } from '../data/selectors.js';
 import { num, rm, rm2, pct, x, date } from '../format.js';
 import { assetMark, unitLabel } from '../labels.js';
+import { Abbr } from '../components/Term.jsx';
 
-const STATUSES = ['Occupied', 'Reserved', 'Vacant', 'Under redevelopment'];
+const STATUSES = ['Occupied', 'Let', 'Reserved', 'Vacant', 'Under redevelopment'];
 
 function lotClass(status) {
   if (status === 'Occupied') return 'occupied';
+  if (status === 'Let') return 'let';
   if (status === 'Reserved') return 'reserved';
   if (status === 'Under redevelopment') return 'redev';
   return 'vacant';
@@ -187,7 +189,7 @@ export default function Asset({ params }) {
         <dl className="fact-grid">
           <div><dt className="fact-label">Type</dt><dd className="fact-value">{asset.type}</dd></div>
           <div><dt className="fact-label">Location</dt><dd className="fact-value">{asset.location}</dd></div>
-          <div><dt className="fact-label">Managing entity</dt><dd className="fact-value">{asset.entity}</dd></div>
+          <div><dt className="fact-label">Managing entity</dt><dd className="fact-value">{asset.entity === 'PREC' ? <Abbr title="PKNS Real Estate Sdn Bhd (PREC)">PREC</Abbr> : asset.entity}</dd></div>
           <div><dt className="fact-label">Campaign grouping</dt><dd className="fact-value">{grouping}</dd></div>
           <div>
             <dt className="fact-label">{detail.eventSpace ? 'Spaces' : 'Total units'}</dt>
@@ -195,6 +197,7 @@ export default function Asset({ params }) {
           </div>
           <div><dt className="fact-label">Net lettable area</dt><dd className="fact-value">{detail.nla == null ? '–' : `${num(detail.nla)} sq ft`}</dd></div>
           <div><dt className="fact-label">Occupancy</dt><dd className="fact-value" data-testid="asset-occupancy">{occupancyText(detail)}</dd></div>
+          <div><dt className="fact-label">Committed occupancy</dt><dd className="fact-value">{detail.counts?.committedOccupancy == null ? 'n/a' : pct(detail.counts.committedOccupancy)}</dd></div>
           <div>
             <dt className="fact-label">Median days vacant</dt>
             <dd className="fact-value">{detail.medianDaysVacant == null ? '–' : `${num(detail.medianDaysVacant)} days`}</dd>
@@ -292,7 +295,11 @@ export default function Asset({ params }) {
                     <div><dt className="fact-label">Asking rent per month</dt><dd className="fact-value">{rm(selected.rent)}</dd></div>
                     <div>
                       <dt className="fact-label">Status</dt>
-                      <dd className="fact-value" data-testid="lot-status"><Num value={selected.status} watch={`unit:${selected.id}`} /></dd>
+                      <dd className="fact-value" data-testid="lot-status">
+                        {selected.status === 'Let'
+                          ? `Let to ${selected.tenant || 'the tenant'} · lease starts ${date(selected.leaseStart)}`
+                          : <Num value={selected.status} watch={`unit:${selected.id}`} />}
+                      </dd>
                     </div>
                     <div><dt className="fact-label">Lease start</dt><dd className="fact-value">{date(selected.leaseStart)}</dd></div>
                     <div><dt className="fact-label">Lease expiry</dt><dd className="fact-value">{date(selected.leaseExpiry)}</dd></div>

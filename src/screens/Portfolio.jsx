@@ -7,18 +7,24 @@ import Filters from '../components/Filters.jsx';
 import Kpi from '../components/Kpi.jsx';
 import Num from '../components/Num.jsx';
 import Sparkline from '../components/Sparkline.jsx';
-import { portfolioRows, reportBlocks, liveUnits, liveEnquiries, campaignRows } from '../data/selectors.js';
+import { portfolioRows, reportBlocks, liveUnits, liveEnquiries, campaignRows, periodWindow, comparisonWindow, clockOf } from '../data/selectors.js';
 import { leasingKpis, medianDaysVacant, totalRow, withRatios } from '../data/metrics.js';
-import { lastDayOf } from '../data/generate.js';
-import { AS_AT } from '../data/config.js';
-import { delta, num, rm, rm2, pct, x } from '../format.js';
+import { delta, dayMonth, num, rm, rm2, pct, x } from '../format.js';
 
 const DEFAULT_COLUMNS = ['name', 'units', 'occupied', 'vacant', 'occupancy', 'medianDaysVacant', 'paidEnquiries', 'spend', 'cpl', 'signed', 'roas'];
 
+function spanLabel(range) {
+  if (!range) return '';
+  const [ad, am] = dayMonth(range.from).split(' ');
+  const [bd, bm] = dayMonth(range.to).split(' ');
+  return am === bm ? `${ad}–${bd} ${bm}` : `${ad} ${am}–${bd} ${bm}`;
+}
+
 function changeLine(current, previous, format, label) {
   if (previous == null || !label) return null;
-  const shown = format === 'pct' ? pct(previous) : format === 'rm' ? rm(previous) : format === 'rm2' ? rm2(previous) : num(previous);
-  return `${shown} in ${label.slice(0, 3)}, ${delta(current, previous, format)}`;
+  if (format === 'pct') return `${delta(current, previous, format)} vs ${label}`;
+  const shown = format === 'rm' ? rm(previous) : format === 'rm2' ? rm2(previous) : num(previous);
+  return `vs ${shown} in ${label}`;
 }
 
 const flash = (key, format) => (value, row) => (
@@ -73,12 +79,16 @@ export default function Portfolio() {
   const [shownCols, setShownCols] = useState(DEFAULT_COLUMNS);
   const [colsOpen, setColsOpen] = useState(false);
   const rows = useMemo(() => portfolioRows(data, state, month), [data, state, month]);
-  const monthIndex = data.months.findIndex((item) => item.key === month);
-  const prevMeta = monthIndex > 0 ? data.months[monthIndex - 1] : null;
-  const prevTotals = useMemo(
-    () => (prevMeta ? portfolioRows(data, state, prevMeta.key).find((row) => row.total) : null),
-    [data, state, prevMeta],
-  );
+  const now = clockOf(state);
+  const range = periodWindow(month, now);
+  const compare = comparisonWindow(month, now);
+  const prevLabel = spanLabel(compare);
+  const prevTotals = useMemo(() => {
+    if (!compare) return null;
+    const rows = data.campaigns.flatMap((campaign) => campaignRows(data, state, campaign.id, compare));
+    const total = totalRow(rows);
+    return { paidEnquiries: total.enquiries, spend: total.spend };
+  }, [data, state, compare]);
   const series = useMemo(() => data.months.map((item) => {
     const total = portfolioRows(data, state, item.key).find((row) => row.total);
     return { occupancy: total?.occupancy, enquiries: total?.paidEnquiries, spend: total?.spend, signed: total?.signed };
@@ -112,10 +122,12 @@ export default function Portfolio() {
     assets: narrowed.length,
     units: unitSum('units'),
     occupied: unitSum('occupied'),
+    let: unitSum('let'),
     reserved: unitSum('reserved'),
     vacant: unitSum('vacant'),
     redev: unitSum('redev'),
     occupancy: lettable ? unitSum('occupied') / lettable : null,
+    committedOccupancy: lettable ? (unitSum('occupied') + unitSum('let')) / lettable : null,
     lettable,
     paidEnquiries: marketing.enquiries,
     spend: marketing.spend,
@@ -148,7 +160,7 @@ export default function Portfolio() {
         if (!row || !value) return value || '';
         const campaign = data.campaigns.find((item) => item.short === value);
         if (!campaign) return value;
-        return <a href={`#/campaign/${campaign.id}`} onClick={(e) => { e.preventDefault(); go('campaign', campaign.id); }}>{value}</a>;
+        return <a href={`#/campaign/${campaign.id}`} onClick={(e) => { e.preventDefault(); go('campaign', campaign.id, { period: month }); }}>{value}</a>;
       },
     },
     { key: 'units', label: 'Units', align: 'right', total: 'sum', format: unitsCell },
@@ -178,9 +190,20 @@ export default function Portfolio() {
       term: 'days-vacant',
       align: 'right',
       format: flash('medianDaysVacant', num),
-      total: (filtered) => medianDaysVacant(subsetUnits(filtered), state.heroStage),
+      total: (filtered) => medianDaysVacant(subsetUnits(filtered), enquiries, state.now),
     },
-    { key: 'paidEnquiries', label: 'Paid enquiries', align: 'right', total: 'sum', format: flash('paidEnquiries', num) },
+    {
+      key: 'paidEnquiries',
+      label: 'Paid enquiries',
+      align: 'right',
+      total: 'sum',
+      format: (value, row) => (
+        <span className="cell-stack">
+          {flash('paidEnquiries', num)(value, row)}
+          <a className="view-link" href="#/enquiries" onClick={(event) => { event.preventDefault(); event.stopPropagation(); go('enquiries', { asset: row?.total ? '' : (row?.id || ''), paid: 'paid', from: range.from, to: range.to, received: 'month' }); }}>View these enquiries</a>
+        </span>
+      ),
+    },
     { key: 'openPipeline', label: 'Open in pipeline', align: 'right', total: 'sum', format: flash('openPipeline', num) },
     { key: 'spend', label: 'Spend', align: 'right', total: 'sum', format: flash('spend', rm) },
     {
@@ -209,20 +232,19 @@ export default function Portfolio() {
       total: (filtered) => {
         const subset = subsetUnits(filtered);
         const leased = subset.some((unit) => unit.status === 'Occupied' && unit.leaseExpiry && unit.rent);
-        return leased ? leasingKpis(subset, state.heroStage).rentNext12 : null;
+        return leased ? leasingKpis(subset, enquiries, state.now).rentNext12 : null;
       },
     },
-  ], [data.campaigns, state.heroStage, units]);
+  ], [data.campaigns, state.now, units, enquiries, month]);
 
   const visibleColumns = columns.filter((column) => shownCols.includes(column.key));
-  const prevLabel = prevMeta?.label || '';
-  const dueToday = enquiries.filter((enquiry) => enquiry.nextFollowUp === AS_AT);
+  const dueToday = enquiries.filter((enquiry) => enquiry.nextFollowUp === now.slice(0, 10));
   const awaitingList = enquiries.filter((enquiry) => !enquiry.firstResponseAt && enquiry.stage !== 'Lost' && enquiry.stage !== 'Signed');
   const newCount = enquiries.filter((enquiry) => enquiry.stage === 'New').length;
   const november = units.filter((unit) => unit.status === 'Occupied' && String(unit.leaseExpiry || '').startsWith('2026-11'));
   const novemberRent = november.reduce((sum, unit) => sum + (Number(unit.rent) || 0), 0);
   const topCampaign = data.campaigns.map((campaign) => {
-    const row = totalRow(campaignRows(data, state, campaign.id, { from: `${month}-01`, to: lastDayOf(month) }));
+    const row = totalRow(campaignRows(data, state, campaign.id, range));
     return { id: campaign.id, name: campaign.short, enquiries: row.enquiries };
   }).sort((a, b) => b.enquiries - a.enquiries)[0];
 
@@ -253,7 +275,11 @@ export default function Portfolio() {
         <label className="month-select">
           Month
           <select value={month} onChange={(e) => setMonth(e.target.value)}>
-            {data.months.map((item) => <option key={item.key} value={item.key}>{item.label}</option>)}
+            {data.months.map((item) => {
+              const end = now.slice(0, 10);
+              const label = item.key === end.slice(0, 7) && end < `${item.key}-31` ? `${item.label} (to ${dayMonth(end)})` : item.label;
+              return <option key={item.key} value={item.key}>{label}</option>;
+            })}
           </select>
         </label>
       </Filters>
@@ -262,11 +288,13 @@ export default function Portfolio() {
         <Kpi label="Assets" value={viewTotals.assets} format={num} testId="kpi-assets" />
         <Kpi label="Units" value={viewTotals.units} format={num} sub={`${num(viewTotals.lettable)} lettable`} testId="kpi-units" />
         <Kpi label="Occupied" value={viewTotals.occupied} format={num} testId="kpi-occupied" />
+        <Kpi label="Let" value={viewTotals.let} format={num} sub="Lease not started" testId="kpi-let" />
         <Kpi label="Reserved" value={viewTotals.reserved} format={num} testId="kpi-reserved" />
         <Kpi label="Vacant" value={viewTotals.vacant} format={num} testId="kpi-vacant" />
         <Kpi label="Under redevelopment" value={viewTotals.redev} format={num} testId="kpi-redev" />
         <Kpi label="Occupancy" term="occupancy" value={viewTotals.occupancy} format={pct} sub={<span className="kpi-extra">{assetFiltered ? 'Filtered assets' : changeLine(block1.occupancy.current, block1.occupancy.previous, 'pct', prevLabel)}<Sparkline values={occSeries} /></span>} testId="kpi-occupancy" />
-        <Kpi label="Paid enquiries" value={viewTotals.paidEnquiries} format={num} sub={<span className="kpi-extra">{assetFiltered ? 'Filtered assets' : changeLine(totals.paidEnquiries, prevTotals?.paidEnquiries, 'num', prevLabel)}<Sparkline values={series.map((item) => item.enquiries)} /></span>} testId="kpi-enquiries" />
+        <Kpi label="Committed occupancy" term="committed-occupancy" value={viewTotals.committedOccupancy ?? totals.committedOccupancy} format={pct} sub="Occupied plus let" testId="kpi-committed" />
+        <Kpi label="Paid enquiries" value={viewTotals.paidEnquiries} format={num} sub={<span className="kpi-extra">{assetFiltered ? 'Filtered assets' : changeLine(totals.paidEnquiries, prevTotals?.paidEnquiries, 'num', prevLabel)}<a className="view-link" href="#/enquiries" onClick={(event) => { event.preventDefault(); go('enquiries', { paid: 'paid', from: range.from, to: range.to, received: 'month' }); }}>View these enquiries</a><Sparkline values={series.map((item) => item.enquiries)} /></span>} testId="kpi-enquiries" />
         <Kpi label="Ad spend" value={viewTotals.spend} format={rm} sub={<span className="kpi-extra">{assetFiltered ? 'Filtered assets' : changeLine(totals.spend, prevTotals?.spend, 'rm', prevLabel)}<Sparkline values={series.map((item) => item.spend)} /></span>} testId="kpi-spend" />
         <Kpi label="CPL" term="cpl" value={viewTotals.cpl} format={rm2} testId="kpi-cpl" />
         <Kpi label="ROAS" term="roas" value={viewTotals.roas} format={x} testId="kpi-roas" />

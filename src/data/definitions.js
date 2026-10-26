@@ -5,7 +5,7 @@ export const DEFINITIONS = [
   {
     id: 'cpl',
     name: 'CPL',
-    formula: 'Paid spend ÷ paid enquiries',
+    formula: 'Cost per enquiry. Paid spend ÷ paid enquiries',
     source: 'Page 04 §5',
     note: 'Unpaid enquiries are shown but never included in CPL or ROAS.',
   },
@@ -24,14 +24,14 @@ export const DEFINITIONS = [
   {
     id: 'roas',
     name: 'ROAS',
-    formula: 'First-year rental value of signed tenancies ÷ paid spend',
+    formula: 'Return on ad spend. First-year rental value of signed tenancies ÷ paid spend',
     source: 'Page 04 §5',
     note: 'Definition to be confirmed with PKNS.',
   },
   {
     id: 'occupancy',
     name: 'Occupancy %',
-    formula: 'Occupied ÷ (total units − units under redevelopment). Event spaces are excluded entirely.',
+    formula: 'Tenants in place. Occupied ÷ lettable units. A signed lease that has not started is Let, not Occupied, so it does not change this figure.',
     source: 'Page 04 §5',
   },
   {
@@ -73,7 +73,7 @@ export const DEFINITIONS = [
   {
     id: 'wale',
     name: 'WALE',
-    formula: 'Σ(remaining years × monthly rent) ÷ Σ monthly rent, occupied units with leases',
+    formula: 'Weighted average lease expiry. Σ(remaining years × monthly rent) ÷ Σ monthly rent, occupied units with leases',
     source: 'Page 04 §5',
   },
   {
@@ -142,6 +142,36 @@ export const DEFINITIONS = [
     formula: 'An enquiry marked Lost. The zone it left is recorded.',
     source: 'CDS enquiry lifecycle model (Pollen Track)',
   },
+  {
+    id: 'committed-occupancy',
+    name: 'Committed occupancy',
+    formula: 'Occupied plus Let, divided by lettable units. Let means the lease is signed and has not started.',
+    source: 'CDS calculation',
+  },
+  {
+    id: 'ctr',
+    name: 'CTR',
+    formula: 'Click-through rate. Clicks ÷ impressions.',
+    source: 'CDS calculation',
+  },
+  {
+    id: 'cpc',
+    name: 'CPC',
+    formula: 'Cost per click. Spend ÷ clicks.',
+    source: 'CDS calculation',
+  },
+  {
+    id: 'sitc',
+    name: 'SITC',
+    formula: 'Selangor International Trade Centre.',
+    source: 'CDS calculation',
+  },
+  {
+    id: 'prec',
+    name: 'PREC',
+    formula: 'PKNS Real Estate Sdn Bhd (PREC).',
+    source: 'CDS calculation',
+  },
 ];
 
 const PLAIN_SOURCE = {
@@ -168,6 +198,11 @@ const PLAIN_SOURCE = {
   customer: 'CDS enquiry lifecycle model (Pollen Track)',
   'handed-over': 'CDS enquiry lifecycle model (Pollen Track)',
   withdrawn: 'CDS enquiry lifecycle model (Pollen Track)',
+  'committed-occupancy': 'CDS calculation',
+  ctr: 'CDS calculation',
+  cpc: 'CDS calculation',
+  sitc: 'CDS calculation',
+  prec: 'CDS calculation',
 };
 for (const item of DEFINITIONS) item.source = PLAIN_SOURCE[item.id] || 'CDS calculation';
 

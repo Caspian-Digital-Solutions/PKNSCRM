@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis, Tooltip, CartesianGrid, Legend, ReferenceLine } from 'recharts';
 import { useStore } from '../store.jsx';
 import { useUi } from '../ui.jsx';
-import { go } from '../router.js';
+import { go, useRoute } from '../router.js';
 import DataTable from '../components/DataTable.jsx';
 import Filters, { RANGE_PRESETS } from '../components/Filters.jsx';
 import Kpi from '../components/Kpi.jsx';
@@ -17,6 +17,7 @@ import { displaySource, enquiryUnitLabel } from '../labels.js';
 import { dateTime } from '../format.js';
 import { totalRow } from '../data/metrics.js';
 import { num, rm, rm2, pct, x, date, dayMonth, ratio } from '../format.js';
+import { lastDayOf } from '../data/generate.js';
 
 const CHANNEL_TABLE_NAMES = {
   'Facebook lead ads': 'Facebook lead ads',
@@ -35,13 +36,18 @@ function weekLabel(week) {
   return start === end ? start : `${start} – ${end}`;
 }
 
-function managingArea(campaign, assets, officers) {
-  const ids = [...new Set(Object.keys(campaign.assets).map((id) => assets.find((asset) => asset.id === id)?.officer).filter(Boolean))];
-  if (ids.length === 1) return officers[ids[0]]?.area || '–';
-  return ids.map((id) => officers[id]?.area).filter(Boolean).join('; ') || '–';
+function managingArea(campaign, assets) {
+  const locations = [...new Set(Object.keys(campaign.assets).map((id) => assets.find((asset) => asset.id === id)?.location).filter(Boolean))];
+  const distinct = locations.filter((location) => !locations.some((other) => other !== location && other.endsWith(location)));
+  return distinct.join(', ') || '–';
 }
 
-function JourneyRail({ totals }) {
+function officerNames(campaign, assets, officers) {
+  const ids = [...new Set(Object.keys(campaign.assets).map((id) => assets.find((asset) => asset.id === id)?.officer).filter(Boolean))];
+  return ids.map((id) => officers[id]?.name).filter(Boolean).join(', ') || '–';
+}
+
+function JourneyRail({ totals, listQuery }) {
   const steps = [
     { id: 'spend', label: 'Spend', value: totals.spend, format: rm },
     { id: 'impressions', label: 'Impressions', value: totals.impressions, format: num },
@@ -62,6 +68,9 @@ function JourneyRail({ totals }) {
             <span className="journey-value" data-testid={step.id === 'enquiries' ? 'campaign-enquiries' : step.id === 'viewings' ? 'campaign-viewings' : step.id === 'signed' ? 'campaign-signed' : undefined}><Num value={step.value} format={step.format} watch={`funnel:${step.id}`} /></span>
             {rate != null && <span className="journey-gap">{step.id === 'clicks' ? 'CTR' : step.id === 'enquiries' ? 'Click to enquiry' : step.id === 'viewings' ? 'Enquiry to viewing' : step.id === 'signed' ? 'Viewing to signed' : 'Conversion'} <Num value={rate} format={pct} watch={`funnel-rate:${step.id}`} /></span>}
             {step.id === 'fyv' && <span className="journey-roas">ROAS <Num value={totals.roas} format={x} watch="funnel:roas" /></span>}
+            {step.id === 'enquiries' && <a className="view-link" href="#/enquiries" onClick={(event) => { event.preventDefault(); go('enquiries', { ...listQuery, paid: 'paid' }); }}>View these enquiries</a>}
+            {step.id === 'viewings' && <a className="view-link" href="#/enquiries" onClick={(event) => { event.preventDefault(); go('enquiries', { ...listQuery, paid: 'paid', when: 'viewing' }); }}>View these enquiries</a>}
+            {step.id === 'signed' && <a className="view-link" href="#/enquiries" onClick={(event) => { event.preventDefault(); go('enquiries', { ...listQuery, paid: 'paid', when: 'signed', outcome: 'signed' }); }}>View these enquiries</a>}
           </li>
         );
       })}
@@ -81,25 +90,33 @@ export default function Campaign({ params }) {
   const ui = useUi();
   const requested = params?.[0] || 'sa';
   const campaign = data.campaigns.find((item) => item.id === requested) || data.campaigns.find((item) => item.id === 'sa');
+  const route = useRoute();
   const [query, setQuery] = useState('');
-  const [filters, setFilters] = useState(() => ({ preset: 'full', from: campaign.start, to: campaign.end, asset: '', channel: '' }));
+  const clockDay = String(state.now || '').slice(0, 10);
+  const fullTo = campaign.end < clockDay ? campaign.end : clockDay;
+  const presets = useMemo(() => {
+    const months = ['2026-10', '2026-09', '2026-08', '2026-07']
+      .filter((key) => key >= campaign.start.slice(0, 7) && key <= campaign.end.slice(0, 7))
+      .map((key) => {
+        const end = key === clockDay.slice(0, 7) && clockDay < lastDayOf(key) ? clockDay : lastDayOf(key);
+        const names = { '2026-10': 'October', '2026-09': 'September', '2026-08': 'August', '2026-07': 'July' };
+        return { id: key, label: names[key], from: `${key}-01`, to: end };
+      });
+    return [{ id: 'full', label: 'Full campaign', from: campaign.start, to: fullTo }, ...months];
+  }, [campaign.start, campaign.end, clockDay, fullTo]);
+  const [filters, setFilters] = useState(() => {
+    const preset = presets.find((item) => item.id === route.search.period) || presets[0];
+    return { preset: preset.id, from: preset.from, to: preset.to, asset: '', channel: '' };
+  });
 
   useEffect(() => {
+    const preset = presets.find((item) => item.id === (route.search.period || filters.preset)) || presets[0];
     setFilters((cur) => {
       const assetOk = !cur.asset || Object.prototype.hasOwnProperty.call(campaign.assets, cur.asset);
-      return {
-        ...cur,
-        asset: assetOk ? cur.asset : '',
-        from: cur.preset === 'full' ? campaign.start : cur.from,
-        to: cur.preset === 'full' ? campaign.end : cur.to,
-      };
+      const next = route.search.period ? preset : (presets.find((item) => item.id === cur.preset) || preset);
+      return { ...cur, asset: assetOk ? cur.asset : '', preset: next.id, from: next.from, to: next.to };
     });
-  }, [campaign.id, campaign.start, campaign.end, campaign.assets]);
-
-  const presets = useMemo(() => ([
-    { id: 'full', label: 'Full campaign period', from: campaign.start, to: campaign.end },
-    ...RANGE_PRESETS,
-  ]), [campaign.start, campaign.end]);
+  }, [campaign.id, campaign.assets, route.search.period, presets]);
 
   const rows = useMemo(
     () => campaignRows(data, state, campaign.id, {
@@ -178,7 +195,6 @@ export default function Campaign({ params }) {
     {
       key: 'name',
       label: 'Channel',
-      width: '12%',
       format: (value) => (
         <span className="source-line">
           <SourceIcon source={CHANNEL_SOURCE[value]} />
@@ -186,18 +202,23 @@ export default function Campaign({ params }) {
         </span>
       ),
     },
-    { key: 'spend', label: 'Spend', width: '8%', align: 'right', total: 'sum', format: flash('channel', 'spend', rm) },
-    { key: 'impressions', label: 'Impressions', width: '10%', align: 'right', total: 'sum', format: flash('channel', 'impressions', num) },
-    { key: 'clicks', label: 'Clicks', width: '7%', align: 'right', total: 'sum', format: flash('channel', 'clicks', num) },
-    { key: 'ctr', label: 'CTR', width: '5.5%', align: 'right', format: flash('channel', 'ctr', pct), total: (list) => totalRow(list).ctr },
-    { key: 'enquiries', label: 'Paid enquiries', width: '8%', align: 'right', total: 'sum', format: flash('channel', 'enquiries', num) },
-    { key: 'cpl', label: 'CPL', width: '7.5%', term: 'cpl', align: 'right', format: flash('channel', 'cpl', rm2), total: (list) => totalRow(list).cpl },
-    { key: 'viewings', label: 'Viewings', width: '6.5%', align: 'right', total: 'sum', format: flash('channel', 'viewings', num) },
-    { key: 'costPerViewing', label: 'Cost per viewing', width: '8%', term: 'cost-per-viewing', align: 'right', format: flash('channel', 'costPerViewing', rm2), total: (list) => totalRow(list).costPerViewing },
-    { key: 'signed', label: 'Signed', width: '6.5%', align: 'right', total: 'sum', format: flash('channel', 'signed', num) },
-    { key: 'costPerSigned', label: 'Cost per signed tenant', width: '8.5%', term: 'cost-per-signed', align: 'right', format: flash('channel', 'costPerSigned', rm2), total: (list) => totalRow(list).costPerSigned },
-    { key: 'firstYearValue', label: 'First-year rental value', width: '7%', align: 'right', total: 'sum', format: flash('channel', 'firstYearValue', rm) },
-    { key: 'roas', label: 'ROAS', width: '6.5%', term: 'roas', align: 'right', format: flash('channel', 'roas', x), total: (list) => totalRow(list).roas },
+    { key: 'spend', label: 'Spend', align: 'right', total: 'sum', format: flash('channel', 'spend', rm) },
+    { key: 'impressions', label: 'Impressions', align: 'right', total: 'sum', format: flash('channel', 'impressions', num) },
+    { key: 'clicks', label: 'Clicks', align: 'right', total: 'sum', format: flash('channel', 'clicks', num) },
+    { key: 'ctr', label: 'CTR', align: 'right', format: flash('channel', 'ctr', pct), total: (list) => totalRow(list).ctr },
+    { key: 'enquiries', label: 'Enquiries', head: <span title="Paid enquiries">Enquiries</span>, align: 'right', total: 'sum', format: (value, row) => (
+      <span className="cell-stack">
+        {flash('channel', 'enquiries', num)(value, row)}
+        {row?.channel && <a className="view-link" href="#/enquiries" onClick={(event) => { event.preventDefault(); event.stopPropagation(); go('enquiries', { campaign: campaign.id, source: CHANNEL_SOURCE[CHANNEL_TABLE_NAMES[row.name] || row.name] || '', paid: 'paid', from: filters.from, to: filters.to }); }}>View these enquiries</a>}
+      </span>
+    ) },
+    { key: 'cpl', label: 'CPL', term: 'cpl', align: 'right', format: flash('channel', 'cpl', rm2), total: (list) => totalRow(list).cpl },
+    { key: 'viewings', label: 'Viewings', align: 'right', total: 'sum', format: flash('channel', 'viewings', num) },
+    { key: 'costPerViewing', label: 'Cost / viewing', head: <span title="Cost per viewing">Cost / viewing</span>, term: 'cost-per-viewing', align: 'right', format: flash('channel', 'costPerViewing', rm2), total: (list) => totalRow(list).costPerViewing },
+    { key: 'signed', label: 'Signed', align: 'right', total: 'sum', format: flash('channel', 'signed', num) },
+    { key: 'costPerSigned', label: 'Cost / signed', head: <span title="Cost per signed tenant">Cost / signed</span>, term: 'cost-per-signed', align: 'right', format: flash('channel', 'costPerSigned', rm2), total: (list) => totalRow(list).costPerSigned },
+    { key: 'firstYearValue', label: 'First-year rent', head: <span title="First-year rental value">First-year rent</span>, align: 'right', total: 'sum', format: flash('channel', 'firstYearValue', rm) },
+    { key: 'roas', label: 'ROAS', term: 'roas', align: 'right', format: flash('channel', 'roas', x), total: (list) => totalRow(list).roas },
   ];
 
   const assetColumns = [
@@ -252,9 +273,8 @@ export default function Campaign({ params }) {
       />
       <header className="campaign-head">
         <h1 className="page-title">{campaign.name}</h1>
-        <p>
-          {date(filters.from)} to {date(filters.to)}
-          {filters.preset !== 'full' ? <span className="muted"> Campaign period {date(campaign.start)} to {date(campaign.end)}</span> : null}
+        <p data-testid="campaign-period">
+          {filters.preset === 'full' ? `${dayMonth(campaign.start)} – ${dayMonth(fullTo)} ${fullTo.slice(0, 4)} (to date)` : `${date(filters.from)} to ${date(filters.to)}`}
         </p>
         <p>
           Assets:{' '}
@@ -268,7 +288,8 @@ export default function Campaign({ params }) {
             );
           })}
         </p>
-        <p>Managing area: {managingArea(campaign, assets, data.officers)}</p>
+        <p>Managing area: {managingArea(campaign, assets)}</p>
+        <p>Officer: {officerNames(campaign, assets, data.officers)}</p>
       </header>
       <div className="kpi-row">
         <Kpi label="CPL" term="cpl" value={totals.cpl} format={rm2} testId="campaign-cpl" />
@@ -277,7 +298,7 @@ export default function Campaign({ params }) {
         <Kpi label="ROAS" term="roas" value={totals.roas} format={x} testId="campaign-roas" />
       </div>
       <h2 className="section-title">Journey</h2>
-      <JourneyRail totals={totals} />
+      <JourneyRail totals={totals} listQuery={{ campaign: campaign.id, asset: filters.asset, from: filters.from, to: filters.to, received: filters.preset === 'full' ? 'campaign' : 'month' }} />
       <h2 className="section-title">Channels</h2>
       {namedRows.length === 0 ? (
         <p className="empty-state">No channels match these filters. Clear filters to see the full campaign.</p>

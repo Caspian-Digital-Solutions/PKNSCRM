@@ -1,10 +1,15 @@
 import { createContext, useContext, useEffect, useMemo, useReducer } from 'react';
 import { generate } from './data/generate.js';
-import { AS_AT } from './data/config.js';
+import { DEMO_START } from './data/config.js';
 import { defaultTriggers } from './data/zones.js';
 
 const DATA = generate();
-const KEY = 'pkns-hub-demo-v2';
+const KEY = 'pkns-hub-demo-v3';
+
+export function plusMinutes(iso, minutes) {
+  const shifted = new Date(new Date(iso).getTime() + minutes * 60000 + 8 * 3600000);
+  return `${shifted.toISOString().slice(0, 19)}+08:00`;
+}
 
 export const ROLES = {
   marketing: {
@@ -14,8 +19,8 @@ export const ROLES = {
     sees: 'Campaigns and channel results',
   },
   leasing: {
-    id: 'leasing', name: 'Leasing', landing: 'asset',
-    blurb: 'Enquiries, viewings, units and tenancies',
+    id: 'leasing', name: 'Leasing', landing: 'pipeline',
+    blurb: 'Opens on Enquiries',
     person: 'Aina Rahman', title: 'Leasing Officer, Section 14', initials: 'AR',
     sees: 'Enquiries, units and tenancies',
   },
@@ -42,26 +47,14 @@ export const SCREENS = [
   { id: 'settings', n: 8, name: 'Settings', roles: ['management'], milestone: 'M2' },
 ];
 
-// Date is the as-at date; the clock is the presenter's current time in Malaysia.
-function asAtNow() {
-  const parts = new Intl.DateTimeFormat('en-GB', {
-    timeZone: 'Asia/Kuala_Lumpur',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    hourCycle: 'h23',
-  }).formatToParts(new Date());
-  const pick = (type) => parts.find((p) => p.type === type)?.value ?? '00';
-  const hour = pick('hour') === '24' ? '00' : pick('hour');
-  return `${AS_AT}T${hour}:${pick('minute')}:${pick('second')}+08:00`;
-}
-
 export function freshState(role = null) {
   return {
     role,
+    now: DEMO_START,
     heroStage: null,
     heroReceivedAt: null,
     heroLog: [],
+    heroViewing: null,
     heroSigned: null,
     moves: {},
     notes: {},
@@ -92,11 +85,16 @@ function reducer(state, action) {
       return { ...state, role: action.role };
     case 'logout':
       return { ...state, role: null };
+    case 'setNow':
+      return { ...state, now: action.now || state.now, flash: state.flash + 1 };
+    case 'heroViewing':
+      return { ...state, heroViewing: { ...(state.heroViewing || {}), ...action.viewing }, flash: state.flash + 1 };
     case 'simulateHero': {
       if (state.heroStage) return state;
-      const at = asAtNow();
+      const at = state.now || DEMO_START;
       return {
         ...state,
+        now: at,
         heroStage: 'New',
         heroReceivedAt: at,
         heroLog: [{ stage: 'New', at }],
@@ -104,31 +102,35 @@ function reducer(state, action) {
       };
     }
     case 'heroStage': {
-      const at = asAtNow();
+      const at = action.at || plusMinutes(state.now || DEMO_START, 1);
       const entry = { stage: action.stage, at };
       if (action.lostReason) entry.lostReason = action.lostReason;
       return {
         ...state,
+        now: at,
         heroStage: action.stage,
         heroLog: [...state.heroLog, entry],
-        heroSigned: action.signed ? action.signed : state.heroSigned,
+        heroViewing: action.viewing === undefined ? state.heroViewing : action.viewing,
+        heroSigned: action.signed ? { ...action.signed, at: action.signed.at || at } : state.heroSigned,
         flash: state.flash + 1,
       };
     }
     case 'move': {
-      const rec = { stage: action.stage, at: asAtNow() };
+      const at = action.at || plusMinutes(state.now || DEMO_START, 1);
+      const rec = { stage: action.stage, at };
       if (action.lostReason) rec.lostReason = action.lostReason;
       if (action.rent != null) rec.rent = action.rent;
       if (action.start) rec.start = action.start;
       return {
         ...state,
+        now: at,
         moves: { ...state.moves, [action.id]: rec },
         flash: state.flash + 1,
       };
     }
     case 'note': {
       const note = { ...action.note };
-      if (!note.at) note.at = asAtNow();
+      if (!note.at) note.at = state.now || DEMO_START;
       const prev = state.notes[action.id] || [];
       return {
         ...state,
@@ -179,7 +181,7 @@ function reducer(state, action) {
     case 'handover':
       return {
         ...state,
-        handover: { ...state.handover, [action.id]: { status: 'handed', at: asAtNow() } },
+        handover: { ...state.handover, [action.id]: { status: 'handed', at: state.now || DEMO_START } },
         flash: state.flash + 1,
       };
     case 'reset':

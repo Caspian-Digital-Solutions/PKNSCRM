@@ -8,9 +8,11 @@ import { exportSheets } from '../components/ExportButton.jsx';
 import { MONTHS } from '../data/config.js';
 import { DEFINITIONS } from '../data/definitions.js';
 import { reportModel } from '../data/reportModel.js';
-import { liveEnquiries } from '../data/selectors.js';
+import { liveEnquiries, periodWindow, portfolioRows } from '../data/selectors.js';
+import { go } from '../router.js';
 import { medianDaysInZone, octoberMovements, zoneSnapshot } from '../data/zones.js';
-import { num, rm } from '../format.js';
+import { medianFirstResponseHours, withinOneWorkingHourShare } from '../data/metrics.js';
+import { dayMonth, hours, num, pct, rm } from '../format.js';
 import { buildReportPdf } from '../reportPdf.js';
 
 function MeasureTable({ title, rows }) {
@@ -68,9 +70,34 @@ function MeasureTable({ title, rows }) {
   );
 }
 
+function EnquiryLink({ query }) {
+  return (
+    <a className="view-link" href="#/enquiries" onClick={(event) => { event.preventDefault(); go('enquiries', query); }}>View these enquiries</a>
+  );
+}
+
 function AudienceZones({ enquiries, state }) {
   const snap = zoneSnapshot(enquiries, state);
-  const move = octoberMovements(enquiries);
+  const span = periodWindow('2026-10', state.now);
+  const moveBase = octoberMovements(enquiries);
+  const october = enquiries.filter((enquiry) => String(enquiry.receivedAt || '').startsWith('2026-10'));
+  const withdrawnRows = enquiries.filter((enquiry) => enquiry.stage === 'Lost' && String((enquiry.history || []).find((entry) => entry[0] === 'Lost')?.[1] || enquiry.receivedAt || '').startsWith('2026-10'));
+  const reached = (enquiry) => ['Qualified', 'Viewing Scheduled', 'Negotiation', 'Signed'].some((stage) => stage === enquiry.stage || (enquiry.history || []).some((entry) => entry[0] === stage));
+  const beforeProspect = withdrawnRows.filter((enquiry) => !reached(enquiry)).length;
+  const responseHours = medianFirstResponseHours(october);
+  const paid = october.filter((enquiry) => enquiry.paid).length;
+  const unpaidCampaign = october.filter((enquiry) => enquiry.paid === false && enquiry.campaign).length;
+  const unlinked = october.filter((enquiry) => !enquiry.campaign).length;
+  const move = {
+    ...moveBase,
+    paid,
+    unpaidCampaign,
+    unlinked,
+    beforeProspect,
+    fromProspect: withdrawnRows.length - beforeProspect,
+    responseText: `${hours(responseHours).replace(' h', '')} working hours`,
+    withinHour: `${pct(withinOneWorkingHourShare(october))} within 1 working hour`,
+  };
   const medians = medianDaysInZone(enquiries.filter((enquiry) => !enquiry.hero));
   const zones = [
     ['Suspect', snap.suspect],
@@ -122,19 +149,27 @@ function AudienceZones({ enquiries, state }) {
           <tbody>
             <tr>
               <td>Enquiries received</td>
-              <td className="r">{num(move.received)}</td>
+              <td className="r"><span className="cell-stack"><span>{num(move.received)} ({num(move.paid)} paid + {num(move.unpaidCampaign)} unpaid from campaigns + {num(move.unlinked)} not linked to a campaign)</span><EnquiryLink query={{ from: span.from, to: span.to, received: 'month' }} /></span></td>
             </tr>
             <tr>
               <td>Entered Prospect</td>
-              <td className="r">{num(move.enteredProspect)}</td>
+              <td className="r"><span className="cell-stack"><span>{num(move.enteredProspect)}</span><EnquiryLink query={{ when: 'prospect', from: span.from, to: span.to }} /></span></td>
             </tr>
             <tr>
               <td>Became Customer</td>
-              <td className="r">{num(move.becameCustomer)}</td>
+              <td className="r"><span className="cell-stack"><span>{num(move.becameCustomer)}</span><EnquiryLink query={{ when: 'customer', from: span.from, to: span.to }} /></span></td>
             </tr>
             <tr>
               <td>Withdrawn</td>
-              <td className="r">{num(move.withdrawn)}</td>
+              <td className="r"><span className="cell-stack"><span>{num(move.withdrawn)} ({num(move.beforeProspect)} before Prospect, {num(move.fromProspect)} from Prospect)</span><EnquiryLink query={{ when: 'withdrawn', from: span.from, to: span.to }} /></span></td>
+            </tr>
+            <tr>
+              <td>Median first response</td>
+              <td className="r">{move.responseText}</td>
+            </tr>
+            <tr>
+              <td>Within 1 working hour</td>
+              <td className="r">{move.withinHour}</td>
             </tr>
             <tr>
               <td>Median days, enquiry to Prospect</td>
@@ -234,6 +269,7 @@ export default function Report() {
   const [month, setMonth] = useState('2026-10');
   const [query, setQuery] = useState('');
   const model = useMemo(() => reportModel(data, state, month), [data, state, month]);
+  const portfolio = useMemo(() => portfolioRows(data, state, month).find((row) => row.total), [data, state, month]);
   const zoneRows = useMemo(() => liveEnquiries(data, state), [data, state]);
   const needle = query.trim().toLowerCase();
   const matchRows = (rows) => (needle ? rows.filter((row) => `${row.label || ''} ${row.note || ''}`.toLowerCase().includes(needle)) : rows);
@@ -281,7 +317,8 @@ export default function Report() {
       </Filters>
       <article className="report-page">
         <img className="report-logo" src={logo} alt="PKNS" />
-        <p className="report-month">{MONTHS.find((item) => item.key === month)?.label}</p>
+        <p className="report-month">{MONTHS.find((item) => item.key === month)?.label}{month === '2026-10' ? ` (to ${dayMonth(state.now)}) · October to date` : ''}</p>
+        <p data-testid="report-occupancy">Occupancy {pct(portfolio?.occupancy)}. Committed occupancy {pct(portfolio?.committedOccupancy)}. Occupancy counts tenants in place. Committed occupancy also counts leases signed but not started.</p>
         <MeasureTable title="1. Portfolio and leasing" rows={matchRows(model.block1)} />
         <MeasureTable title="2. Marketing to tenancy" rows={matchRows(model.block2)} />
         {month === '2026-10' && <AudienceZones enquiries={zoneRows} state={state} />}

@@ -6,10 +6,10 @@ import { num, rm, rm2, pct, x } from '../format.js';
 // Internal reconciliation view (not in the navigation): #/data-check
 export default function DataCheck() {
   const { data } = useStore();
-  const p = statusCounts(data.units);
-  const camps = data.campaigns.map((c) => ({ c, t: totalRow(campaignChannels(c, data.signed)) }));
+  const p = statusCounts(data.units, data.enquiries);
+  const camps = data.campaigns.map((c) => ({ c, t: totalRow(campaignChannels(c, data.enquiries)) }));
   const all = totalRow(camps.map((r) => r.t));
-  const k = leasingKpis(data.units);
+  const k = leasingKpis(data.units, data.enquiries);
   return (
     <section>
       <h1 className="page-title">Data check</h1>
@@ -18,7 +18,7 @@ export default function DataCheck() {
       <table className="table">
         <thead><tr><th>Asset</th><th className="r">Units</th><th className="r">Occupied</th><th className="r">Reserved</th><th className="r">Vacant</th><th className="r">Under redev.</th><th className="r">Occupancy</th></tr></thead>
         <tbody>
-          {ASSETS.map((a) => { const c = statusCounts(data.units.filter((u) => u.asset === a.id)); return (
+          {ASSETS.map((a) => { const c = statusCounts(data.units.filter((u) => u.asset === a.id), data.enquiries); return (
             <tr key={a.id}><td>{a.name}</td><td className="r">{num(c.total)}</td><td className="r">{num(c.Occupied)}</td><td className="r">{num(c.Reserved)}</td><td className="r">{num(c.Vacant)}</td><td className="r">{num(c['Under redevelopment'])}</td><td className="r">{pct(c.occupancy)}</td></tr>
           ); })}
           <tr className="total"><td>Portfolio</td><td className="r">{num(p.total)}</td><td className="r">{num(p.Occupied)}</td><td className="r">{num(p.Reserved)}</td><td className="r">{num(p.Vacant)}</td><td className="r">{num(p['Under redevelopment'])}</td><td className="r">{pct(p.occupancy)}</td></tr>

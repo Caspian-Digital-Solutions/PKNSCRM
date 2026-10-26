@@ -34,6 +34,12 @@ function klParts(iso) {
   };
 }
 
+export const asAtLabel = (iso) => {
+  if (!iso) return 'Data as at';
+  const part = klParts(iso);
+  return `Data as at ${part.weekday} ${part.day} ${part.month} ${part.year}, ${part.hour}:${part.minute}`;
+};
+
 export const weekdayDate = (iso) => {
   if (!iso) return '';
   const part = klParts(iso);
