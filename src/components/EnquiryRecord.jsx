@@ -569,13 +569,13 @@ export default function EnquiryRecord({ id, variant = 'page', onClose }) {
                         <span>{time(item.at)}</span>
                       </div>
                       {item.thread ? (
-                        <div>
+                        <div className="wa-thread">
                           <button type="button" className="btn" onClick={() => setOpenThread((open) => !open)}>{openThread ? 'Hide WhatsApp' : 'Show WhatsApp'}</button>
                           {openThread && item.thread.map((message, messageIndex) => (
                             <p key={messageIndex} className={message.from === 'officer' ? 'bubble officer' : 'bubble enquirer'}>{message.text}</p>
                           ))}
                         </div>
-                      ) : <p>{item.text}</p>}
+                      ) : <p className="activity-line">{item.text}</p>}
                       </>
                       )}
                     </li>
@@ -594,7 +594,7 @@ export default function EnquiryRecord({ id, variant = 'page', onClose }) {
               { label: 'Budget', value: form.budget || enquiry.budget || '–' },
               { label: 'Move in', value: form.moveIn || '–' },
               { label: 'Contact by', value: form.preferredContact || '–' },
-              { label: 'Message', value: form.message ? <q>{form.message}</q> : '–' },
+              { label: 'Message', value: form.message ? <q className="wa-message">{form.message}</q> : '–' },
             ]}
           />
           <SignalsCard signals={signals} />
@@ -649,7 +649,7 @@ export default function EnquiryRecord({ id, variant = 'page', onClose }) {
             rows={[
               { label: 'Phone', value: phone ? <span className="contact-line"><a href={`tel:${phone}`}>{phone}</a> {waDigits && <a className="btn" href={`https://wa.me/6${waDigits.replace(/^0/, '')}`} target="_blank" rel="noreferrer">WhatsApp</a>}</span> : '–' },
               { label: 'Email', value: email ? <a href={`mailto:${email}`}>{email}</a> : '–' },
-              { label: 'Consent', value: enquiry.consent ? `${enquiry.consent.via}, ${date(enquiry.consent.at)}` : '–' },
+              { label: 'Consent', value: enquiry.consent ? `${enquiry.consent.via === 'Lead form' ? 'Enquiry form' : enquiry.consent.via}, ${date(enquiry.consent.at)}` : '–' },
             ]}
           />
           <section className="desc-group">

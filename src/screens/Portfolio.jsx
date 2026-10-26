@@ -276,8 +276,8 @@ export default function Portfolio() {
         }]}
       >
         <label className="month-select">
-          Month
-          <select value={month} onChange={(e) => setMonth(e.target.value)}>
+          <span className="filter-name">Month</span>
+          <select style={{ width: `${Math.min(36, 'October 2026 (to 28 Oct)'.length + 6)}ch` }} value={month} onChange={(e) => setMonth(e.target.value)}>
             {data.months.map((item) => {
               const label = monthSelectLabel(item.label, item.key, now);
               return <option key={item.key} value={item.key}>{label}</option>;

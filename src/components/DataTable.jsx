@@ -82,7 +82,7 @@ export default function DataTable({
           <div className="filters">
             {filterable.map((col) => (
               <label key={col.key}>
-                {col.filterLabel || col.label}
+                <span className="filter-name">{col.filterLabel || col.label}</span>
                 {col.filter === 'select' ? (
                   <select value={filters[col.key] || ''} onChange={(e) => setFilters((f) => ({ ...f, [col.key]: e.target.value }))}>
                     <option value="">All</option>

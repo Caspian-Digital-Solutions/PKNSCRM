@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useStore } from '../store.jsx';
 import { go, useRoute } from '../router.js';
 import DataTable from '../components/DataTable.jsx';
@@ -19,6 +20,80 @@ function lotClass(status) {
   return 'vacant';
 }
 
+function intersects(a, b) {
+  return a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
+}
+
+function placeLotTip(anchor, size) {
+  const gap = 8;
+  const margin = 8;
+  const headerBottom = document.querySelector('.topbar')?.getBoundingClientRect().bottom || 0;
+  const minTop = headerBottom + margin;
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  const obstacles = [...document.querySelectorAll('.lot, .legend li, .floor-label, .toast, .topbar, .lot-panel, .asset-head, .page-title, .filters > *, .tabs a, .tabs button')]
+    .map((el) => el.getBoundingClientRect())
+    .filter((rect) => rect.width > 0 && rect.height > 0);
+  const panel = document.querySelector('.lot-panel')?.getBoundingClientRect();
+  const candidates = [
+    { top: anchor.top - gap - size.height, left: anchor.left },
+    { top: anchor.top - gap - size.height, left: anchor.right - size.width },
+    { top: anchor.top - gap - size.height, left: anchor.left + (anchor.width - size.width) / 2 },
+    { top: anchor.top, left: anchor.right + gap },
+    { top: anchor.bottom + gap, left: anchor.left },
+    { top: anchor.top, left: anchor.left - gap - size.width },
+  ];
+  if (panel && panel.width) {
+    candidates.push(
+      { top: panel.top - gap - size.height, left: panel.left },
+      { top: panel.top - gap - size.height, left: panel.right - size.width },
+    );
+  }
+  const fits = (top, left) => {
+    if (left < margin - 1 || top < minTop - 1) return false;
+    if (left + size.width > vw - margin + 1 || top + size.height > vh - margin + 1) return false;
+    const box = { left, top, right: left + size.width, bottom: top + size.height };
+    if (intersects(box, anchor)) return false;
+    return !obstacles.some((rect) => intersects(box, rect));
+  };
+  for (const raw of candidates) {
+    if (fits(raw.top, raw.left)) return { top: raw.top, left: raw.left };
+  }
+  const mark = document.querySelector('.asset-photo-fallback')?.getBoundingClientRect();
+  if (mark && fits(mark.top + 16, mark.left + 16)) return { top: mark.top + 16, left: mark.left + 16 };
+  return {
+    top: Math.max(minTop, Math.min(anchor.top, vh - size.height - margin)),
+    left: Math.max(margin, vw - size.width - margin),
+  };
+}
+
+function LotTooltip({ unit, anchor }) {
+  const ref = useRef(null);
+  const [box, setBox] = useState(null);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    setBox(placeLotTip(anchor, { width: rect.width || 280, height: rect.height || 96 }));
+  }, [anchor, unit]);
+  return createPortal(
+    <div
+      ref={ref}
+      className="lot-pop is-open"
+      role="tooltip"
+      id="lot-tooltip"
+      data-testid="lot-tooltip"
+      style={box ? { top: box.top, left: box.left } : { top: 0, left: 0, visibility: 'hidden' }}
+    >
+      <strong>{unitLabel(unit)}</strong>
+      <span>{unit.use} · {num(unit.size)} sq ft · {rm(unit.rent)} a month</span>
+      <span>{unit.status === 'Let' && unit.leaseStart ? `Let, lease starts ${date(unit.leaseStart)}` : unit.status}</span>
+      <span>{unit.openEnquiryIds?.length ? `${num(unit.openEnquiryIds.length)} open enquiries` : 'No open enquiries'}</span>
+    </div>,
+    document.body,
+  );
+}
+
 function occupancyText(detail) {
   if (detail.eventSpace) return 'n/a, priced per day';
   if (detail.counts?.occupancy == null) return 'n/a';
@@ -37,6 +112,8 @@ export default function Asset({ params }) {
   const [photo, setPhoto] = useState(null);
   const [query, setQuery] = useState('');
   const [facet, setFacet] = useState({ status: '', floor: '', stage: '' });
+  const [hover, setHover] = useState(null);
+  const hoverTimer = useRef(null);
 
   useEffect(() => {
     setQuery('');
@@ -45,6 +122,21 @@ export default function Asset({ params }) {
   }, [assetId]);
 
   useEffect(() => { setLotId(routeLot || null); }, [assetId, routeLot]);
+  useEffect(() => () => window.clearTimeout(hoverTimer.current), []);
+
+  const showLotTip = (unit, target) => {
+    window.clearTimeout(hoverTimer.current);
+    const rect = target.getBoundingClientRect();
+    setHover({
+      id: unit.id,
+      unit,
+      anchor: { left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom, width: rect.width, height: rect.height },
+    });
+  };
+  const hideLotTip = () => {
+    window.clearTimeout(hoverTimer.current);
+    hoverTimer.current = window.setTimeout(() => setHover(null), 40);
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -263,16 +355,15 @@ export default function Asset({ params }) {
                         type="button"
                         className={`lot lot-${lotClass(unit.status)} ${selected?.id === unit.id ? 'on' : ''}`}
                         data-testid={unit.lot === '4-07' && unit.asset === 'kpsa' ? 'lot-4-07' : undefined}
+                        aria-describedby={hover?.id === unit.id ? 'lot-tooltip' : undefined}
                         onClick={() => setLotId(unit.id)}
+                        onMouseEnter={(event) => showLotTip(unit, event.currentTarget)}
+                        onMouseLeave={hideLotTip}
+                        onFocus={(event) => showLotTip(unit, event.currentTarget)}
+                        onBlur={hideLotTip}
                       >
                         <span>{unit.lot}</span>
                       </button>
-                      <span className="lot-pop">
-                        <strong>{unitLabel(unit)}</strong>
-                        <span>{unit.use} · {num(unit.size)} sq ft · {rm(unit.rent)} a month</span>
-                        <span>{unit.status === 'Let' && unit.leaseStart ? `Let, lease starts ${date(unit.leaseStart)}` : unit.status}</span>
-                        <span>{unit.openEnquiryIds?.length ? `${num(unit.openEnquiryIds.length)} open enquiries` : 'No open enquiries'}</span>
-                      </span>
                       </span>
                     ))}
                   </div>
@@ -327,6 +418,7 @@ export default function Asset({ params }) {
               ) : <p>No lots on this asset.</p>}
             </aside>
           </div>
+          {hover ? <LotTooltip unit={hover.unit} anchor={hover.anchor} /> : null}
           <h2 className="section-title">Lots</h2>
           <DataTable columns={lotColumns} rows={visibleUnits} exportName={`${asset.id}-lots`} onRowClick={(row) => setLotId(row.id)} pageSize={25} />
         </>

@@ -345,7 +345,7 @@ export default function Shell({ current, children }) {
                   </div>
                 )}
               </div>
-              <span className="avatar" title={role.person}>{role.initials}</span>
+              <Tip label={role.person}><span className="avatar">{role.initials}</span></Tip>
             </div>
           </header>
           <main className="content">

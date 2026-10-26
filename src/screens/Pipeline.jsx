@@ -431,7 +431,7 @@ export default function Pipeline() {
         onClear={clearFilters}
         alwaysMore={(
           <label className="filter-chip">
-            Zone
+            <span className="filter-name">Zone</span>
             <select data-testid="zone-filter" value={zoneFilter} onChange={(event) => writeQuery({ zone: event.target.value })}>
               <option value="">All</option>
               {ZONES.map((zone) => <option key={zone.id} value={zone.id}>{zone.label}</option>)}
@@ -447,7 +447,7 @@ export default function Pipeline() {
         ].filter(Boolean)}
       >
         <label className="filter-chip">
-          Received
+          <span className="filter-name">Received</span>
           <select data-testid="received-filter" value={received} onChange={(event) => applyReceived(event.target.value)}>
             <option value="">All</option>
             <option value="month">This month</option>
@@ -456,7 +456,7 @@ export default function Pipeline() {
           </select>
         </label>
         <label className="filter-chip">
-          Paid
+          <span className="filter-name">Paid</span>
           <select data-testid="paid-filter" value={paid} onChange={(event) => writeQuery({ paid: event.target.value })}>
             <option value="">All</option>
             <option value="paid">Paid</option>
@@ -464,7 +464,7 @@ export default function Pipeline() {
           </select>
         </label>
         <label className="filter-chip">
-          Outcome
+          <span className="filter-name">Outcome</span>
           <select data-testid="outcome-filter" value={outcome} onChange={(event) => writeQuery({ outcome: event.target.value })}>
             <option value="">All</option>
             <option value="open">Open</option>

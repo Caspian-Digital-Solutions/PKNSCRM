@@ -9,6 +9,7 @@ import './styles/tokens.css';
 import './styles.css';
 import './styles/type.css';
 import './styles/round2.css';
+import './styles/alignment.css';
 
 createRoot(document.getElementById('root')).render(
   <StoreProvider>

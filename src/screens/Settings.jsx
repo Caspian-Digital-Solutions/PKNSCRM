@@ -320,7 +320,7 @@ function AudienceZoneSettings({ state, dispatch }) {
                 <td>{ZONES.find((zone) => zone.id === item.zone)?.label}</td>
                 <td>{item.title}</td>
                 <td>{item.due}</td>
-                <td>{item.doneWhen}</td>
+                <td>{String(item.doneWhen).replace(/lead-form/gi, 'enquiry-form')}</td>
               </tr>
             ))}
           </tbody>

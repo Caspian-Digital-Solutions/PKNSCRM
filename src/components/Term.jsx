@@ -25,8 +25,7 @@ export default function Term({ id, children }) {
     window.clearTimeout(timer.current);
     timer.current = window.setTimeout(() => {
       const rect = el.getBoundingClientRect();
-      const width = 320;
-      setBox({ top: rect.bottom + 6, left: Math.max(8, Math.min(rect.left, window.innerWidth - width - 8)) });
+      setBox(placeBox(rect, 320, 120, 'above'));
     }, 150);
   };
 
@@ -68,17 +67,32 @@ export default function Term({ id, children }) {
   );
 }
 
-function placeTip(rect, place) {
-  const width = 220;
-  const height = 36;
+function placeBox(rect, width, height, place = 'above') {
   const margin = 8;
-  let top = place === 'right' ? rect.top + rect.height / 2 - height / 2 : rect.bottom + 6;
-  let left = place === 'right' ? rect.right + 8 : rect.left;
-  if (left + width > window.innerWidth - margin) left = Math.max(margin, rect.left - width - 8);
-  if (left + width > window.innerWidth - margin) left = window.innerWidth - width - margin;
-  if (top + height > window.innerHeight - margin) top = Math.max(margin, rect.top - height - 6);
-  if (top < margin) top = margin;
-  return { top, left, width };
+  const gap = 8;
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  const clampLeft = (left) => Math.max(margin, Math.min(left, vw - width - margin));
+  const spots = {
+    above: { top: rect.top - gap - height, left: clampLeft(rect.left) },
+    below: { top: rect.bottom + gap, left: clampLeft(rect.right - width) },
+    right: { top: rect.top + rect.height / 2 - height / 2, left: rect.right + gap },
+    left: { top: rect.top + rect.height / 2 - height / 2, left: rect.left - gap - width },
+  };
+  const order = place === 'right' ? ['right', 'left', 'below', 'above'] : ['above', 'below', 'right', 'left'];
+  const overlaps = (box) => box.left < rect.right - 1 && box.right > rect.left + 1 && box.top < rect.bottom - 1 && box.bottom > rect.top + 1;
+  for (const name of order) {
+    const raw = spots[name];
+    const left = clampLeft(raw.left);
+    let top = raw.top;
+    if (top < margin) top = margin;
+    if (top + height > vh - margin) top = Math.max(margin, vh - height - margin);
+    const box = { top, left, right: left + width, bottom: top + height };
+    if (overlaps(box)) continue;
+    if (box.top < margin || box.bottom > vh - margin) continue;
+    return { top, left, width };
+  }
+  return { top: Math.min(vh - height - margin, rect.bottom + gap), left: clampLeft(rect.left), width };
 }
 
 export function Tip({ label, children, place = 'bottom' }) {
@@ -91,7 +105,9 @@ export function Tip({ label, children, place = 'bottom' }) {
   const schedule = (el) => {
     window.clearTimeout(timer.current);
     timer.current = window.setTimeout(() => {
-      setBox(placeTip(el.getBoundingClientRect(), place));
+      const rect = el.getBoundingClientRect();
+      const width = Math.min(320, Math.max(96, String(label).length * 8));
+      setBox(placeBox(rect, width, 36, place));
     }, 150);
   };
   useEffect(() => () => window.clearTimeout(timer.current), []);
