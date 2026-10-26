@@ -235,6 +235,9 @@ export default function Shell({ current, children }) {
               if (!item.roles.includes(state.role)) return null;
               const Icon = ICONS[item.id] || LayoutGrid;
               const icon = <Icon size={18} strokeWidth={1.75} aria-hidden="true" />;
+              const badge = item.id === 'pipeline'
+                ? <span className="nav-badge" aria-hidden="true">{num(fresh)}</span>
+                : null;
               return (
                 <a
                   key={item.id}
@@ -243,11 +246,12 @@ export default function Shell({ current, children }) {
                   aria-label={item.name}
                   onClick={(event) => { event.preventDefault(); go(item.id); }}
                 >
-                  {ui.collapsed ? <Tip label={item.name} place="right">{icon}</Tip> : icon}
+                  <span className="nav-icon">
+                    {ui.collapsed ? <Tip label={item.name} place="right">{icon}</Tip> : icon}
+                    {ui.collapsed ? badge : null}
+                  </span>
                   <span className="nav-label">{item.name}</span>
-                  {item.id === 'pipeline' && (
-                    <span className="nav-badge" aria-hidden="true">{num(fresh)}</span>
-                  )}
+                  {ui.collapsed ? null : badge}
                 </a>
               );
             })}

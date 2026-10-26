@@ -327,9 +327,12 @@ a { color: var(--ink); }
 }
 .sidenav a:hover { background: rgba(255, 255, 255, 0.06); color: #fff; }
 .sidenav a.active { border-left-color: var(--brand); background: rgba(255, 255, 255, 0.1); color: #fff; font-weight: 600; }
-.nav-label { min-width: 0; }
+.nav-icon { position: relative; display: inline-flex; flex: 0 0 auto; align-items: center; justify-content: center; line-height: 0; }
+.nav-icon .tip { display: inline-flex; line-height: 0; }
+.nav-icon svg { display: block; }
+.nav-label { min-width: 0; flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .nav-badge {
-  margin-left: auto; background: var(--brand); color: #fff; border-radius: 999px;
+  margin-left: auto; flex: 0 0 auto; background: var(--brand); color: #fff; border-radius: 999px;
   min-width: 22px; height: 22px; padding: 0 6px; display: inline-flex; align-items: center; justify-content: center;
   font-size: 13px; font-weight: 600;
 }
@@ -379,7 +382,11 @@ a { color: var(--ink); }
 .app.is-collapsed .side-pills,
 .app.is-collapsed .side-foot > .text-btn:not(.icon-btn) { display: none; }
 .app.is-collapsed .sidenav a, .app.is-collapsed .user-card .role-btn, .app.is-collapsed .icon-btn { justify-content: center; }
-.app.is-collapsed .nav-badge { position: absolute; margin: 0; }
+.app.is-collapsed .nav-icon .nav-badge {
+  position: absolute; top: -10px; right: -13px; margin: 0; z-index: 2; pointer-events: none;
+  width: auto; min-width: 16px; height: 16px; padding: 0 4px;
+  font-size: 11px; line-height: 1;
+}
 
 html.presenter { zoom: 1.125; }
 html.presenter .btn, html.presenter .sidenav a, html.presenter .icon-btn, html.presenter .role-card { min-height: 44px; }
