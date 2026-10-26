@@ -313,8 +313,8 @@ export default function Report() {
         }]}
       >
         <label className="month-select">
-          Month
-          <select data-testid="report-month" value={month} onChange={(event) => setMonth(event.target.value)}>
+          <span className="filter-name">Month</span>
+          <select data-testid="report-month" style={{ width: '28ch' }} value={month} onChange={(event) => setMonth(event.target.value)}>
             {MONTHS.map((item) => <option key={item.key} value={item.key}>{monthSelectLabel(item.label, item.key, state.now)}</option>)}
           </select>
         </label>

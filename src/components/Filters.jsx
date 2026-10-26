@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 
 export const RANGE_PRESETS = [
   { id: '2026-10', label: 'October 2026 (to 28 Oct)', from: '2026-10-01', to: '2026-10-28' },
@@ -24,12 +24,18 @@ function optionValue(item) {
   return item.id;
 }
 
+function selectWidth(text) {
+  const len = String(text || 'All').length;
+  return `${Math.min(40, Math.max(len, 3) + 6)}ch`;
+}
+
 function Select({ label, value, onChange, options, testId, selectClass }) {
   const slug = `filter-${String(label || 'field').toLowerCase().replace(/\s+/g, '-')}`;
+  const shown = value ? optionName(options.find((item) => optionValue(item) === value) || value) : 'All';
   return (
     <label className={selectClass || slug}>
-      {label}
-      <select data-testid={testId} value={value || ''} onChange={(e) => onChange(e.target.value)}>
+      <span className="filter-name">{label}</span>
+      <select data-testid={testId} style={{ width: selectWidth(shown) }} value={value || ''} onChange={(e) => onChange(e.target.value)}>
         <option value="">All</option>
         {options.map((item) => (
           <option key={optionValue(item)} value={optionValue(item)}>{optionName(item)}</option>
@@ -144,8 +150,8 @@ export default function Filters({
   const controls = [
     onQuery ? (
       <label className="filter-search" key="search">
-        Search
-        <input type="search" value={query} placeholder="Search" onChange={(event) => onQuery(event.target.value)} />
+        <span className="filter-name">Search</span>
+        <input type="search" value={query} placeholder="" onChange={(event) => onQuery(event.target.value)} />
       </label>
     ) : null,
     show('asset') ? <Select key="asset" label="Asset" value={v.asset} options={assets} onChange={(asset) => set({ asset })} /> : null,
@@ -160,8 +166,8 @@ export default function Filters({
     show('floor') ? <Select key="floor" label="Floor" value={v.floor} options={floors} onChange={(floor) => set({ floor })} /> : null,
     show('range') ? (
       <label key="range">
-        Period
-        <select value={v.preset} onChange={(e) => onPreset(e.target.value)}>
+        <span className="filter-name">Period</span>
+        <select style={{ width: selectWidth(nameOf(rangePresets, v.preset)) }} value={v.preset} onChange={(e) => onPreset(e.target.value)}>
           {rangePresets.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
         </select>
       </label>
@@ -169,21 +175,31 @@ export default function Filters({
     children ? <span className="filter-extra" key="extra">{children}</span> : null,
   ].filter(Boolean);
   const [more, setMore] = useState(false);
-  const [wide, setWide] = useState(true);
+  const [limit, setLimit] = useState(controls.length);
   const barRef = useRef(null);
-  useEffect(() => {
-    const node = barRef.current;
-    if (!node) return undefined;
-    const fit = 240 + Math.max(0, controls.length - 1) * 188 + 48;
-    const measure = () => setWide(keepInline || node.clientWidth >= fit);
-    measure();
-    const observer = new ResizeObserver(measure);
-    observer.observe(node);
-    return () => observer.disconnect();
-  }, [controls.length, keepInline]);
-  const inline = wide ? controls : controls.slice(0, 4);
+  const widthRef = useRef(0);
+  const keyRef = useRef('');
+  const valueKey = [query, v.asset, v.campaign, v.channel, v.officer, v.source, v.type, v.location, v.stage, v.status, v.floor, v.preset, controls.length].join('|');
+  useLayoutEffect(() => {
+    const row = barRef.current?.querySelector('.filters');
+    if (!row) return;
+    if (keyRef.current !== valueKey) {
+      keyRef.current = valueKey;
+      widthRef.current = 0;
+    }
+    const available = row.clientWidth;
+    if (available !== widthRef.current) {
+      widthRef.current = available;
+      if (limit !== controls.length) {
+        setLimit(controls.length);
+        return;
+      }
+    }
+    if (row.scrollWidth > available + 1 && limit > 1) setLimit(limit - 1);
+  }, [limit, controls.length, valueKey]);
+  const inline = controls.slice(0, limit);
   const overflow = [
-    ...(wide ? [] : controls.slice(4)),
+    ...controls.slice(limit),
     ...(alwaysMore ? [<div className="filter-extra" key="always-more">{alwaysMore}</div>] : []),
   ];
 
@@ -209,11 +225,11 @@ export default function Filters({
       {show('range') && v.preset === 'custom' && (
         <div className="filters">
           <label>
-            From
+            <span className="filter-name">From</span>
             <input type="date" min={DATE_MIN} max={DATE_MAX} value={v.from} onChange={(e) => set({ from: e.target.value, preset: 'custom' })} />
           </label>
           <label>
-            To
+            <span className="filter-name">To</span>
             <input type="date" min={DATE_MIN} max={DATE_MAX} value={v.to} onChange={(e) => set({ to: e.target.value, preset: 'custom' })} />
           </label>
         </div>

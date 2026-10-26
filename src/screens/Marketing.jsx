@@ -228,7 +228,7 @@ export default function Marketing() {
           <h3 className="section-title">Traffic sources</h3>
           <div className="chart-wrap compact">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={summary.website.sources} layout="vertical" margin={{ top: 8, right: 64, left: 8, bottom: 8 }}>
+              <BarChart data={summary.website.sources} layout="vertical" margin={{ top: 8, right: 96, left: 8, bottom: 8 }}>
                 <CartesianGrid stroke="var(--line)" strokeWidth={2} horizontal={false} />
                 <XAxis type="number" stroke="var(--ink)" strokeWidth={2} tick={{ fontSize: 14, fill: 'var(--ink)' }} tickFormatter={(value) => num(value)} />
                 <YAxis type="category" dataKey="name" width={130} stroke="var(--ink)" strokeWidth={2} tick={{ fontSize: 14, fill: 'var(--ink)' }} />
@@ -291,11 +291,11 @@ export default function Marketing() {
             <tr>
               <th>Page</th>
               <th>Platform</th>
-              <th>Followers</th>
-              <th>Change</th>
-              <th>Organic reach</th>
-              <th>Engagements</th>
-              <th>Engagement rate</th>
+              <th className="r">Followers</th>
+              <th className="r">Change</th>
+              <th className="r">Organic reach</th>
+              <th className="r">Engagements</th>
+              <th className="r">Engagement rate</th>
             </tr>
           </thead>
           <tbody>
@@ -303,13 +303,13 @@ export default function Marketing() {
               <tr key={row.id}>
                 <td>{row.page}</td>
                 <td>{row.platform}</td>
-                <td data-testid={row.id === 'pkns-fb' || row.id === 'pkns-ig' ? `followers-${row.id}` : undefined}>
+                <td className="r" data-testid={row.id === 'pkns-fb' || row.id === 'pkns-ig' ? `followers-${row.id}` : undefined}>
                   <Num value={row.followers} format={num} watch={`followers:${row.id}`} />
                 </td>
-                <td>{row.followerChange == null ? '–' : signedChange(row.followerChange, num)}</td>
-                <td>{num(row.reach)}</td>
-                <td>{num(row.engagements)}</td>
-                <td>{pctPlain(row.er)}</td>
+                <td className="r">{row.followerChange == null ? '–' : signedChange(row.followerChange, num)}</td>
+                <td className="r">{num(row.reach)}</td>
+                <td className="r">{num(row.engagements)}</td>
+                <td className="r">{pctPlain(row.er)}</td>
               </tr>
             ))}
           </tbody>

@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from 'react';
 import { ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis, Tooltip, CartesianGrid, Legend } from 'recharts';
 import { useStore } from '../store.jsx';
 import Filters from '../components/Filters.jsx';
-import Field from '../components/Field.jsx';
 import Kpi from '../components/Kpi.jsx';
 import { liveAssets, visitorSummary } from '../data/selectors.js';
 import { num, rm, pct, dayMonth, tooltipDate } from '../format.js';
@@ -36,14 +35,14 @@ export default function Visitors({ params }) {
     <section>
       <h1 className="page-title">Visitors</h1>
       <p className="banner" data-testid="visitors-banner">Future phase: connects to PKNS&apos;s visitor counting system when installed. Figures below are illustrative.</p>
-      <div className="screen-head">
-        <Field label="Asset">
-          <select data-testid="visitor-asset" value={selected} onChange={(event) => setAssetId(event.target.value)}>
+      <Filters fields={['range']} value={range} onChange={setRange}>
+        <label className="filter-chip">
+          <span className="filter-name">Asset</span>
+          <select data-testid="visitor-asset" style={{ width: `${Math.min(28, (assets.find((item) => item.id === selected)?.name || 'Asset').length + 3)}ch` }} value={selected} onChange={(event) => setAssetId(event.target.value)}>
             {assets.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
           </select>
-        </Field>
-        <Filters fields={['range']} value={range} onChange={setRange} />
-      </div>
+        </label>
+      </Filters>
       <div className="kpi-row">
         <Kpi label="Average weekday visitors" value={summary.weekdayAverage} format={num} testId="visitors-weekday" />
         <Kpi label="Average weekend visitors" value={summary.weekendAverage} format={num} testId="visitors-weekend" />
