@@ -276,8 +276,7 @@ export default function Campaign({ params }) {
         <p data-testid="campaign-period">
           {filters.preset === 'full' ? `${dayMonth(campaign.start)} – ${dayMonth(fullTo)} ${fullTo.slice(0, 4)} (to date)` : `${date(filters.from)} to ${date(filters.to)}`}
         </p>
-        <p>
-          Assets:{' '}
+        <p className="campaign-meta">
           {Object.keys(campaign.assets).map((id, index) => {
             const asset = assets.find((item) => item.id === id);
             return (
@@ -287,9 +286,11 @@ export default function Campaign({ params }) {
               </span>
             );
           })}
+          {' · '}
+          {managingArea(campaign, assets)}
+          {' · Officer: '}
+          {officerNames(campaign, assets, data.officers)}
         </p>
-        <p>Managing area: {managingArea(campaign, assets)}</p>
-        <p>Officer: {officerNames(campaign, assets, data.officers)}</p>
       </header>
       <div className="kpi-row">
         <Kpi label="CPL" term="cpl" value={totals.cpl} format={rm2} testId="campaign-cpl" />

@@ -42,6 +42,12 @@ export function UiProvider({ children }) {
     setToasts((list) => list.filter((toast) => toast.id !== id));
   }, []);
 
+  const dismissHref = useCallback((href) => {
+    if (!href) return;
+    setToasts((list) => list.filter((toast) => toast.href !== href));
+    setEvents((list) => list.map((item) => (item.href === href ? { ...item, read: true } : item)));
+  }, []);
+
   const clearEvents = useCallback(() => {
     setEvents([]);
     setToasts([]);
@@ -128,6 +134,7 @@ export function UiProvider({ children }) {
     notify,
     toastOnly,
     dismissToast,
+    dismissHref,
     clearEvents,
     markAllRead,
     markRead,
@@ -147,7 +154,7 @@ export function UiProvider({ children }) {
     collapsed,
     setCollapsed,
   }), [
-    toasts, events, notify, toastOnly, dismissToast, clearEvents, markAllRead, markRead, palette, drawerId, drafts, setDraft,
+    toasts, events, notify, toastOnly, dismissToast, dismissHref, clearEvents, markAllRead, markRead, palette, drawerId, drafts, setDraft,
     resetOpen, shortcuts, presenter, collapsed,
   ]);
 

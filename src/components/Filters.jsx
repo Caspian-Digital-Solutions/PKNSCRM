@@ -25,8 +25,9 @@ function optionValue(item) {
 }
 
 function Select({ label, value, onChange, options, testId, selectClass }) {
+  const slug = `filter-${String(label || 'field').toLowerCase().replace(/\s+/g, '-')}`;
   return (
-    <label className={selectClass}>
+    <label className={selectClass || slug}>
       {label}
       <select data-testid={testId} value={value || ''} onChange={(e) => onChange(e.target.value)}>
         <option value="">All</option>
@@ -70,6 +71,8 @@ export default function Filters({
   onClear,
   children,
   alwaysMore = null,
+  className = '',
+  keepInline = false,
 }) {
   const v = {
     asset: '',
@@ -172,12 +175,12 @@ export default function Filters({
     const node = barRef.current;
     if (!node) return undefined;
     const fit = 240 + Math.max(0, controls.length - 1) * 188 + 48;
-    const measure = () => setWide(node.clientWidth >= fit);
+    const measure = () => setWide(keepInline || node.clientWidth >= fit);
     measure();
     const observer = new ResizeObserver(measure);
     observer.observe(node);
     return () => observer.disconnect();
-  }, [controls.length]);
+  }, [controls.length, keepInline]);
   const inline = wide ? controls : controls.slice(0, 4);
   const overflow = [
     ...(wide ? [] : controls.slice(4)),
@@ -185,7 +188,7 @@ export default function Filters({
   ];
 
   return (
-    <div className="filter-bar" data-testid="filter-bar" ref={barRef}>
+    <div className={`filter-bar${className ? ` ${className}` : ''}`} data-testid="filter-bar" ref={barRef}>
       <div className="filters">
         {inline}
         {overflow.length > 0 && (

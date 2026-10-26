@@ -46,6 +46,13 @@ export function oneDecimal(value) {
   if (value == null || !Number.isFinite(value)) return null;
   return (Math.round(value * 10) / 10).toFixed(1);
 }
+
+// The October movement medians are 2.55 and 30.94 days. Show one decimal place without rounding up,
+// so both screens read 2.5 and 30.9.
+function shownMedian(value) {
+  if (value == null || !Number.isFinite(value)) return null;
+  return (Math.floor(value * 10 + 1e-9) / 10).toFixed(1);
+}
 function dayKey(iso) {
   return String(iso || '').slice(0, 10);
 }
@@ -87,11 +94,21 @@ function stageEnteredAt(enquiry) {
   return at(enquiry, prior[prior.length - 1]) || enquiry.receivedAt;
 }
 
+function lastContactAt(enquiry) {
+  const contacts = (enquiry.log || [])
+    .filter((entry) => entry && ['Call', 'WhatsApp', 'Email'].includes(entry.type) && entry.at)
+    .map((entry) => entry.at)
+    .sort();
+  return contacts.at(-1) || enquiry.firstResponseAt || at(enquiry, 'Contacted') || enquiry.receivedAt;
+}
+
 function blankReq(id, enquiry) {
   const rule = REQ_BY_ID[id];
   const received = enquiry.receivedAt || `${AS_AT}T00:00:00+08:00`;
   const entered = stageEnteredAt(enquiry) || received;
-  const prospectAt = at(enquiry, 'Qualified') || entered;
+  const qualifiedAt = at(enquiry, 'Qualified') || entered;
+  // An old Qualified record counts its open dues from the last contact, not from the day it entered Prospect.
+  const prospectAt = enquiry.stage === 'Qualified' ? (lastContactAt(enquiry) || qualifiedAt) : qualifiedAt;
   const signedAt = at(enquiry, 'Signed') || entered;
   const viewingAt = enquiry.viewingAt || at(enquiry, 'Viewing Scheduled') || null;
   const start = (enquiry.leaseStart || '2026-12-01').slice(0, 10);
@@ -191,7 +208,51 @@ export function attachZoneData(enquiries) {
       enquiry.handedAt = null;
     }
   }
+  seedOctoberCustomers(enquiries);
   capOverdue(enquiries, DEMO_START);
+}
+
+// October Customers signed before the snapshot, with a lease that has not started.
+// C1–C3 are done from the signing history. At most two keep one item overdue, and only by a few days.
+function seedOctoberCustomers(enquiries) {
+  const rng = makeRng(20261102);
+  const clockDay = DEMO_START.slice(0, 10);
+  const customers = enquiries.filter((enquiry) => (
+    enquiry.stage === 'Signed'
+    && enquiry.handover !== 'handed'
+    && String(enquiry.signedAt || '').startsWith('2026-10')
+  ));
+  const canFinishC2 = (enquiry) => addCalendarDays(enquiry.signedAt, 10).slice(0, 10) <= clockDay;
+  const chase = new Set(
+    customers.filter(canFinishC2).map((enquiry) => enquiry.id).sort().slice(0, 2),
+  );
+  const finish = (req, doneAt) => {
+    if (!req || !doneAt) return;
+    const when = String(doneAt);
+    if (when.slice(0, 10) > clockDay) return;
+    req.done = true;
+    req.doneAt = when;
+  };
+  for (const enquiry of customers) {
+    const signedAt = at(enquiry, 'Signed') || enquiry.signedAt;
+    const byId = Object.fromEntries((enquiry.zoneReqs || []).map((req) => [req.id, req]));
+    let c1At = addCalendarDays(signedAt, 3 + Math.floor(rng.next() * 5));
+    if (c1At.slice(0, 10) > clockDay) c1At = addCalendarDays(signedAt, 3);
+    finish(byId.C1, c1At);
+    let c2At = addCalendarDays(signedAt, 10 + Math.floor(rng.next() * 5));
+    if (c2At.slice(0, 10) > clockDay) {
+      for (let days = 14; days >= 10; days -= 1) {
+        const candidate = addCalendarDays(signedAt, days);
+        if (candidate.slice(0, 10) <= clockDay) { c2At = candidate; break; }
+      }
+    }
+    finish(byId.C2, c2At);
+    if (chase.has(enquiry.id)) {
+      if (byId.C3) byId.C3.keepOverdue = true;
+    } else if (byId.C3?.dueAt) {
+      finish(byId.C3, byId.C3.dueAt);
+    }
+  }
 }
 
 const OPEN_ALLOWANCE_DAYS = { S2: 2, S3: 3, P1: 3, P2: 1, P3: 7, P4: 10, P5: 14, C1: 7, C2: 14, C3: 7, C4: 1 };
@@ -202,23 +263,55 @@ function naturallyOverdue(enquiry, req, now) {
   return new Date(req.dueAt) < new Date(now);
 }
 
-// Due dates come from the history timestamp of the current stage. Records that have already passed
-// that date are the overdue set. The set is capped at 15% of open records. First-contact overdue stays.
+function daysBefore(now, days) {
+  return new Date(new Date(now).getTime() - days * 86400000).toISOString();
+}
+
+function overdueRecords(enquiries, now) {
+  return enquiries.filter((enquiry) => enquiry.stage !== 'Lost' && enquiry.handover !== 'handed' && (enquiry.zoneReqs || []).some((req) => naturallyOverdue(enquiry, req, now)));
+}
+
+// No overdue requirement reads older than 14 days, except three examples (16, 19 and 22 days).
+// The record count stays at 25, and first-contact overdue is left alone so T2 can remove it.
 function capOverdue(enquiries, now) {
   const rows = enquiries.filter((enquiry) => enquiry.stage !== 'Lost' && enquiry.handover !== 'handed');
-  const late = [];
+  const aged = [];
   for (const enquiry of rows) {
-    const overdue = (enquiry.zoneReqs || []).filter((req) => naturallyOverdue(enquiry, req, now));
-    if (!overdue.length) continue;
-    const oldest = overdue.map((req) => req.dueAt).sort()[0];
-    late.push({ enquiry, overdue, oldest, firstContact: overdue.some((req) => req.id === 'S1') });
+    for (const req of enquiry.zoneReqs || []) {
+      if (req.done || req.id === 'S1' || !req.dueAt || new Date(req.dueAt) >= new Date(now)) continue;
+      const age = (new Date(now) - new Date(req.dueAt)) / 86400000;
+      aged.push({ enquiry, req, age });
+      if (age > 14 && !req.keepOverdue) req.dueAt = daysBefore(now, 14);
+    }
   }
+  const examples = [16, 19, 22];
+  aged
+    .filter((item) => item.req.id === 'P1' && item.enquiry.stage === 'Qualified')
+    .sort((a, b) => b.age - a.age)
+    .slice(0, examples.length)
+    .forEach((item, index) => {
+      item.req.dueAt = daysBefore(now, examples[index]);
+      item.example = true;
+    });
+  const exampleIds = new Set(aged.filter((item) => item.example).map((item) => item.enquiry.id));
   const open = enquiries.filter((enquiry) => !['Signed', 'Lost'].includes(enquiry.stage)).length;
   const limit = Math.min(25, Math.floor(open * 0.15));
-  late.sort((a, b) => Number(b.firstContact) - Number(a.firstContact) || a.oldest.localeCompare(b.oldest));
-  late.slice(limit).forEach(({ overdue }) => {
-    for (const req of overdue) {
-      if (req.id === 'S1') continue;
+  let late = overdueRecords(rows, now);
+  if (late.length <= limit) return;
+  const droppable = late
+    .filter((enquiry) => !exampleIds.has(enquiry.id))
+    .map((enquiry) => {
+      const reqs = (enquiry.zoneReqs || []).filter((req) => naturallyOverdue(enquiry, req, now) && req.id !== 'S1');
+      const onlyFirstContact = reqs.length === 0;
+      const oldest = reqs.map((req) => req.dueAt).sort()[0] || '';
+      return { enquiry, onlyFirstContact, oldest };
+    })
+    .filter((item) => !item.onlyFirstContact)
+    .filter((item) => !(item.enquiry.zoneReqs || []).some((req) => req.keepOverdue && naturallyOverdue(item.enquiry, req, now)))
+    .sort((a, b) => b.oldest.localeCompare(a.oldest));
+  droppable.slice(0, late.length - limit).forEach(({ enquiry }) => {
+    for (const req of enquiry.zoneReqs || []) {
+      if (req.id === 'S1' || req.done || !naturallyOverdue(enquiry, req, now)) continue;
       req.dueAt = addCalendarDays(now, OPEN_ALLOWANCE_DAYS[req.id] || 3);
     }
   });
@@ -251,8 +344,25 @@ function contactNotes(enquiry, state) {
   return (state?.notes?.[enquiry.id] || []).filter((note) => ['Call', 'WhatsApp', 'Email'].includes(note.type));
 }
 
+// Background records are a snapshot at the demo start. Only the hero, and a record the presenter
+// has moved or updated, follows the live clock. Skip-ahead must not age the rest of the book.
+export function requirementClock(enquiry, state = {}, clock) {
+  const live = clock || state?.now || DEMO_START;
+  if (!enquiry || enquiry.hero || enquiry.qr) return live;
+  const id = enquiry.id;
+  const touched = Boolean(id && (
+    state?.moves?.[id]
+    || (state?.notes?.[id] || []).length
+    || state?.requirementDone?.[id]
+    || state?.documents?.[id]
+    || state?.handover?.[id]
+  ));
+  return touched ? live : DEMO_START;
+}
+
 export function presentRequirements(enquiry, state = {}, clock = AS_AT_END) {
-  if (enquiry.hero) return heroRequirements(enquiry, state, clock);
+  const when = requirementClock(enquiry, state, clock || state.now);
+  if (enquiry.hero) return heroRequirements(enquiry, state, when);
   const list = cloneReqs(enquiry);
   const rank = enquiry.stage === 'Lost' ? 0 : (STAGE_RANK[enquiry.stage] ?? 0);
   if (rank >= STAGE_RANK.Qualified) ['P1', 'P2', 'P3', 'P4', 'P5'].forEach((id) => ensureReq(list, enquiry, id));
@@ -272,7 +382,7 @@ export function presentRequirements(enquiry, state = {}, clock = AS_AT_END) {
     const s3 = list.find((req) => req.id === 'S3');
     if (unitLinked && s3) markDone(s3, clock);
   }
-  return list.map((req) => decorate(req, clock, enquiry, state.triggers));
+  return list.map((req) => decorate(req, when, enquiry, state.triggers));
 }
 
 function heroRequirements(enquiry, state, clock) {
@@ -422,14 +532,14 @@ export function qualifiersFor(enquiry, reqs) {
   }));
 }
 
-export function signalsFor(enquiry, log = []) {
+export function signalsFor(enquiry, log = [], now = AS_AT_END) {
   const form = enquiry.leadForm || {};
   const answered = Boolean(form.spaceType && form.preferredSize && form.budget && form.moveIn);
   const replies = (log || []).filter((entry) => ['Call', 'WhatsApp', 'Email'].includes(entry.type)).length;
   const last = [enquiry.firstResponseAt, ...(log || []).map((entry) => entry.at)].filter(Boolean).sort().at(-1);
   let since = 'No contact yet';
   if (last) {
-    const days = Math.floor((new Date(AS_AT_END) - new Date(last)) / 86400000);
+    const days = Math.floor((new Date(now) - new Date(last)) / 86400000);
     since = days <= 0 ? 'today' : days === 1 ? '1 day ago' : `${days} days ago`;
   }
   return {
@@ -496,6 +606,27 @@ function pack(list) {
   };
 }
 
+// The same rows the board and the Zones view count. Handed-over customers and older withdrawals stay out.
+export function boardAudience(enquiries, state = {}) {
+  const day = String(state.now || DEMO_START).slice(0, 10);
+  const month = day.slice(0, 7);
+  const suspect = enquiries.filter((enquiry) => zoneOf(enquiry.stage) === 'suspect');
+  const prospect = enquiries.filter((enquiry) => zoneOf(enquiry.stage) === 'prospect');
+  const pending = enquiries.filter((enquiry) => enquiry.stage === 'Signed' && handoverOf(enquiry, state) !== 'handed');
+  const handed = enquiries.filter((enquiry) => handoverOf(enquiry, state) === 'handed');
+  const withdrawn = enquiries.filter((enquiry) => enquiry.stage === 'Lost' && String(enquiry.withdrawnAt || at(enquiry, 'Lost') || '').startsWith(month));
+  const fromSuspect = withdrawn.filter((enquiry) => (enquiry.leftZone || 'suspect') === 'suspect').length;
+  const fromProspect = withdrawn.filter((enquiry) => enquiry.leftZone === 'prospect').length;
+  return {
+    suspect: pack(suspect),
+    prospect: pack(prospect),
+    pending: pack(pending),
+    handed: handed.length,
+    handoversDue: pending.length,
+    withdrawn: { count: withdrawn.length, fromSuspect, fromProspect },
+  };
+}
+
 export function zoneSnapshot(enquiries, state = {}) {
   const groups = { suspect: [], prospect: [], customer: [], withdrawn: [] };
   for (const enquiry of enquiries) {
@@ -544,8 +675,8 @@ export function octoberMovements(enquiries) {
     enteredProspect: entered.length,
     becameCustomer: customers.length,
     withdrawn: withdrawn.length,
-    medianToProspect: oneDecimal(median(toProspect)),
-    medianToCustomer: oneDecimal(median(toCustomer)),
+    medianToProspect: shownMedian(median(toProspect)),
+    medianToCustomer: shownMedian(median(toCustomer)),
   };
 }
 

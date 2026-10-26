@@ -15,11 +15,11 @@ import { zoneOf } from '../data/metrics.js';
 import { elapsed } from '../time.js';
 import {
   cardAlert, firstContactOverdue, handoverOf, medianDaysInZone, nextRequirement, octoberMovements, presentRequirements,
-  requirementLine, zoneLabel, zoneMovePlan,
+  requirementClock, requirementLine, zoneLabel, zoneMovePlan,
 } from '../data/zones.js';
 import { clockOf, daysInStage, filteredEnquiries, firstResponseMinutes, liveAssets, liveEnquiries, periodWindow } from '../data/selectors.js';
 import { date, dateTime, duration, num, rm } from '../format.js';
-import { officerMark, officerTint, initialsOf, unitLabel } from '../labels.js';
+import { displaySource, officerMark, officerTint, initialsOf, unitLabel } from '../labels.js';
 import { addDays, dateUTC, ymd } from '../data/rng.js';
 import { lastDayOf } from '../data/generate.js';
 import { QR_SOURCE } from '../qrEnquiry.js';
@@ -48,7 +48,7 @@ function lostWhen(enquiry) {
 }
 
 function viewingDay(enquiry) {
-  return String(enquiry.viewingAt || enquiry.nextFollowUp || '').slice(0, 10);
+  return String(enquiry.viewingAt || '').slice(0, 10);
 }
 
 function cardLine(enquiry, zoneState) {
@@ -90,7 +90,9 @@ function oldestOpen(enquiry, zoneState) {
 function waitingText(enquiry, now) {
   if (enquiry.firstResponseAt || enquiry.stage === 'Lost' || enquiry.stage === 'Signed' || !enquiry.receivedAt) return null;
   const label = elapsed(enquiry.receivedAt, now);
-  return label ? `Waiting ${label}` : null;
+  if (!label) return null;
+  if (label === 'Just now') return 'Just now';
+  return `Waiting ${label}`;
 }
 
 function monthName(day) {
@@ -162,7 +164,7 @@ export default function Pipeline() {
   const [sort, setSort] = useState({ key: 'receivedAt', dir: 'desc' });
   const [selected, setSelected] = useState(() => new Set());
   const [columnsOn, setColumnsOn] = useState({
-    enquirer: true, unit: true, source: true, stage: true, zone: true, next: true, officer: true, received: true, response: true, follow: true, rent: true,
+    enquirer: true, unit: true, source: true, stage: true, next: true, officer: true, received: true, response: true, follow: true, rent: true,
   });
   const seenQr = useRef(new Set());
   const qrReady = useRef(false);
@@ -200,7 +202,7 @@ export default function Pipeline() {
   const sources = useMemo(() => {
     const names = filteredEnquiries(data, state, {}).map((enquiry) => enquiry.source).filter(Boolean);
     if (qrEnquiries.length) names.push(QR_SOURCE);
-    return [...new Set(names)].sort();
+    return [...new Set(names)].map((source) => ({ id: source, name: displaySource(source) })).sort((a, b) => a.name.localeCompare(b.name));
   }, [data, state, qrEnquiries.length]);
   const allCount = useMemo(() => liveEnquiries(data, state).length, [data, state]);
 
@@ -533,7 +535,7 @@ export default function Pipeline() {
                           assets={assets}
                           data={data}
                           canEdit={canEdit}
-                          now={state.now}
+                          now={requirementClock(enquiry, state, state.now)}
                           fresh={enquiry.hero || freshQr.has(String(enquiry.id).replace(/^qr-/, ''))}
                           moveId={moveId}
                           setMoveId={setMoveId}
@@ -614,7 +616,6 @@ export default function Pipeline() {
                   {columnsOn.unit && <th><button type="button" className="th-btn" onClick={() => toggleSort('lot')}>Unit</button></th>}
                   {columnsOn.source && <th><span className="th-label" title="Source and campaign">Source</span></th>}
                   {columnsOn.stage && <th><button type="button" className="th-btn" onClick={() => toggleSort('stage')}>Stage</button></th>}
-                  {columnsOn.zone && <th><span className="th-label">Zone</span></th>}
                   {columnsOn.next && <th><span className="th-label" title="Next requirement">Next</span></th>}
                   {columnsOn.officer && <th><button type="button" className="th-btn" onClick={() => toggleSort('officer')}>Officer</button></th>}
                   {columnsOn.received && <th><button type="button" className="th-btn" onClick={() => toggleSort('receivedAt')}>Received</button></th>}
@@ -648,27 +649,35 @@ export default function Pipeline() {
                           <span className="name-cell">
                             <span className="avatar" aria-hidden="true">{initialsOf(enquiry.business)}</span>
                             <span className="name-stack">
-                              <strong>{enquiry.business}</strong>
-                              <span className="cell-note">{enquiry.contact || '–'}</span>
+                              <strong title={enquiry.business}>{enquiry.business}</strong>
+                              <span className="cell-note" title={enquiry.contact || ''}>{enquiry.contact || '–'}</span>
                             </span>
                           </span>
                         </td>
                       )}
                       {columnsOn.unit && <td><span className="lot-chip">{enquiry.lot || '–'}</span> {asset?.short || ''}</td>}
                       {columnsOn.source && (
-                        <td className="source-line" title={enquiry.ad || ''}>
-                          <SourceIcon source={enquiry.source} />
-                          <span>{campaign?.short || enquiry.source || '–'}</span>
+                        <td className="source-cell" title={displaySource(enquiry.source)}>
+                          <span className="source-line">
+                            <SourceIcon source={enquiry.source} />
+                            <span>{campaign?.short || displaySource(enquiry.source)}</span>
+                          </span>
                         </td>
                       )}
-                      {columnsOn.stage && <td><span className="stage-pill">{enquiry.stage}</span></td>}
-                      {columnsOn.zone && <td><span className={`zone-chip zone-${zoneOf(enquiry.stage)}`}>{zoneLabel(zoneOf(enquiry.stage))}</span></td>}
+                      {columnsOn.stage && (
+                        <td>
+                          <span className="stage-stack">
+                            <span className="stage-pill">{enquiry.stage}</span>
+                            <span className="cell-note">{zoneLabel(zoneOf(enquiry.stage))}</span>
+                          </span>
+                        </td>
+                      )}
                       {columnsOn.next && <td>{cardLine(enquiry, state)}</td>}
                       {columnsOn.officer && <td><span className={`avatar tint-${officerTint(officer?.id)}`} aria-hidden="true">{officerMark(officer)}</span> {officer?.name?.split(' ')[0] || '–'}</td>}
-                      {columnsOn.received && <td>{dateTime(enquiry.receivedAt)}</td>}
-                      {columnsOn.response && <td>{minutes == null ? 'Not yet' : duration(minutes)}</td>}
-                      {columnsOn.follow && <td>{date(enquiry.nextFollowUp)}</td>}
-                      {columnsOn.rent && <td className="r">{enquiry.rent != null ? `${rm(enquiry.rent)}/mo` : '–'}</td>}
+                      {columnsOn.received && <td className="nowrap">{dateTime(enquiry.receivedAt)}</td>}
+                      {columnsOn.response && <td className="nowrap">{minutes == null ? 'Not yet' : duration(minutes)}</td>}
+                      {columnsOn.follow && <td className="nowrap">{date(enquiry.nextFollowUp)}</td>}
+                      {columnsOn.rent && <td className="r nowrap">{enquiry.rent != null ? `${rm(enquiry.rent)}/mo` : '–'}</td>}
                     </tr>
                   );
                 })}
@@ -782,11 +791,6 @@ function PipeCard({ enquiry, assets, data, canEdit, fresh, moveId, setMoveId, re
   );
 }
 
-function reachedProspect(enquiry) {
-  const stages = new Set([enquiry.stage, ...(enquiry.history || []).map((entry) => entry[0])]);
-  return ['Qualified', 'Viewing Scheduled', 'Negotiation', 'Signed'].some((stage) => stages.has(stage));
-}
-
 function leftFrom(enquiry) {
   if (enquiry.leftZone) return enquiry.leftZone;
   const prior = (enquiry.history || []).map((entry) => entry[0]).filter((stage) => stage !== 'Lost').at(-1);
@@ -795,8 +799,8 @@ function leftFrom(enquiry) {
 
 function ZonePanels({ enquiries, shownQr, state, canEdit, assets, data, freshQr, moveId, setMoveId, requestMove, ui, handedCount = 0 }) {
   const medians = medianDaysInZone(enquiries.filter((enquiry) => !enquiry.hero));
-  const flow = octoberMovements(enquiries);
-  const reached = enquiries.filter(reachedProspect).length;
+  const flow = octoberMovements(liveEnquiries(data, state).filter((enquiry) => !enquiry.qr));
+  const period = monthName(clockDay(state));
   const panels = [
     ...ZONES.map((zone) => ({ ...zone, target: zone.stages[0] })),
     { id: 'withdrawn', label: 'Withdrawn', stages: ['Lost'], target: 'Lost' },
@@ -831,7 +835,7 @@ function ZonePanels({ enquiries, shownQr, state, canEdit, assets, data, freshQr,
               } : undefined}
             >
               <header className="zone-panel-head">
-                <p className="overline">{zone.id === 'withdrawn' ? 'Withdrawn' : `Zone ${zone.n} · ${zone.label}`}</p>
+                <p className="overline">{zone.id === 'withdrawn' ? `Withdrawn in ${period}` : `Zone ${zone.n} · ${zone.label}`}</p>
                 <div className="zone-stats">
                   <span className="zone-figure" data-testid={`zone-count-${zone.id}`}>{num(rows.length)}</span>
                   {zone.id !== 'withdrawn' && <span className="zone-rent">{rm(rent)}/mo</span>}
@@ -861,7 +865,7 @@ function ZonePanels({ enquiries, shownQr, state, canEdit, assets, data, freshQr,
                     assets={assets}
                     data={data}
                     canEdit={canEdit}
-                    now={state.now}
+                    now={requirementClock(enquiry, state, state.now)}
                     fresh={enquiry.hero || freshQr.has(String(enquiry.id).replace(/^qr-/, ''))}
                     moveId={moveId}
                     setMoveId={setMoveId}
@@ -879,10 +883,7 @@ function ZonePanels({ enquiries, shownQr, state, canEdit, assets, data, freshQr,
         })}
       </div>
       <div className="zone-flow" data-testid="zone-flow">
-        <p>{num(reached)} have reached Prospect · median {flow.medianToProspect ?? '–'} days</p>
-        <span aria-hidden="true">→</span>
-        <p>{num(flow.becameCustomer)} became Customer this month · median {flow.medianToCustomer ?? '–'} days</p>
-        <span aria-hidden="true">→</span>
+        <p>In {period}: {num(flow.enteredProspect)} reached Prospect (median {flow.medianToProspect ?? '–'} days) → {num(flow.becameCustomer)} became Customer (median {flow.medianToCustomer ?? '–'} days)</p>
       </div>
     </div>
   );

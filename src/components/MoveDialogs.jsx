@@ -4,7 +4,7 @@ import Field from './Field.jsx';
 import { DescriptionList } from './DescriptionList.jsx';
 import { HERO, LOST_REASONS_BEFORE_VIEWING, LOST_REASONS_AFTER_VIEWING } from '../data/config.js';
 import { unitLabel, spaceLabel } from '../labels.js';
-import { rm, weekdayDate, num, date, dateTime } from '../format.js';
+import { rm, weekdayDate, num, date, tooltipDate } from '../format.js';
 import { firstOfNextMonth, nextWorkingSlot } from '../time.js';
 
 const LOST_NAMES = [...new Set([...LOST_REASONS_BEFORE_VIEWING, ...LOST_REASONS_AFTER_VIEWING].map(([name]) => name))];
@@ -77,7 +77,7 @@ export function SignedDialog({ open, enquiry, assetName, unit, now, onClose, onC
             <input name="rent" inputMode="decimal" defaultValue={enquiry?.rent != null ? num(enquiry.rent) : ''} />
           </span>
         </Field>
-        <Field label="Signed on" hint={dateTime(signedDefault)}>
+        <Field label="Signed on" hint={tooltipDate(signedDefault)}>
           <input name="signedOn" type="date" defaultValue={signedDefault.slice(0, 10)} min={clock.slice(0, 10)} />
         </Field>
         <Field label="Lease starts" error={startError} hint={weekdayDate(leaseDefault)}>

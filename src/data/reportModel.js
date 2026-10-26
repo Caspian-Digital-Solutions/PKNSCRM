@@ -146,7 +146,22 @@ function block2Rows(block) {
     fromPair('paid-enquiries', 'Paid enquiries', block.paidEnquiries, 'num'),
   ];
   const names = Object.keys(block.bySource?.current || {});
+  const unpaidNames = new Set(['Website form', 'Walk-in / call', 'Referral', 'WhatsApp']);
+  let unpaidHead = false;
   for (const name of names) {
+    if (unpaidNames.has(name) && !unpaidHead) {
+      rows.push({
+        id: 'unpaid-head',
+        label: 'Unpaid (not in CPL or ROAS)',
+        kind: 'heading',
+        term: null,
+        note: null,
+        currentText: '',
+        previousText: '',
+        changeText: '',
+      });
+      unpaidHead = true;
+    }
     const current = block.bySource.current[name];
     const previous = block.bySource.previous ? block.bySource.previous[name] : null;
     rows.push(measure({
@@ -167,7 +182,13 @@ function block2Rows(block) {
     fromPair('first-year-value', 'First-year rental value', block.firstYearValue, 'rm'),
     fromPair('signed', 'Signed', block.signed, 'num'),
     fromPair('roas', 'ROAS', block.roas, 'x', { term: 'roas' }),
-    fromPair('response', 'Median first response', block.medianFirstResponse, 'hours', { term: 'first-response' }),
+    (() => {
+      const row = fromPair('response', 'Median first response', block.medianFirstResponse, 'hours', { term: 'first-response' });
+      const asWorking = (text) => (text && text !== '–' && text !== 'Snapshot' ? String(text).replace(/ h$/, ' working hours') : text);
+      row.currentText = asWorking(row.currentText);
+      row.previousText = asWorking(row.previousText);
+      return row;
+    })(),
     fromPair('owned-to-paid', 'Owned-to-paid ratio', block.ownedToPaid, 'ratio', { term: 'owned-to-paid' }),
   );
   return rows;

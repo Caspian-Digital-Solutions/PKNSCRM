@@ -886,8 +886,9 @@ function sourceCounts(summary) {
     'Google Ads': byId.gads || 0,
     'Boosted posts': byId.boost || 0,
     'Website form': summary.unpaid.bySource['Website form'] || 0,
-    'Walk-in': summary.unpaid.bySource['Walk-in'] || 0,
+    'Walk-in / call': summary.unpaid.bySource['Walk-in / call'] || 0,
     Referral: summary.unpaid.bySource.Referral || 0,
+    WhatsApp: summary.unpaid.bySource.WhatsApp || 0,
   };
 }
 

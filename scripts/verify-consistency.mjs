@@ -4,6 +4,8 @@
 import { generate } from '../src/data/generate.js';
 import { campaignChannels, totalRow, statusCounts, medianFirstResponseHours } from '../src/data/metrics.js';
 import { DEMO_START, HERO } from '../src/data/config.js';
+import { boardAudience, octoberMovements, presentRequirements } from '../src/data/zones.js';
+import { reportBlocks } from '../src/data/selectors.js';
 
 const sum = (a) => a.reduce((s, v) => s + v, 0);
 let failed = 0;
@@ -71,6 +73,45 @@ function figures(records, now) {
 }
 const before = figures(recs, DEMO_START);
 eq('Overview paid enquiries equals the records count', before['October paid enquiries (Overview = List filter = Report paid line)'], before['October paid, records count']);
+
+function weekOf(now) {
+  const date = new Date(`${String(now).slice(0, 10)}T00:00:00Z`);
+  const dow = date.getUTCDay();
+  const start = new Date(date);
+  start.setUTCDate(date.getUTCDate() + (dow === 0 ? -6 : 1 - dow));
+  const end = new Date(start);
+  end.setUTCDate(start.getUTCDate() + 6);
+  const ymd = (value) => value.toISOString().slice(0, 10);
+  return { start: ymd(start), end: ymd(end) };
+}
+function viewingsThisWeek(records, now) {
+  const week = weekOf(now);
+  return records.filter((enquiry) => {
+    const when = String(enquiry.viewingAt || '').slice(0, 10);
+    return when && when >= week.start && when <= week.end;
+  }).length;
+}
+function overdueCount(records, now, triggers = { T2: true }) {
+  return records.filter((enquiry) => enquiry.stage !== 'Lost' && enquiry.handover !== 'handed' && presentRequirements(enquiry, { now, triggers }, now).some((req) => req.status === 'overdue')).length;
+}
+eq('Viewings this week', viewingsThisWeek(recs, DEMO_START), 18);
+eq('Viewings this week after the hero is booked', viewingsThisWeek([...recs, { viewingAt: '2026-10-29T11:00:00+08:00' }], DEMO_START), 19);
+eq('Requirements overdue at the start', overdueCount(recs, DEMO_START), 25);
+eq('Requirements overdue after the first skip', overdueCount(recs, '2026-10-29T12:00:00+08:00'), 25);
+eq('Requirements overdue after the second skip', overdueCount(recs, '2026-10-30T15:00:00+08:00'), 25);
+eq('T2 off lowers overdue by the first-contact count', overdueCount(recs, DEMO_START) - overdueCount(recs, DEMO_START, { T2: false }), 5);
+const audience = boardAudience(recs, { now: DEMO_START });
+eq('Report audience zones match the board', [
+  audience.suspect.count, audience.prospect.count, audience.pending.count, audience.handed, audience.handoversDue,
+  audience.withdrawn.count, audience.withdrawn.fromSuspect, audience.withdrawn.fromProspect,
+].join('/'), '66/107/9/16/9/294/232/62');
+const flow = octoberMovements(recs);
+eq('October medians match on the board and the report', `${flow.enteredProspect}/${flow.medianToProspect}/${flow.becameCustomer}/${flow.medianToCustomer}`, '120/2.5/9/30.9');
+const sources = reportBlocks(d, { now: DEMO_START }, '2026-10').block2.bySource.current;
+const paidSources = ['Facebook lead ads', 'Instagram', 'Google Ads', 'Boosted posts'].reduce((sum, name) => sum + (sources[name] || 0), 0);
+const unpaidSources = ['Website form', 'Walk-in / call', 'Referral', 'WhatsApp'].reduce((sum, name) => sum + (sources[name] || 0), 0);
+eq('Unpaid source rows are present', ['Website form', 'Walk-in / call', 'Referral', 'WhatsApp'].every((name) => Object.prototype.hasOwnProperty.call(sources, name)), true);
+eq('Paid plus unpaid equals enquiries received', paidSources + unpaidSources, recs.filter((enquiry) => String(enquiry.receivedAt || '').startsWith('2026-10')).length);
 
 // 4. The hero storyline on the demo clock.
 const unit = d.units.find((u) => u.asset === HERO.asset && u.lot === HERO.lot);
