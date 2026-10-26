@@ -28,7 +28,7 @@ export default function Marketing() {
     channel: '',
     preset: '2026-10',
     from: '2026-10-01',
-    to: '2026-10-31',
+    to: String(state.now || '2026-10-28').slice(0, 10),
   });
   const assets = useMemo(() => liveAssets(data, state), [data, state]);
   const summary = useMemo(() => marketingSummary(data, state, {
@@ -320,6 +320,7 @@ export default function Marketing() {
       {query.trim() && socialRows.length === 0 && paidRows.length === 0 && <p className="empty-state">No social rows match this search. Clear filters to see every page and channel.</p>}
       <DataTable columns={paidColumns} rows={paidRows} totals exportName="paid-social" />
       <h3 className="section-title">Top posts</h3>
+      {postRows.length === 0 && <p className="empty-state">No top posts for this asset in October</p>}
       <button type="button" className="btn" onClick={() => setPostsAsTable((on) => !on)}>{postsAsTable ? 'View as cards' : 'View as table'}</button>
       {postsAsTable ? (
         <DataTable columns={postColumns} rows={postRows} exportName="top-posts" />

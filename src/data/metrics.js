@@ -1,31 +1,35 @@
-import { CHANNELS, HERO, LEASING_OCT, AS_AT, ZONES, WITHDRAWN_STAGE } from './config.js';
+import { CHANNELS, LEASING_OCT, AS_AT, ZONES, WITHDRAWN_STAGE } from './config.js';
 import { daysBetween, lastDayOf } from './generate.js';
+import { workingMinutesBetween } from '../time.js';
 
 const sum = (a) => a.reduce((s, v) => s + v, 0);
-const HERO_STAGE_RANK = { none: -1, New: 0, Contacted: 1, Qualified: 2, 'Viewing Scheduled': 3, Negotiation: 4, Signed: 5 };
 
-// What the live storyline adds on top of the generated data.
-export function heroEffects(heroStage) {
-  const rank = HERO_STAGE_RANK[heroStage ?? 'none'] ?? -1;
-  return { enquiry: rank >= 0 ? 1 : 0, viewing: rank >= 3 ? 1 : 0, signed: rank >= 5 ? 1 : 0, lotStatus: rank >= 5 ? 'Occupied' : rank >= 4 ? 'Reserved' : 'Vacant' };
-}
+export { workingMinutesBetween };
 
 export function inRange(d, from, to) {
   return (!from || d >= from) && (!to || d <= to);
 }
 
-// Channel rows for a campaign over a date range. Hero effects land on SA Sentral, Facebook lead ads, on the as-at date.
-export function campaignChannels(c, signedList, { from, to } = {}, heroStage) {
-  const fx = heroEffects(heroStage);
+// Channel rows for a campaign over a date range.
+// Spend, impressions and clicks come from the campaign's daily arrays. Enquiries, viewings, signed and first-year value
+// are COUNTED FROM THE ENQUIRY RECORDS in the store (including the hero and anything moved during the demo), so every
+// dashboard number can be traced to the records behind it. `to` defaults to the demo clock, never a fixed date.
+export function campaignChannels(c, records, { from, to } = {}) {
+  const list = records || [];
   return CHANNELS.map((ch) => {
     const d = c.daily[ch.id];
     const idx = c.days.map((day, i) => (inRange(day, from, to) ? i : -1)).filter((i) => i >= 0);
     const pick = (arr) => sum(idx.map((i) => arr[i]));
-    const row = { channel: ch.id, name: ch.name, spend: pick(d.spend), impressions: pick(d.imp), clicks: pick(d.clicks), enquiries: pick(d.enq), viewings: pick(d.views), signed: pick(d.signed) };
-    row.firstYearValue = sum(signedList.filter((s) => s.campaign === c.id && s.channel === ch.id && inRange(s.date, from, to)).map((s) => s.rent * 12));
-    if (c.id === HERO.campaign && ch.id === HERO.channel && inRange(AS_AT, from, to)) {
-      row.enquiries += fx.enquiry; row.viewings += fx.viewing; row.signed += fx.signed; row.firstYearValue += fx.signed * HERO.rent * 12;
-    }
+    const mine = list.filter((r) => r.campaign === c.id && r.channel === ch.id);
+    const day = (iso) => iso && iso.slice(0, 10);
+    const signedRecs = mine.filter((r) => r.stage === 'Signed' && inRange(day(r.signedAt), from, to));
+    const row = {
+      channel: ch.id, name: ch.name, spend: pick(d.spend), impressions: pick(d.imp), clicks: pick(d.clicks),
+      enquiries: mine.filter((r) => inRange(day(r.receivedAt), from, to)).length,
+      viewings: mine.filter((r) => r.viewingHeld && inRange(day(r.viewingAt), from, to)).length,
+      signed: signedRecs.length,
+      firstYearValue: sum(signedRecs.map((r) => r.rent * 12)),
+    };
     return withRatios(row);
   });
 }
@@ -47,16 +51,23 @@ export function totalRow(rows) {
   return withRatios(t);
 }
 
-export function unitStatus(u, heroStage) {
-  if (u.asset === HERO.asset && u.lot === HERO.lot) return heroEffects(heroStage).lotStatus;
+// A unit's status follows its records: Negotiation holds it Reserved; Signed makes it Let until the lease starts,
+// then Occupied. "Occupied" means the tenant is in. Units with no live record keep their register status.
+export function unitStatus(u, records, now) {
+  const list = records || [];
+  const clock = (now || AS_AT).slice(0, 10);
+  const r = list.find((x) => x.unitId === u.id && (x.stage === 'Signed' || x.stage === 'Negotiation') && (x.stage !== 'Signed' || x.leaseStart || u.leaseStart));
+  if (r && r.stage === 'Negotiation') return 'Reserved';
+  if (r && r.stage === 'Signed') return (r.leaseStart || u.leaseStart) > clock ? 'Let' : 'Occupied';
   return u.status;
 }
 
-export function statusCounts(units, heroStage) {
-  const c = { Occupied: 0, Reserved: 0, Vacant: 0, 'Under redevelopment': 0 };
-  for (const u of units) c[unitStatus(u, heroStage)] += 1;
+// Occupancy = tenants in place. Committed occupancy also counts leases signed but not started.
+export function statusCounts(units, records, now) {
+  const c = { Occupied: 0, Let: 0, Reserved: 0, Vacant: 0, 'Under redevelopment': 0 };
+  for (const u of units) c[unitStatus(u, records, now)] += 1;
   const lettable = units.length - c['Under redevelopment'];
-  return { ...c, total: units.length, occupancy: lettable ? c.Occupied / lettable : null };
+  return { ...c, total: units.length, lettable, occupancy: lettable ? c.Occupied / lettable : null, committedOccupancy: lettable ? (c.Occupied + c.Let) / lettable : null };
 }
 
 const median = (arr) => {
@@ -66,48 +77,49 @@ const median = (arr) => {
   return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
 };
 
-export function daysVacant(u, heroStage) {
-  const st = unitStatus(u, heroStage);
-  if ((st === 'Vacant' || st === 'Reserved') && u.vacantSince) return daysBetween(u.vacantSince, AS_AT);
+export function daysVacant(u, records, now) {
+  const st = unitStatus(u, records, now);
+  const clock = (now || AS_AT).slice(0, 10);
+  if ((st === 'Vacant' || st === 'Reserved') && u.vacantSince) return daysBetween(u.vacantSince, clock);
   return null;
 }
 
-export function medianDaysVacant(units, heroStage) {
-  return median(units.map((u) => daysVacant(u, heroStage)).filter((v) => v != null));
+export function medianDaysVacant(units, records, now) {
+  return median(units.map((u) => daysVacant(u, records, now)).filter((v) => v != null));
 }
 
-export function leasingKpis(units, heroStage) {
-  const leased = units.filter((u) => unitStatus(u, heroStage) === 'Occupied' && u.leaseExpiry && u.rent);
+export function leasingKpis(units, records, now) {
+  const clock = (now || AS_AT).slice(0, 10);
+  const leased = units.filter((u) => unitStatus(u, records, now) === 'Occupied' && u.leaseExpiry && u.rent);
   const totalRent = sum(leased.map((u) => u.rent));
-  const yearsLeft = (u) => Math.max(0, daysBetween(AS_AT, u.leaseExpiry) / 365.25);
-  const wale = sum(leased.map((u) => yearsLeft(u) * u.rent)) / totalRent;
+  const yearsLeft = (u) => Math.max(0, daysBetween(clock, u.leaseExpiry) / 365.25);
+  const wale = totalRent ? sum(leased.map((u) => yearsLeft(u) * u.rent)) / totalRent : null;
   const bucket = (u) => (u.leaseExpiry <= '2026-12-31' ? 'Nov–Dec 2026' : u.leaseExpiry <= '2027-12-31' ? '2027' : '2028 and later');
   const expiry = {};
   for (const u of leased) expiry[bucket(u)] = (expiry[bucket(u)] || 0) + u.rent;
-  const expiryPct = Object.fromEntries(['Nov–Dec 2026', '2027', '2028 and later'].map((k) => [k, (expiry[k] || 0) / totalRent]));
+  const expiryPct = Object.fromEntries(['Nov–Dec 2026', '2027', '2028 and later'].map((k) => [k, totalRent ? (expiry[k] || 0) / totalRent : null]));
   const retail = leased.filter((u) => u.trade);
   const retailRent = sum(retail.map((u) => u.rent));
   const trade = {};
   for (const u of retail) trade[u.trade] = (trade[u.trade] || 0) + u.rent;
-  const tradePct = Object.fromEntries(Object.entries(trade).map(([k, v]) => [k, v / retailRent]));
-  const rentNext12 = sum(leased.filter((u) => u.leaseExpiry <= '2027-10-31').map((u) => u.rent)) / totalRent;
+  const tradePct = Object.fromEntries(Object.entries(trade).map(([k, v]) => [k, retailRent ? v / retailRent : null]));
+  const rentNext12 = totalRent ? sum(leased.filter((u) => u.leaseExpiry <= '2027-10-31').map((u) => u.rent)) / totalRent : null;
   return {
     wale, expiryPct, tradePct, rentNext12, monthlyContractedRent: totalRent,
-    medianDaysVacant: medianDaysVacant(units, heroStage),
+    medianDaysVacant: medianDaysVacant(units, records, now),
     renewalRate: LEASING_OCT.renewed / LEASING_OCT.expiring, ...LEASING_OCT,
   };
 }
 
-export function medianFirstResponseHours(enquiries) {
-  const mins = enquiries.filter((e) => e.firstResponseAt).map((e) => (new Date(e.firstResponseAt) - new Date(e.receivedAt)) / 60000);
+export function medianFirstResponseHours(enquiries, { from, to } = {}) {
+  const mins = enquiries.filter((e) => e.firstResponseAt && inRange(e.receivedAt.slice(0, 10), from, to)).map((e) => workingMinutesBetween(e.receivedAt, e.firstResponseAt));
   return median(mins) / 60;
 }
 
-// The only stage-to-zone mapping. Zones group stages; they do not replace them.
-export function zoneOf(stage) {
-  if (stage === WITHDRAWN_STAGE) return 'withdrawn';
-  const zone = ZONES.find((item) => item.stages.includes(stage));
-  return zone ? zone.id : 'withdrawn';
+export function withinOneWorkingHourShare(enquiries, { from, to } = {}) {
+  const mins = enquiries.filter((e) => e.firstResponseAt && inRange(e.receivedAt.slice(0, 10), from, to)).map((e) => workingMinutesBetween(e.receivedAt, e.firstResponseAt));
+  if (!mins.length) return null;
+  return mins.filter((m) => m <= 60).length / mins.length;
 }
 
 export function occupancyAtMonthEnd(units, month) {
@@ -116,7 +128,13 @@ export function occupancyAtMonthEnd(units, month) {
   for (const u of units) {
     if (u.status === 'Under redevelopment') continue;
     lettable += 1;
-    if (u.status === 'Occupied' && (!u.signedDate || u.signedDate <= end)) occ += 1;
+    if ((u.status === 'Occupied' || u.status === 'Let') && (!u.leaseStart || !u.signedDate || u.leaseStart <= end)) occ += 1;
   }
   return occ / lettable;
+}
+
+export function zoneOf(stage) {
+  if (stage === WITHDRAWN_STAGE) return 'withdrawn';
+  const zone = ZONES.find((item) => item.stages.includes(stage));
+  return zone ? zone.id : 'withdrawn';
 }

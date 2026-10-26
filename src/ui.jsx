@@ -29,10 +29,10 @@ export function UiProvider({ children }) {
   }, []);
 
   const notify = useCallback((event) => {
-    const item = { id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, read: false, ...event };
-    if (event.bell !== false) setEvents((list) => [item, ...list].slice(0, 10));
+    const item = { id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, read: false, at: state.now, ...event };
+    if (event.bell !== false) setEvents((list) => [item, ...list].slice(0, 12));
     pushToast(item);
-  }, [pushToast]);
+  }, [pushToast, state.now]);
 
   const toastOnly = useCallback((event) => {
     notify({ ...event, bell: false });
@@ -49,6 +49,10 @@ export function UiProvider({ children }) {
 
   const markAllRead = useCallback(() => {
     setEvents((list) => list.map((item) => ({ ...item, read: true })));
+  }, []);
+
+  const markRead = useCallback((id) => {
+    setEvents((list) => list.map((item) => (item.id === id ? { ...item, read: true } : item)));
   }, []);
 
   const setDraft = useCallback((id, draft) => {
@@ -126,6 +130,7 @@ export function UiProvider({ children }) {
     dismissToast,
     clearEvents,
     markAllRead,
+    markRead,
     palette,
     setPalette,
     drawerId,
@@ -142,7 +147,7 @@ export function UiProvider({ children }) {
     collapsed,
     setCollapsed,
   }), [
-    toasts, events, notify, toastOnly, dismissToast, clearEvents, markAllRead, palette, drawerId, drafts, setDraft,
+    toasts, events, notify, toastOnly, dismissToast, clearEvents, markAllRead, markRead, palette, drawerId, drafts, setDraft,
     resetOpen, shortcuts, presenter, collapsed,
   ]);
 

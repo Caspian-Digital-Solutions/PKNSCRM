@@ -1,7 +1,11 @@
 // Source of truth: Confluence PCD page 06 (Dummy Data Specification). Every figure is dummy.
 
-export const AS_AT = '2026-10-31';
-export const PERIOD = { start: '2026-07-01', end: '2026-10-31' };
+// Demo clock. The demo opens on the pitch day, Wed 28 Oct 2026 at 10:00 (Malaysia time).
+// Every record, spend figure and status is generated as at this moment; nothing exists after it.
+export const DEMO_START = '2026-10-28T10:00:00+08:00';
+export const AS_AT = '2026-10-28'; // the date part of DEMO_START, used for day arithmetic
+export const LAST_DAY_SHARE = 0.4; // 28 Oct is a part day (midnight to 10:00): it gets 40% of a normal day's volume
+export const PERIOD = { start: '2026-07-01', end: AS_AT };
 export const MONTHS = [
   { key: '2026-07', label: 'July 2026' },
   { key: '2026-08', label: 'August 2026' },
@@ -75,14 +79,14 @@ export const CHANNELS = [
 
 // Ad names only. No figures. The hero keeps HERO.ad exactly.
 export const AD_CREATIVES = {
-  sa:    { fb: { adSet: 'SA Sentral – Pemilik Perniagaan 25–55, Shah Alam 15km', ads: ['Ruang Pejabat di SA Sentral – Sewa dari RM2.80 sk', 'Lot Kedai Kompleks PKNS – Lokasi Strategik Seksyen 14', 'Ruang Niaga di Plaza Alam Sentral – Lokasi Utama Seksyen 14'] },
+  sa:    { fb: { adSet: 'SA Sentral – Pemilik Perniagaan 25–55, Shah Alam 15km', ads: ['Ruang Pejabat di SA Sentral – Sewa dari RM2.80 psf', 'Lot Kedai Kompleks PKNS – Lokasi Strategik Seksyen 14', 'Ruang Niaga di Plaza Alam Sentral – Lokasi Utama Seksyen 14'] },
            ig: { adSet: 'SA Sentral – Usahawan Muda, Klang Valley', ads: ['Mulakan Perniagaan Anda di SA Sentral'] },
-           gads:{ adSet: 'Sewa pejabat Shah Alam', ads: ['Sewa Pejabat Shah Alam | Dari RM2.80 sk | Kompleks PKNS'] },
+           gads:{ adSet: 'Sewa pejabat Shah Alam', ads: ['Sewa Pejabat Shah Alam | Dari RM2.80 psf | Kompleks PKNS'] },
            boost:{ adSet: 'Boosted – SA Sentral', ads: ['SA Sentral: Wajah Baharu Seksyen 14'] } },
   mpk:   { fb: { adSet: 'Menara PKNS – Syarikat PJ & KL', ads: ['Pejabat Siap Diduduki di Menara PKNS, PJ'] }, ig: { adSet: 'Menara PKNS – Profesional', ads: ['Ruang Pejabat PJ dengan Pemandangan Bandar'] }, gads: { adSet: 'Office space Petaling Jaya', ads: ['Office for Rent Petaling Jaya | Menara PKNS'] }, boost: { adSet: 'Boosted – Menara PKNS', ads: ['Ruang Pejabat Menara PKNS – Sewa Sekarang'] } },
   bangi: { fb: { adSet: 'Bangi – Peniaga Tempatan', ads: ['Lot Kedai untuk Disewa di Kompleks PKNS Bangi'] }, ig: { adSet: 'Bangi – Usahawan', ads: ['Buka Kedai Anda di Bandar Baru Bangi'] }, gads: { adSet: 'Kedai sewa Bangi', ads: ['Lot Kedai Sewa Bangi | Kompleks PKNS'] }, boost: { adSet: 'Boosted – Bangi', ads: ['Kompleks PKNS Bangi Kini Menerima Penyewa Baharu'] } },
   kl:    { fb: { adSet: 'KL – Syarikat Korporat', ads: ['Pejabat Strategik di Bukit Bintang'] }, ig: { adSet: 'KL – Startup', ads: ['Pejabat Anda di Tengah KL'] }, gads: { adSet: 'Office rent Kuala Lumpur', ads: ['Office for Rent Kuala Lumpur | Menara Worldwide'] }, boost: { adSet: 'Boosted – Pejabat KL', ads: ['Pejabat Strategik di Kuala Lumpur'] } },
-  s13:   { fb: { adSet: 'Seksyen 13 – PKS', ads: ['Pejabat di Menara U, Seksyen 13 – dari RM2.40 sk'] }, ig: { adSet: 'Seksyen 13 – Usahawan', ads: ['Ruang Niaga Seksyen 13'] }, gads: { adSet: 'Pejabat sewa Seksyen 13', ads: ['Sewa Pejabat Seksyen 13 Shah Alam | Menara U'] }, boost: { adSet: 'Boosted – Seksyen 13', ads: ['Ruang Niaga Seksyen 13 – Menara U & U2'] } },
+  s13:   { fb: { adSet: 'Seksyen 13 – PKS', ads: ['Pejabat di Menara U, Seksyen 13 – dari RM2.40 psf'] }, ig: { adSet: 'Seksyen 13 – Usahawan', ads: ['Ruang Niaga Seksyen 13'] }, gads: { adSet: 'Pejabat sewa Seksyen 13', ads: ['Sewa Pejabat Seksyen 13 Shah Alam | Menara U'] }, boost: { adSet: 'Boosted – Seksyen 13', ads: ['Ruang Niaga Seksyen 13 – Menara U & U2'] } },
 };
 
 // Channel totals over each campaign period: spend (RM), impressions, clicks, paid enquiries, viewings, signed.
@@ -135,7 +139,7 @@ export const HERO = {
   email: 'faizal@terasniaga.com.my',
   asset: 'kpsa', lot: '4-07', use: 'Office', size: 1200, psf: 2.8, rent: 3360,
   source: 'Facebook Lead Ad', channel: 'fb', campaign: 'sa',
-  ad: 'Ruang Pejabat di SA Sentral – Sewa dari RM2.80 sk',
+  ad: 'Ruang Pejabat di SA Sentral – Sewa dari RM2.80 psf',
   officer: 'aina', preferredSize: '1,000–1,500 sq ft office', budget: 'Up to RM3,500 per month',
   signedTerms: { rent: 3360, start: '2026-12-01', term: '2 years' },
 };
@@ -151,12 +155,16 @@ export const SOCIAL_PAGES = [
   { id: 'mu-fb', page: 'Menara U & U2', platform: 'Facebook', followers: 2300, reachOct: 4100, er: 2.1 },
 ];
 
+// Top posts in October. Each post is tagged with the assets and campaign it promotes, so the asset and campaign filters apply to it.
 export const TOP_POSTS = [
-  { caption: 'SA Sentral: Wajah Baharu Seksyen 14', channel: 'Facebook', type: 'Video', reach: 64000, engagements: 2900, clicks: 1150, boosted: 1200 },
-  { caption: 'Ruang pejabat siap untuk diduduki di Kompleks PKNS Shah Alam', channel: 'Instagram', type: 'Carousel', reach: 21000, engagements: 1050, clicks: 380, boosted: 600 },
-  { caption: 'Peniaga SACC Mall kini di Plaza Alam Sentral', channel: 'Facebook', type: 'Photo', reach: 41000, engagements: 2300, clicks: 640, boosted: 0 },
-  { caption: 'SITC: Destinasi Pameran Baharu Selangor', channel: 'Instagram', type: 'Reel', reach: 33000, engagements: 1600, clicks: 290, boosted: 800 },
-  { caption: 'Pejabat di Menara U, Seksyen 13 – dari RM2.40 sk', channel: 'Facebook', type: 'Photo', reach: 9200, engagements: 310, clicks: 140, boosted: 300 },
+  { caption: 'SA Sentral: Wajah Baharu Seksyen 14', channel: 'Facebook', type: 'Video', reach: 64000, engagements: 2900, clicks: 1150, boosted: 1200, assets: ['kpsa', 'pas'], campaign: 'sa' },
+  { caption: 'Ruang pejabat siap untuk diduduki di Kompleks PKNS Shah Alam', channel: 'Instagram', type: 'Carousel', reach: 21000, engagements: 1050, clicks: 380, boosted: 600, assets: ['kpsa'], campaign: 'sa' },
+  { caption: 'Peniaga SACC Mall kini di Plaza Alam Sentral', channel: 'Facebook', type: 'Photo', reach: 41000, engagements: 2300, clicks: 640, boosted: 0, assets: ['sacc', 'pas'], campaign: null },
+  { caption: 'SITC: Destinasi Pameran Baharu Selangor', channel: 'Instagram', type: 'Reel', reach: 33000, engagements: 1600, clicks: 290, boosted: 800, assets: ['sitc'], campaign: null },
+  { caption: 'Lot kedai di Kompleks PKNS Bangi – lokasi strategik', channel: 'Facebook', type: 'Photo', reach: 14800, engagements: 620, clicks: 260, boosted: 400, assets: ['bangi'], campaign: 'bangi' },
+  { caption: 'Pejabat di Menara PKNS, Petaling Jaya – sedia diduduki', channel: 'Facebook', type: 'Carousel', reach: 12600, engagements: 480, clicks: 210, boosted: 350, assets: ['mpkns'], campaign: 'mpk' },
+  { caption: 'Pejabat strategik di Bukit Bintang', channel: 'Instagram', type: 'Photo', reach: 8700, engagements: 390, clicks: 150, boosted: 250, assets: ['mww', 'wy'], campaign: 'kl' },
+  { caption: 'Pejabat di Menara U, Seksyen 13 – dari RM2.40 psf', channel: 'Facebook', type: 'Photo', reach: 9200, engagements: 310, clicks: 140, boosted: 300, assets: ['mu', 'mu2'], campaign: 's13' },
 ];
 
 export const WEBSITE_OCT = {
@@ -178,7 +186,6 @@ export const LEASING_BY_MONTH = {
 export const LEASING_OCT = { ...LEASING_BY_MONTH['2026-10'], newLeases: 9 };
 
 export const PIPELINE_STAGES = ['New', 'Contacted', 'Qualified', 'Viewing Scheduled', 'Negotiation', 'Signed', 'Lost'];
-export const STAGE_COUNTS = { New: 18, Contacted: 24, Qualified: 22, 'Viewing Scheduled': 16, Negotiation: 12, Signed: 9, Lost: 19 };
 
 // Audience zones group the stages. Stages stay the unit of work.
 export const ZONES = [
@@ -187,7 +194,7 @@ export const ZONES = [
   { id: 'customer', n: 3, label: 'Customer', stages: ['Signed'] },
 ];
 export const WITHDRAWN_STAGE = 'Lost';
-export const AS_AT_END = '2026-10-31T23:59:00+08:00';
+export const AS_AT_END = DEMO_START;
 
 export const ZONE_RULES = {
   requirements: [
@@ -195,19 +202,19 @@ export const ZONE_RULES = {
     { id: 'S2', zone: 'suspect', title: 'Confirm the need: use, size, budget, move-in', due: '2 days', doneWhen: 'All four fields are filled (lead-form answers count)' },
     { id: 'S3', zone: 'suspect', title: 'Match a unit and send the rate card', due: '3 days', doneWhen: 'A unit is linked and a rate card note or email is logged' },
     { id: 'P1', zone: 'prospect', title: 'Book the viewing', due: '3 days', doneWhen: 'Viewing date set' },
-    { id: 'P2', zone: 'prospect', title: 'Log the viewing outcome', due: '1 day after the viewing date', doneWhen: 'Outcome note logged (Attended, No-show or Rescheduled)' },
+    { id: 'P2', zone: 'prospect', title: 'Log the viewing outcome', due: '1 working day after the viewing', doneWhen: 'Outcome note logged (Attended, No-show or Rescheduled)' },
     { id: 'P3', zone: 'prospect', title: 'Collect business documents', due: '7 days', doneWhen: 'SSM certificate, director IC and company profile are ticked', documents: ['SSM certificate', 'Director IC', 'Company profile'] },
     { id: 'P4', zone: 'prospect', title: 'Agree terms: rent, term, fit-out period', due: '10 days', doneWhen: 'Terms filled' },
     { id: 'P5', zone: 'prospect', title: 'Offer letter accepted', due: '14 days', doneWhen: 'Ticked' },
     { id: 'C1', zone: 'customer', title: "Deposit received (2 months' rent + 1 month utilities)", due: '7 days', doneWhen: 'Ticked' },
     { id: 'C2', zone: 'customer', title: 'Tenancy agreement signed and stamping submitted', due: '14 days', doneWhen: 'Ticked' },
     { id: 'C3', zone: 'customer', title: 'Handover date and access cards arranged', due: '7 days before the start date', doneWhen: 'Date set' },
-    { id: 'C4', zone: 'customer', title: 'Tenant record ready for property management', due: 'Before the start date', doneWhen: 'Ticked. This enables Hand over' },
+    { id: 'C4', zone: 'customer', title: 'Tenant record ready for property management', due: 'The day before the lease starts', doneWhen: 'Ticked. This enables Hand over' },
   ],
   qualifiers: [
     { id: 'need', from: 'suspect', to: 'Prospect', label: 'Need stated', when: 'Use and size are known' },
     { id: 'budget', from: 'suspect', to: 'Prospect', label: 'Budget fits', when: "Budget is at least 80% of the matched unit's asking rent" },
-    { id: 'movein', from: 'suspect', to: 'Prospect', label: 'Move-in within 6 months', when: 'Move-in month is within 6 months of 31 Oct 2026' },
+    { id: 'movein', from: 'suspect', to: 'Prospect', label: 'Move-in within 6 months', when: 'Move-in month is within 6 months of the demo clock' },
     { id: 'reachable', from: 'suspect', to: 'Prospect', label: 'Reachable', when: 'First contact is logged' },
     { id: 'attended', from: 'prospect', to: 'Customer', label: 'Viewing attended', when: 'Viewing outcome is Attended' },
     { id: 'documents', from: 'prospect', to: 'Customer', label: 'Documents complete', when: 'Business documents are complete' },
@@ -215,7 +222,7 @@ export const ZONE_RULES = {
   ],
   triggers: [
     { id: 'T1', when: 'A new enquiry arrives', then: 'Assign by the round-robin rule, create S1 to S3, and show New Suspect: {business}' },
-    { id: 'T2', when: 'First contact is still open 2 hours after the enquiry arrived', then: 'Show First contact overdue on the card and the record, and notify the officer' },
+    { id: 'T2', when: 'First contact is still open 1 working hour after the enquiry arrived', then: 'Show First contact overdue on the card and the record, and notify the officer' },
     { id: 'T3', when: 'A Suspect has no reply 7 days after first contact', then: 'Create a task Follow up, due today' },
     { id: 'T4', when: 'The viewing date has passed and no outcome is logged', then: 'P2 becomes Overdue, and notify the officer' },
     { id: 'T5', when: 'The offer was sent and there is no reply after 5 days', then: 'Create a task Chase offer' },
@@ -225,5 +232,8 @@ export const ZONE_RULES = {
   assignment: "Round robin within the asset's officer team. In this demo each asset has one officer, so the officer already on the enquiry is the result.",
   mappingNote: 'Configurable for each client in the full system. PKNS to confirm stages on 28 Oct.',
 };
-export const SOURCE_MIX = [['Facebook Lead Ad', 38], ['Google Ads', 24], ['Instagram', 10], ['Website form', 14], ['WhatsApp', 8], ['Walk-in / call', 6]];
-export const LOST_REASONS = [['Price', 37], ['Size', 21], ['Location', 16], ['Timing', 26]];
+// Why an enquiry was withdrawn. Before a viewing most enquiries simply stop replying; after a viewing the reasons are commercial.
+export const LOST_REASONS_BEFORE_VIEWING = [['No response', 45], ['Price', 20], ['Size', 15], ['Location', 10], ['Timing', 10]];
+export const LOST_REASONS_AFTER_VIEWING = [['Price', 37], ['Size', 21], ['Location', 16], ['Timing', 26]];
+// Enquiries that are not linked to any campaign (WhatsApp, walk-ins and calls, website form), 1 Jul to 28 Oct.
+export const NON_CAMPAIGN = { total: 52, sources: [['WhatsApp', 45], ['Walk-in / call', 35], ['Website form', 20]] };

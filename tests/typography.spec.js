@@ -3,9 +3,9 @@ import { test, expect } from '@playwright/test';
 const ALLOWED = ['13px', '14px', '15px', '16px', '20px', '24px', '28px', '32px', '40px'];
 
 const ROUTES = {
-  Management: ['#/portfolio', '#/asset/kpsa', '#/marketing', '#/campaign/sa', '#/pipeline', '#/report', '#/visitors', '#/settings', '#/enquiry/ENQ-1001'],
-  Leasing: ['#/portfolio', '#/asset/kpsa', '#/campaign/sa', '#/pipeline', '#/enquiry/ENQ-1001'],
-  Marketing: ['#/portfolio', '#/asset/kpsa', '#/marketing', '#/campaign/sa', '#/pipeline', '#/report', '#/visitors', '#/enquiry/ENQ-1001'],
+  Management: ['#/portfolio', '#/asset/kpsa', '#/marketing', '#/campaign/sa', '#/pipeline', '#/report', '#/visitors', '#/settings', '#/enquiry/ENQ-5001'],
+  Leasing: ['#/portfolio', '#/asset/kpsa', '#/campaign/sa', '#/pipeline', '#/enquiry/ENQ-5001'],
+  Marketing: ['#/portfolio', '#/asset/kpsa', '#/marketing', '#/campaign/sa', '#/pipeline', '#/report', '#/visitors', '#/enquiry/ENQ-5001'],
 };
 
 async function offenders(page) {

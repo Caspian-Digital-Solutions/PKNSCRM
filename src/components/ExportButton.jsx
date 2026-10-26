@@ -1,6 +1,6 @@
 import * as XLSX from 'xlsx';
 
-const BANNER = 'PKNS Asset Marketing Hub · Demo data · as at 31 Oct 2026';
+const BANNER = 'PKNS Asset Marketing Hub · Demo data · as at 28 Oct 2026';
 
 function sheetRows(columns, rows) {
   const header = columns.map((c) => c.label);

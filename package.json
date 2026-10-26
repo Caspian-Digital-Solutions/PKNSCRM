@@ -9,6 +9,8 @@
     "build:single": "vite build --mode single && node scripts/to-artifact.mjs",
     "preview": "vite preview",
     "verify": "node scripts/verify.mjs",
+    "verify:consistency": "node scripts/verify-consistency.mjs",
+    "test": "playwright test tests/typography.spec.js tests/layout.spec.js",
     "e2e": "playwright test"
   },
   "dependencies": {

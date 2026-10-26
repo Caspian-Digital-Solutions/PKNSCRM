@@ -2,19 +2,26 @@ import { useState } from 'react';
 import Modal from './Modal.jsx';
 import Field from './Field.jsx';
 import { DescriptionList } from './DescriptionList.jsx';
-import { HERO, LOST_REASONS } from '../data/config.js';
+import { HERO, LOST_REASONS_BEFORE_VIEWING, LOST_REASONS_AFTER_VIEWING } from '../data/config.js';
 import { unitLabel, spaceLabel } from '../labels.js';
-import { rm, weekdayDate, num, date } from '../format.js';
+import { rm, weekdayDate, num, date, dateTime } from '../format.js';
+import { firstOfNextMonth, nextWorkingSlot } from '../time.js';
 
-export const LOST_OPTIONS = [...LOST_REASONS.map(([name]) => name), 'Other'];
+const LOST_NAMES = [...new Set([...LOST_REASONS_BEFORE_VIEWING, ...LOST_REASONS_AFTER_VIEWING].map(([name]) => name))];
+export const LOST_OPTIONS = [...LOST_NAMES, 'Other'];
 export const SIGNED_START = HERO.signedTerms.start;
 
 export function commitStage(dispatch, enquiry, stage, extra = {}) {
   if (!enquiry) return;
   if (enquiry.hero) {
     const action = { type: 'heroStage', stage };
+    if (extra.at) action.at = extra.at;
     if (stage === 'Signed') {
-      action.signed = { rent: extra.rent, start: extra.start, term: HERO.signedTerms.term };
+      action.at = extra.signedAt;
+      action.signed = { rent: extra.rent, start: extra.start, term: extra.term || HERO.signedTerms.term, at: extra.signedAt };
+    }
+    if (stage === 'Viewing Scheduled' && extra.viewingAt) {
+      action.viewing = { at: extra.viewingAt, held: false };
     }
     if (stage === 'Lost') action.lostReason = extra.lostReason;
     dispatch(action);
@@ -24,31 +31,39 @@ export function commitStage(dispatch, enquiry, stage, extra = {}) {
   if (stage === 'Signed') {
     action.rent = extra.rent;
     action.start = extra.start;
+    action.signedOn = extra.signedAt;
+    if (extra.signedAt) action.at = extra.signedAt;
   }
   if (stage === 'Lost') action.lostReason = extra.lostReason;
   dispatch(action);
 }
 
-export function SignedDialog({ open, enquiry, assetName, unit, onClose, onConfirm }) {
+export function SignedDialog({ open, enquiry, assetName, unit, now, onClose, onConfirm }) {
   const [rentError, setRentError] = useState('');
   const [startError, setStartError] = useState('');
+  const clock = now || '2026-10-28T10:00:00+08:00';
+  const hero = Boolean(enquiry?.hero);
+  const signedDefault = hero ? nextWorkingSlot(clock, 15, 0) : clock;
+  const leaseDefault = hero ? HERO.signedTerms.start : firstOfNextMonth(signedDefault);
   const submit = (event) => {
     event.preventDefault();
     const data = new FormData(event.target);
     const raw = String(data.get('rent') || '').replace(/,/g, '');
     const value = Number(raw);
     const start = String(data.get('start') || '');
+    const signedOn = String(data.get('signedOn') || signedDefault.slice(0, 10));
     const nextRent = Number.isFinite(value) && value > 0 ? '' : 'Enter the monthly rent';
     const nextStart = start ? '' : 'Enter the start date';
     setRentError(nextRent);
     setStartError(nextStart);
     if (nextRent || nextStart) return;
-    onConfirm({ rent: value, start });
+    const signedAt = signedOn.length > 10 ? signedOn : `${signedOn}T${signedDefault.slice(11, 16)}:00+08:00`;
+    onConfirm({ rent: value, start, signedAt });
   };
 
   return (
     <Modal open={open} title="Mark as signed" onClose={onClose}>
-      <form className="dialog-form" noValidate onSubmit={submit} key={enquiry?.id || 'signed'}>
+      <form className="dialog-form" noValidate onSubmit={submit} key={`${enquiry?.id || 'signed'}-${open ? signedDefault : ''}`}>
         <DescriptionList
           rows={[
             { label: 'Unit', value: unit ? unitLabel(unit) : spaceLabel(enquiry?.use, enquiry?.lot) },
@@ -62,8 +77,11 @@ export function SignedDialog({ open, enquiry, assetName, unit, onClose, onConfir
             <input name="rent" inputMode="decimal" defaultValue={enquiry?.rent != null ? num(enquiry.rent) : ''} />
           </span>
         </Field>
-        <Field label="Start date" error={startError} hint={weekdayDate(SIGNED_START)}>
-          <input name="start" type="date" defaultValue={SIGNED_START} />
+        <Field label="Signed on" hint={dateTime(signedDefault)}>
+          <input name="signedOn" type="date" defaultValue={signedDefault.slice(0, 10)} min={clock.slice(0, 10)} />
+        </Field>
+        <Field label="Lease starts" error={startError} hint={weekdayDate(leaseDefault)}>
+          <input name="start" type="date" defaultValue={leaseDefault} />
         </Field>
         <div className="dialog-actions">
           <button type="button" className="btn" onClick={onClose}>Cancel</button>

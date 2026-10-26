@@ -2,14 +2,15 @@
 // Every figure is computed here or in metrics.js. Pass live state in; do not copy numbers into components.
 
 import {
-  HERO, AS_AT, CHANNELS, PIPELINE_STAGES, LEASING_BY_MONTH, MONTHS, WEBSITE_OCT, TOP_POSTS, OFFICERS, AD_CREATIVES,
+  HERO, AS_AT, DEMO_START, CHANNELS, PIPELINE_STAGES, LEASING_BY_MONTH, MONTHS, WEBSITE_OCT, TOP_POSTS, OFFICERS, AD_CREATIVES,
 } from './config.js';
 import { allocate, ymd, addDays, dateUTC, daysBetween } from './rng.js';
 import { lastDayOf } from './generate.js';
 import {
-  heroEffects, inRange, campaignChannels, withRatios, totalRow, unitStatus, statusCounts,
+  inRange, campaignChannels, withRatios, totalRow, unitStatus, statusCounts,
   leasingKpis, medianDaysVacant, medianFirstResponseHours, occupancyAtMonthEnd, daysVacant,
 } from './metrics.js';
+import { movementMatch } from './zones.js';
 
 const OPEN_STAGES = PIPELINE_STAGES.filter((s) => s !== 'Signed' && s !== 'Lost');
 const PAID_CHANNELS = new Set(['fb', 'ig', 'gads', 'boost']);
@@ -40,6 +41,8 @@ function norm(state) {
     documents: s.documents || {},
     handover: s.handover || {},
     flash: s.flash || 0,
+    now: s.now || DEMO_START,
+    heroViewing: s.heroViewing || null,
   };
 }
 
@@ -102,27 +105,25 @@ function splitChannelRows(rows, campaign, assetId) {
   }));
 }
 
-// Enquiry and viewing effects land on the hero asset only. Signed value is applied from liveSigned.
-function addHeroActivity(rows, campaign, state, range, assetId) {
-  const fx = heroEffects(state.heroStage);
-  if (campaign.id !== HERO.campaign || !fx.enquiry) return rows;
-  if (assetId && assetId !== HERO.asset) return rows;
-  if (!inRange(AS_AT, range.from, range.to)) return rows;
-  return rows.map((r) => (r.channel === HERO.channel
-    ? withRatios({ ...r, enquiries: r.enquiries + fx.enquiry, viewings: r.viewings + fx.viewing })
-    : r));
+export function clockOf(state) {
+  return norm(state).now || DEMO_START;
 }
 
-// campaignChannels prices the hero at HERO.rent. Use the confirmed rent when the dialog captured one.
-function adjustHeroRent(rows, campaign, state, range) {
-  const fx = heroEffects(state.heroStage);
-  if (!fx.signed || campaign.id !== HERO.campaign || !inRange(AS_AT, range.from, range.to)) return rows;
-  const rent = state.heroSigned?.rent ?? HERO.rent;
-  const delta = (rent - HERO.rent) * 12;
-  if (!delta) return rows;
-  return rows.map((r) => (r.channel === HERO.channel
-    ? withRatios({ ...r, firstYearValue: r.firstYearValue + delta })
-    : r));
+export function periodWindow(month, now = DEMO_START) {
+  const end = String(now).slice(0, 10);
+  const monthEnd = lastDayOf(month);
+  const to = end.slice(0, 7) === month && end < monthEnd ? end : monthEnd;
+  return { from: `${month}-01`, to };
+}
+
+export function comparisonWindow(month, now = DEMO_START) {
+  const current = periodWindow(month, now);
+  const prev = previousMonth(month);
+  if (!prev) return null;
+  const day = current.to.slice(8);
+  const prevEnd = lastDayOf(prev);
+  const to = `${prev}-${day}` <= prevEnd ? `${prev}-${day}` : prevEnd;
+  return { from: `${prev}-01`, to };
 }
 
 export function liveAssets(data, state) {
@@ -132,40 +133,21 @@ export function liveAssets(data, state) {
 
 export function liveUnits(data, state) {
   const s = norm(state);
-  const byUnit = new Map();
-  for (const e of data.enquiries) {
-    const mv = s.moves[e.id];
-    if (!mv || (mv.stage !== 'Negotiation' && mv.stage !== 'Signed') || !e.unitId) continue;
-    byUnit.set(e.unitId, mv);
-  }
+  const records = liveEnquiries(data, s);
   return data.units.map((u) => {
-    if (u.asset === HERO.asset && u.lot === HERO.lot) {
-      const status = heroEffects(s.heroStage).lotStatus;
-      if (s.heroStage === 'Signed') {
-        const rent = s.heroSigned?.rent ?? HERO.rent;
-        const leaseStart = s.heroSigned?.start ?? HERO.signedTerms.start;
-        return {
-          ...u,
-          status,
-          rent,
-          leaseStart,
-          leaseExpiry: leaseExpiryFrom(leaseStart),
-          signedDate: AS_AT,
-          signedId: 'T-HERO',
-        };
-      }
-      return status === u.status ? u : { ...u, status };
-    }
-    const mv = byUnit.get(u.id);
-    if (!mv) return u;
-    if (mv.stage === 'Negotiation') return { ...u, status: 'Reserved' };
+    const status = unitStatus(u, records, s.now);
+    const signed = records.find((record) => record.unitId === u.id && record.stage === 'Signed');
+    if (!signed && status === u.status) return u;
+    if (!signed) return { ...u, status };
+    const leaseStart = signed.leaseStart || u.leaseStart || null;
     return {
       ...u,
-      status: 'Occupied',
-      rent: mv.rent ?? u.rent,
-      leaseStart: mv.start || u.leaseStart || null,
-      leaseExpiry: mv.start ? leaseExpiryFrom(mv.start) : u.leaseExpiry,
-      signedDate: AS_AT,
+      status,
+      rent: signed.rent ?? u.rent,
+      leaseStart,
+      leaseExpiry: leaseStart ? leaseExpiryFrom(leaseStart) : u.leaseExpiry,
+      signedDate: (signed.signedAt || u.signedDate || '').slice(0, 10) || u.signedDate,
+      tenant: signed.business,
     };
   });
 }
@@ -201,11 +183,16 @@ function heroRecord(data, s) {
     size: HERO.size,
     psf: HERO.psf,
     rent: HERO.rent,
+    paid: true,
     confirmedRent: s.heroStage === 'Signed' ? (s.heroSigned?.rent ?? HERO.rent) : null,
     stage: s.heroStage,
     officer,
     receivedAt,
     firstResponseAt: noteTimes[0] || null,
+    viewingAt: s.heroViewing?.at || null,
+    viewingHeld: Boolean(s.heroViewing?.held),
+    signedAt: s.heroStage === 'Signed' ? (s.heroSigned?.at || null) : null,
+    leaseStart: s.heroStage === 'Signed' ? (s.heroSigned?.start || HERO.signedTerms.start) : null,
     history,
     nextFollowUp,
     lostReason: lostEntry?.lostReason || null,
@@ -250,16 +237,23 @@ export function liveEnquiries(data, state) {
       const times = notes.map((n) => n.at).filter(Boolean).sort();
       firstResponseAt = times[0] || null;
     }
+    const signedAt = mv?.stage === 'Signed' ? (mv.signedOn || mv.at || s.now) : e.signedAt;
+    const leaseStart = mv?.stage === 'Signed' ? (mv.start || e.leaseStart) : e.leaseStart;
     return {
       ...e,
       stage: mv ? mv.stage : e.stage,
-      history: mv ? [...e.history, [mv.stage, mv.at || AS_AT]] : e.history,
+      history: mv ? [...e.history, [mv.stage, mv.at || s.now]] : e.history,
       officer,
       nextFollowUp,
       lostReason: mv?.lostReason || e.lostReason,
-      rent: mv?.stage === 'Signed' && mv.rent != null ? mv.rent : e.rent,
+      withdrawnAt: mv?.stage === 'Lost' ? (mv.at || s.now) : e.withdrawnAt,
+      rent: mv?.rent != null ? mv.rent : e.rent,
       notes,
       firstResponseAt,
+      signedAt,
+      leaseStart,
+      viewingHeld: e.viewingHeld || mv?.stage === 'Signed',
+      viewingAt: e.viewingAt || (mv?.stage === 'Signed' ? signedAt : null),
     };
   });
   const hero = heroRecord(data, s);
@@ -268,39 +262,25 @@ export function liveEnquiries(data, state) {
 
 export function liveSigned(data, state) {
   const s = norm(state);
-  const extra = [];
-  if (heroEffects(s.heroStage).signed) {
-    extra.push({
-      id: 'T-HERO',
-      hero: true,
-      campaign: HERO.campaign,
-      channel: HERO.channel,
-      asset: HERO.asset,
-      use: HERO.use,
-      rent: s.heroSigned?.rent ?? HERO.rent,
-      date: AS_AT,
-      lot: HERO.lot,
-      unitId: `${HERO.asset}:${HERO.lot}`,
-    });
-  }
-  for (const e of data.enquiries) {
-    const mv = s.moves[e.id];
-    if (!mv || mv.stage !== 'Signed' || e.stage === 'Signed') continue;
-    if (!e.channel || !e.campaign || !PAID_CHANNELS.has(e.channel)) continue;
-    extra.push({
-      id: `T-LIVE-${e.id}`,
-      liveGenerated: true,
-      campaign: e.campaign,
-      channel: e.channel,
-      asset: e.asset,
-      use: e.use || null,
-      rent: mv.rent ?? e.rent,
-      date: AS_AT,
-      lot: e.lot,
-      unitId: e.unitId,
-    });
-  }
-  return [...data.signed, ...extra];
+  return liveEnquiries(data, s)
+    .filter((record) => record.stage === 'Signed' && record.signedAt)
+    .map((record) => ({
+      id: record.signedId || record.id,
+      hero: Boolean(record.hero),
+      campaign: record.campaign,
+      channel: record.channel,
+      asset: record.asset,
+      use: record.use || null,
+      rent: record.rent,
+      date: record.signedAt.slice(0, 10),
+      lot: record.lot,
+      unitId: record.unitId,
+      paid: Boolean(record.paid),
+    }));
+}
+
+function recordsForAsset(records, campaign, assetId, channel) {
+  return records.filter((record) => record.campaign === campaign.id && record.channel === channel && (!assetId || record.asset === assetId));
 }
 
 export function campaignRows(data, state, campaignId, opts = {}) {
@@ -309,27 +289,32 @@ export function campaignRows(data, state, campaignId, opts = {}) {
   const campaign = data.campaigns.find((c) => c.id === campaignId);
   if (!campaign) return [];
   if (assetId && !covers(campaign, assetId)) return [];
-  const range = { from, to };
-
+  const range = { from, to: to || s.now.slice(0, 10) };
+  const records = liveEnquiries(data, s);
+  let rows = campaignChannels(campaign, records, range);
   if (assetId) {
-    let rows = splitChannelRows(campaignChannels(campaign, data.signed, range, null), campaign, assetId);
-    const signed = liveSigned(data, s).filter((rec) => rec.asset === assetId && rec.campaign === campaign.id && inRange(rec.date, from, to));
-    rows = rows.map((r) => {
-      const add = signed.filter((rec) => rec.channel === r.channel);
-      const firstYearValue = add.reduce((sum, rec) => sum + rec.rent * 12, 0);
-      return withRatios({ ...r, signed: add.length, firstYearValue });
+    const base = campaignChannels(campaign, records, range);
+    rows = base.map((row) => {
+      const ids = Object.keys(campaign.assets);
+      const weights = ids.map((id) => campaign.assets[id]);
+      const idx = ids.indexOf(assetId);
+      const share = (value) => (idx < 0 ? 0 : allocate(value || 0, weights)[idx]);
+      const mine = recordsForAsset(records, campaign, assetId, row.channel);
+      const day = (iso) => iso && iso.slice(0, 10);
+      const signedRecs = mine.filter((record) => record.stage === 'Signed' && inRange(day(record.signedAt), range.from, range.to));
+      return withRatios({
+        ...row,
+        spend: share(row.spend),
+        impressions: share(row.impressions),
+        clicks: share(row.clicks),
+        enquiries: mine.filter((record) => inRange(day(record.receivedAt), range.from, range.to)).length,
+        viewings: mine.filter((record) => record.viewingHeld && inRange(day(record.viewingAt), range.from, range.to)).length,
+        signed: signedRecs.length,
+        firstYearValue: signedRecs.reduce((sum, record) => sum + (record.rent || 0) * 12, 0),
+      });
     });
-    return filterChannels(addHeroActivity(rows, campaign, s, range, assetId), channels);
   }
-
-  const liveGen = liveSigned(data, s).filter((rec) => rec.liveGenerated);
-  let rows = campaignChannels(campaign, [...data.signed, ...liveGen], range, s.heroStage);
-  rows = rows.map((r) => {
-    const add = liveGen.filter((rec) => rec.campaign === campaign.id && rec.channel === r.channel && inRange(rec.date, from, to));
-    if (!add.length) return r;
-    return withRatios({ ...r, signed: r.signed + add.length });
-  });
-  return filterChannels(adjustHeroRent(rows, campaign, s, range), channels);
+  return filterChannels(rows, channels);
 }
 
 export function unpaidInRange(campaign, range = {}, assetId = null) {
@@ -366,23 +351,31 @@ export function assetMarketing(data, state, assetId, range = {}) {
   const byCampaign = [];
   let unpaid = 0;
   const unpaidBySource = {};
+  const records = liveEnquiries(data, s).filter((record) => record.asset === assetId && record.paid === false && inRange((record.receivedAt || '').slice(0, 10), from, to));
+  for (const record of records) {
+    if (record.campaign && !data.campaigns.some((campaign) => campaign.id === record.campaign && covers(campaign, assetId))) continue;
+    unpaid += 1;
+    unpaidBySource[record.source] = (unpaidBySource[record.source] || 0) + 1;
+  }
   for (const c of data.campaigns) {
     if (!covers(c, assetId)) continue;
     const rows = campaignRows(data, s, c.id, { from, to, assetId });
     const t = totalRow(rows);
-    const u = unpaidInRange(c, { from, to }, assetId);
-    unpaid += u.total;
-    for (const [src, n] of Object.entries(u.bySource)) unpaidBySource[src] = (unpaidBySource[src] || 0) + n;
+    const campaignUnpaid = records.filter((record) => record.campaign === c.id).length;
     pieces.push(t);
-    byCampaign.push({ id: c.id, name: c.name, short: c.short, ...t, unpaid: u.total, unpaidBySource: u.bySource });
+    byCampaign.push({ id: c.id, name: c.name, short: c.short, ...t, unpaid: campaignUnpaid, unpaidBySource });
+  }
+  if (!pieces.length) {
+    const paid = liveEnquiries(data, s).filter((record) => record.asset === assetId && record.paid && inRange((record.receivedAt || '').slice(0, 10), from, to));
+    return { assetId, spend: null, impressions: 0, clicks: 0, enquiries: paid.length, viewings: 0, signed: 0, firstYearValue: 0, cpl: null, roas: null, costPerViewing: null, costPerSigned: null, unpaid, unpaidBySource, byCampaign };
   }
   return { assetId, ...totalRow(pieces), unpaid, unpaidBySource, byCampaign };
 }
 
-function rentExpiring(units, heroStage) {
-  const leased = units.filter((u) => unitStatus(u, heroStage) === 'Occupied' && u.leaseExpiry && u.rent);
+function rentExpiring(units, records, now) {
+  const leased = units.filter((u) => unitStatus(u, records, now) === 'Occupied' && u.leaseExpiry && u.rent);
   if (!leased.length) return null;
-  return leasingKpis(units, heroStage).rentNext12;
+  return leasingKpis(units, records, now).rentNext12;
 }
 
 function isEventSpace(asset) {
@@ -429,7 +422,7 @@ export function portfolioRows(data, state, month = '2026-10') {
       };
     }
     const assetUnits = units.filter((u) => u.asset === asset.id);
-    const counts = statusCounts(assetUnits, s.heroStage);
+    const counts = statusCounts(assetUnits, enquiries, s.now);
     const marketing = assetMarketing(data, s, asset.id, range);
     const redevOnly = counts.total > 0 && counts['Under redevelopment'] === counts.total;
     return {
@@ -447,12 +440,14 @@ export function portfolioRows(data, state, month = '2026-10') {
       units: counts.total,
       spaces: null,
       occupied: counts.Occupied,
+      let: counts.Let,
       reserved: counts.Reserved,
       vacant: counts.Vacant,
       redev: counts['Under redevelopment'],
       occupancy: counts.occupancy,
+      committedOccupancy: counts.committedOccupancy,
       lettable: counts.total - counts['Under redevelopment'],
-      medianDaysVacant: medianDaysVacant(assetUnits, s.heroStage),
+      medianDaysVacant: medianDaysVacant(assetUnits, enquiries, s.now),
       paidEnquiries: marketing.enquiries,
       viewings: marketing.viewings,
       openPipeline: enquiries.filter((e) => e.asset === asset.id && OPEN_STAGES.includes(e.stage)).length,
@@ -461,10 +456,10 @@ export function portfolioRows(data, state, month = '2026-10') {
       signed: marketing.signed,
       firstYearValue: marketing.firstYearValue,
       roas: marketing.roas,
-      rentExpiringNext12: rentExpiring(assetUnits, s.heroStage),
+      rentExpiringNext12: rentExpiring(assetUnits, enquiries, s.now),
     };
   });
-  const counts = statusCounts(units, s.heroStage);
+  const counts = statusCounts(units, enquiries, s.now);
   const marketing = totalRow(rows.filter((r) => !r.eventSpace).map((r) => ({
     spend: r.spend,
     impressions: 0,
@@ -474,7 +469,7 @@ export function portfolioRows(data, state, month = '2026-10') {
     signed: r.signed,
     firstYearValue: r.firstYearValue,
   })));
-  const kpis = leasingKpis(units, s.heroStage);
+  const kpis = leasingKpis(units, enquiries, s.now);
   rows.push({
     total: true,
     id: 'total',
@@ -484,12 +479,14 @@ export function portfolioRows(data, state, month = '2026-10') {
     eventSpaces: rows.filter((r) => r.eventSpace).reduce((sum, r) => sum + (r.spaces || 0), 0),
     units: counts.total,
     occupied: counts.Occupied,
+    let: counts.Let,
     reserved: counts.Reserved,
     vacant: counts.Vacant,
+    committedOccupancy: counts.committedOccupancy,
     redev: counts['Under redevelopment'],
     occupancy: counts.occupancy,
     lettable: counts.total - counts['Under redevelopment'],
-    medianDaysVacant: medianDaysVacant(units, s.heroStage),
+    medianDaysVacant: medianDaysVacant(units, enquiries, s.now),
     paidEnquiries: marketing.enquiries,
     viewings: marketing.viewings,
     openPipeline: rows.reduce((sum, r) => sum + (r.openPipeline || 0), 0),
@@ -545,7 +542,7 @@ export function assetDetail(data, state, assetId) {
   const units = liveUnits(data, s).filter((unit) => unit.asset === asset.id);
   const enquiries = liveEnquiries(data, s).filter((enquiry) => enquiry.asset === asset.id);
   const open = enquiries.filter((enquiry) => OPEN_STAGES.includes(enquiry.stage));
-  const counts = eventSpace ? null : statusCounts(units, s.heroStage);
+  const counts = eventSpace ? null : statusCounts(units, enquiries, s.now);
   const nla = eventSpace || !units.length ? null : units.reduce((sum, unit) => sum + (Number(unit.size) || 0), 0);
   const marketing = assetMarketing(data, s, asset.id, {});
   const campaign = data.campaigns.find((item) => item.short && item.short === asset.grouping) || null;
@@ -555,8 +552,8 @@ export function assetDetail(data, state, assetId) {
     const matches = openFor(unit);
     return {
       ...unit,
-      status: unitStatus(unit, s.heroStage),
-      daysVacant: daysVacant(unit, s.heroStage),
+      status: unitStatus(unit, enquiries, s.now),
+      daysVacant: daysVacant(unit, enquiries, s.now),
       openEnquiries: matches.length,
       openEnquiryIds: matches.map((enquiry) => enquiry.id),
       leaseWindow: leaseExpiryWindow(unit),
@@ -570,7 +567,7 @@ export function assetDetail(data, state, assetId) {
     counts,
     nla,
     spaceCount: asset.spaces?.length || 0,
-    medianDaysVacant: eventSpace ? null : medianDaysVacant(units, s.heroStage),
+    medianDaysVacant: eventSpace ? null : medianDaysVacant(units, enquiries, s.now),
     officer: OFFICERS[asset.officer] || null,
     campaign,
     marketing,
@@ -634,6 +631,23 @@ export function filteredEnquiries(data, state, filters = {}) {
   if (filters.source) list = list.filter((e) => e.source === filters.source);
   if (filters.officer) list = list.filter((e) => e.officer === filters.officer);
   if (filters.channel) list = list.filter((e) => e.channel === filters.channel);
+  if (filters.stage) list = list.filter((e) => e.stage === filters.stage);
+  if (!filters.when && filters.from) list = list.filter((e) => (e.receivedAt || '').slice(0, 10) >= filters.from);
+  if (!filters.when && filters.to) list = list.filter((e) => (e.receivedAt || '').slice(0, 10) <= filters.to);
+  if (filters.paid === 'paid') list = list.filter((e) => e.paid);
+  if (filters.paid === 'unpaid') list = list.filter((e) => e.paid === false);
+  if (filters.outcome === 'open') list = list.filter((e) => e.stage !== 'Signed' && e.stage !== 'Lost');
+  if (filters.outcome === 'signed') list = list.filter((e) => e.stage === 'Signed');
+  if (filters.outcome === 'withdrawn') list = list.filter((e) => e.stage === 'Lost');
+  if (filters.when === 'signed') {
+    list = list.filter((e) => e.stage === 'Signed' && inRange((e.signedAt || '').slice(0, 10), filters.from, filters.to));
+  }
+  if (filters.when === 'viewing') {
+    list = list.filter((e) => e.viewingHeld && inRange((e.viewingAt || '').slice(0, 10), filters.from, filters.to));
+  }
+  if (filters.when === 'prospect' || filters.when === 'customer' || filters.when === 'withdrawn' || filters.when === 'received') {
+    list = list.filter((e) => movementMatch(e, filters.when, filters.from, filters.to));
+  }
   return list;
 }
 
@@ -752,12 +766,18 @@ function socialRows(data, range, assetId) {
   });
 }
 
-function topPostsFor(channel) {
-  if (!channel) return TOP_POSTS.map((p) => ({ ...p }));
-  if (channel === 'fb') return TOP_POSTS.filter((p) => p.channel === 'Facebook').map((p) => ({ ...p }));
-  if (channel === 'ig') return TOP_POSTS.filter((p) => p.channel === 'Instagram').map((p) => ({ ...p }));
-  if (channel === 'boost') return TOP_POSTS.filter((p) => p.boosted > 0).map((p) => ({ ...p }));
-  return [];
+function topPostsFor(channel, { assetId, campaignId, sitc } = {}) {
+  return TOP_POSTS.filter((post) => {
+    if (channel === 'fb' && post.channel !== 'Facebook') return false;
+    if (channel === 'ig' && post.channel !== 'Instagram') return false;
+    if (channel === 'boost' && !(post.boosted > 0)) return false;
+    if (channel && !['fb', 'ig', 'boost'].includes(channel)) return false;
+    if (assetId && !(post.assets || []).includes(assetId)) return false;
+    if (campaignId && post.campaign !== campaignId) return false;
+    const sitcPost = (post.assets || []).includes('sitc');
+    if (sitcPost && !sitc && assetId !== 'sitc') return false;
+    return true;
+  }).map((post) => ({ ...post }));
 }
 
 export function marketingSummary(data, state, filters = {}) {
@@ -766,8 +786,9 @@ export function marketingSummary(data, state, filters = {}) {
   const campaignId = filters.campaignId || filters.campaign || null;
   const channel = filters.channel || null;
   const ranged = filters.from !== undefined || filters.to !== undefined;
-  const from = ranged ? filters.from : '2026-10-01';
-  const to = ranged ? filters.to : '2026-10-31';
+  const fallback = periodWindow(s.now.slice(0, 7), s.now);
+  const from = ranged ? filters.from : fallback.from;
+  const to = ranged ? filters.to : fallback.to;
   const range = { from, to };
   const scope = campaignsInScope(data, { campaignId, assetId });
 
@@ -779,10 +800,12 @@ export function marketingSummary(data, state, filters = {}) {
 
   let unpaidTotal = 0;
   const unpaidBySource = {};
-  for (const c of scope) {
-    const u = unpaidInRange(c, range, assetId || null);
-    unpaidTotal += u.total;
-    for (const [src, n] of Object.entries(u.bySource)) unpaidBySource[src] = (unpaidBySource[src] || 0) + n;
+  const unpaidRecords = liveEnquiries(data, s).filter((record) => record.paid === false && inRange((record.receivedAt || '').slice(0, 10), from, to)
+    && (!assetId || record.asset === assetId)
+    && (!campaignId || record.campaign === campaignId));
+  for (const record of unpaidRecords) {
+    unpaidTotal += 1;
+    unpaidBySource[record.source] = (unpaidBySource[record.source] || 0) + 1;
   }
 
   const byChannel = CHANNELS
@@ -835,7 +858,7 @@ export function marketingSummary(data, state, filters = {}) {
     website: websiteBlock(data, range, Boolean(assetId || campaignId)),
     social,
     engagements: social.reduce((sum, page) => sum + page.engagements, 0),
-    topPosts: topPostsFor(channel),
+    topPosts: topPostsFor(channel, { assetId, campaignId, sitc: Boolean(s.customAssets?.some((asset) => asset.id === 'sitc')) }),
   };
 }
 
@@ -871,12 +894,14 @@ function sourceCounts(summary) {
 export function reportBlocks(data, state, month) {
   const s = norm(state);
   const prev = previousMonth(month);
-  const current = marketingSummary(data, s, monthRange(month));
-  const previous = prev ? marketingSummary(data, s, monthRange(prev)) : null;
+  const currentWindow = periodWindow(month, s.now);
+  const previousWindow = comparisonWindow(month, s.now);
+  const current = marketingSummary(data, s, currentWindow);
+  const previous = previousWindow ? marketingSummary(data, s, previousWindow) : null;
   const leasing = LEASING_BY_MONTH[month];
   const leasingPrev = prev ? LEASING_BY_MONTH[prev] : null;
   const unitsNow = liveUnits(data, s);
-  const liveCounts = statusCounts(unitsNow, s.heroStage);
+  const liveCounts = statusCounts(unitsNow, liveEnquiries(data, s), s.now);
   const occupancy = month === '2026-10' ? liveCounts.occupancy : occupancyAtMonthEnd(data.units, month);
   const occupancyPrev = prev ? occupancyAtMonthEnd(data.units, prev) : null;
   const vacant = month === '2026-10' ? liveCounts.Vacant : countsAtMonthEnd(data.units, month).Vacant;
@@ -901,7 +926,7 @@ export function reportBlocks(data, state, month) {
   const webPrev = prev ? web(prev) : null;
   const socCur = soc(month);
   const socPrev = prev ? soc(prev) : null;
-  const snapshot = month === '2026-10' ? leasingKpis(unitsNow, s.heroStage) : null;
+  const snapshot = month === '2026-10' ? leasingKpis(unitsNow, liveEnquiries(data, s), s.now) : null;
   const topPost = TOP_POSTS.slice().sort((a, b) => b.reach - a.reach)[0];
 
   return {
@@ -1010,15 +1035,15 @@ export function campaignWeeks(data, state, campaignId, range = {}) {
     for (const ch of CHANNELS) {
       const daily = campaign.daily[ch.id];
       bucket.spend += daily.spend[i] || 0;
-      bucket.enquiries += daily.enq[i] || 0;
     }
   });
-  const fx = heroEffects(s.heroStage);
-  if (campaign.id === HERO.campaign && fx.enquiry && inRange(AS_AT, from, to)) {
-    const start = mondayOf(AS_AT);
+  const records = liveEnquiries(data, s).filter((record) => record.campaign === campaign.id && record.paid);
+  for (const record of records) {
+    const day = (record.receivedAt || '').slice(0, 10);
+    if (!inRange(day, from, to)) continue;
+    const start = mondayOf(day);
     const bucket = buckets.get(start);
-    if (bucket) bucket.enquiries += fx.enquiry;
-    else buckets.set(start, { start, first: AS_AT, last: AS_AT, spend: 0, enquiries: fx.enquiry });
+    if (bucket) bucket.enquiries += 1;
   }
   return [...buckets.values()].sort((a, b) => a.start.localeCompare(b.start)).map((bucket) => {
     const sunday = ymd(addDays(dateUTC(bucket.start), 6));
@@ -1042,13 +1067,13 @@ export function funnelSteps(row) {
   ];
 }
 
-export function daysInStage(enquiry) {
+export function daysInStage(enquiry, now = AS_AT) {
   if (!enquiry) return null;
   const history = enquiry.history || [];
   const current = [...history].reverse().find((entry) => entry[0] === enquiry.stage);
   const entered = current ? current[1] : enquiry.receivedAt;
   if (!entered) return null;
-  return daysBetween(String(entered).slice(0, 10), AS_AT);
+  return daysBetween(String(entered).slice(0, 10), String(now).slice(0, 10));
 }
 
 export function firstResponseMinutes(enquiry) {

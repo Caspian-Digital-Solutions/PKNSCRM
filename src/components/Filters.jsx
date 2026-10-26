@@ -1,16 +1,16 @@
 import { useEffect, useRef, useState } from 'react';
 
 export const RANGE_PRESETS = [
-  { id: '2026-10', label: 'October 2026', from: '2026-10-01', to: '2026-10-31' },
+  { id: '2026-10', label: 'October 2026 (to 28 Oct)', from: '2026-10-01', to: '2026-10-28' },
   { id: '2026-09', label: 'September 2026', from: '2026-09-01', to: '2026-09-30' },
   { id: '2026-08', label: 'August 2026', from: '2026-08-01', to: '2026-08-31' },
   { id: '2026-07', label: 'July 2026', from: '2026-07-01', to: '2026-07-31' },
-  { id: '2026-07-10', label: 'Jul–Oct 2026', from: '2026-07-01', to: '2026-10-31' },
+  { id: '2026-07-10', label: 'Jul–Oct 2026', from: '2026-07-01', to: '2026-10-28' },
   { id: 'custom', label: 'Custom' },
 ];
 
 const DATE_MIN = '2026-07-01';
-const DATE_MAX = '2026-10-31';
+const DATE_MAX = '2026-10-28';
 
 function optionName(item) {
   if (item == null) return '';
@@ -84,7 +84,7 @@ export default function Filters({
     floor: '',
     preset: '2026-10',
     from: '2026-10-01',
-    to: '2026-10-31',
+    to: '2026-10-28',
     ...value,
   };
   const set = (patch) => onChange?.({ ...v, ...patch });

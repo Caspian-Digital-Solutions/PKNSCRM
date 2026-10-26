@@ -4,6 +4,10 @@ import { Info } from 'lucide-react';
 import { definitionById } from '../data/definitions.js';
 import { sentence } from '../labels.js';
 
+export function Abbr({ title, children }) {
+  return <abbr title={title}>{children}</abbr>;
+}
+
 export default function Term({ id, children }) {
   const def = definitionById(id);
   const label = children || (def?.name || id || '').replace(/ %$/, '');

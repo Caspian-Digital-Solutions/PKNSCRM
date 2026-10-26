@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Bell, Building2, ChevronDown, Clock, FileText, Home, Inbox, LayoutGrid, Megaphone,
   PanelLeft, RotateCcw, Settings, Target, X,
@@ -8,7 +9,8 @@ import { useStore, ROLES, SCREENS } from '../store.jsx';
 import { go, useRoute } from '../router.js';
 import { useUi } from '../ui.jsx';
 import { liveEnquiries, pipelineSummary } from '../data/selectors.js';
-import { num } from '../format.js';
+import { asAtLabel, num } from '../format.js';
+import { elapsed } from '../time.js';
 import { Tip } from './Term.jsx';
 import Modal from './Modal.jsx';
 import CommandPalette from './CommandPalette.jsx';
@@ -34,10 +36,12 @@ function openHref(href) {
 }
 
 function ToastCard({ toast, onDismiss }) {
+  const sticky = Boolean(toast.action);
   const [paused, setPaused] = useState(false);
-  const remaining = useRef(5000);
+  const remaining = useRef(toast.duration || 5000);
   const started = useRef(0);
   useEffect(() => {
+    if (sticky) return undefined;
     if (paused) {
       remaining.current -= Date.now() - started.current;
       return undefined;
@@ -45,7 +49,7 @@ function ToastCard({ toast, onDismiss }) {
     started.current = Date.now();
     const timer = window.setTimeout(() => onDismiss(toast.id), Math.max(200, remaining.current));
     return () => window.clearTimeout(timer);
-  }, [paused, toast.id, onDismiss]);
+  }, [paused, sticky, toast.id, onDismiss]);
   return (
     <div className="toast" role="status" onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)}>
       <Bell size={16} strokeWidth={1.75} aria-hidden="true" />
@@ -165,7 +169,7 @@ export default function Shell({ current, children }) {
         bellGuard.current = false;
         return;
       }
-      if (event.target instanceof Element && event.target.closest('.bell-wrap, .user-card, .bell-menu')) return;
+      if (event.target instanceof Element && event.target.closest('.bell-wrap, .user-card, .bell-menu, .role-menu')) return;
       setBell(false);
       setMenu(false);
     };
@@ -269,7 +273,7 @@ export default function Shell({ current, children }) {
               <span className="nav-label">{ui.collapsed ? 'Expand' : 'Collapse'}</span>
             </button>
             <div className="user-card">
-              <button type="button" className="role-btn" onClick={() => setMenu((open) => !open)} aria-expanded={menu}>
+              <button type="button" className="role-btn" data-testid="role-menu-button" onClick={() => setMenu((open) => !open)} aria-expanded={menu} aria-haspopup="menu">
                 <span className="avatar" aria-hidden="true">{role.initials}</span>
                 <span className="user-meta">
                   <strong>{role.person}</strong>
@@ -277,20 +281,7 @@ export default function Shell({ current, children }) {
                 </span>
                 <ChevronDown size={18} strokeWidth={1.75} aria-hidden="true" />
               </button>
-              {menu && (
-                <div className="role-menu" role="menu">
-                  {Object.values(ROLES).map((item) => (
-                    <button key={item.id} role="menuitem" className={item.id === state.role ? 'on' : ''} onClick={() => switchRole(item.id)}>
-                      <strong>{item.name}</strong>
-                      <span>{item.person}, {item.title}</span>
-                    </button>
-                  ))}
-                  <hr />
-                  <button role="menuitem" onClick={() => { dispatch({ type: 'logout' }); setMenu(false); go(''); }}>
-                    <strong>Back to role selection</strong>
-                  </button>
-                </div>
-              )}
+              {menu && <RoleMenu role={role} current={state.role} onClose={() => setMenu(false)} onSwitch={switchRole} onLogout={() => { dispatch({ type: 'logout' }); setMenu(false); go(''); }} />}
             </div>
           </div>
         </nav>
@@ -305,14 +296,14 @@ export default function Shell({ current, children }) {
               <kbd>{typeof navigator !== 'undefined' && /Mac/i.test(navigator.platform) ? '⌘K' : 'Ctrl K'}</kbd>
             </button>
             <div className="topbar-right">
-              <Tip label="Data as at 31 Oct 2026">
-                <button type="button" className="icon-btn" aria-label="Data as at 31 Oct 2026">
+              <Tip label={asAtLabel(state.now)}>
+                <button type="button" className="icon-btn" data-testid="as-at" aria-label={asAtLabel(state.now)}>
                   <Clock size={18} strokeWidth={1.75} aria-hidden="true" />
                 </button>
               </Tip>
               <div className="bell-wrap">
                 <Tip label="Notifications">
-                  <button type="button" className="icon-btn" aria-label="Notifications" aria-expanded={bell} onClick={(event) => { event.stopPropagation(); bellGuard.current = true; setBell((open) => !open); ui.markAllRead(); }}>
+                  <button type="button" className="icon-btn" aria-label="Notifications" aria-expanded={bell} onClick={(event) => { event.stopPropagation(); bellGuard.current = true; setBell((open) => !open); }}>
                     <Bell size={18} strokeWidth={1.75} aria-hidden="true" />
                     {ui.events.some((event) => !event.read) && <span className="nav-badge" aria-hidden="true">{ui.events.filter((event) => !event.read).length}</span>}
                   </button>
@@ -324,10 +315,13 @@ export default function Shell({ current, children }) {
                       <button
                         key={event.id}
                         role="menuitem"
-                        onClick={() => { setBell(false); openHref(event.href); }}
+                        className={event.read ? 'is-read' : ''}
+                        onClick={() => { ui.markRead(event.id); setBell(false); openHref(event.href); }}
                       >
                         <strong>{event.title}</strong>
                         {event.detail && <span>{event.detail}</span>}
+                        <span>{elapsed(event.at, state.now)}</span>
+                        {event.action && <span className="toast-action">{event.action}</span>}
                       </button>
                     ))}
                   </div>
@@ -337,7 +331,7 @@ export default function Shell({ current, children }) {
             </div>
           </header>
           <main className="content">
-            <div className="content-inner">{children}</div>
+            <div className="content-inner page">{children}</div>
           </main>
         </div>
       </div>
@@ -369,5 +363,56 @@ export default function Shell({ current, children }) {
         </ul>
       </Modal>
     </div>
+  );
+}
+
+function RoleMenu({ current, onClose, onSwitch, onLogout }) {
+  const button = typeof document !== 'undefined' ? document.querySelector('[data-testid="role-menu-button"]') : null;
+  const rect = button?.getBoundingClientRect();
+  const menuRef = useRef(null);
+  const [place, setPlace] = useState(null);
+  const items = [...Object.values(ROLES), { id: 'logout' }];
+  const [index, setIndex] = useState(Math.max(0, items.findIndex((item) => item.id === current)));
+  useEffect(() => {
+    const onKey = (event) => {
+      if (event.key === 'Escape') { event.preventDefault(); onClose(); }
+      if (event.key === 'ArrowDown') { event.preventDefault(); setIndex((value) => Math.min(items.length - 1, value + 1)); }
+      if (event.key === 'ArrowUp') { event.preventDefault(); setIndex((value) => Math.max(0, value - 1)); }
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        const item = items[index];
+        if (!item || item.id === 'logout') onLogout();
+        else onSwitch(item.id);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [index, items.length, onClose, onLogout, onSwitch]);
+  useLayoutEffect(() => {
+    const el = menuRef.current;
+    if (!el || !rect) return;
+    const height = el.offsetHeight;
+    const width = 280;
+    let top = rect.top;
+    let left = rect.right + 8;
+    if (top + height > window.innerHeight - 8) top = Math.max(8, window.innerHeight - height - 8);
+    if (left + width > window.innerWidth - 8) left = Math.max(8, window.innerWidth - width - 8);
+    setPlace((prev) => (prev && prev.top === top && prev.left === left ? prev : { top, left }));
+  }, [rect?.top, rect?.right, rect?.bottom]);
+  if (!rect) return null;
+  return createPortal(
+    <div ref={menuRef} className="role-menu role-menu-portal" role="menu" data-testid="role-menu" style={{ top: place?.top ?? rect.top, left: place?.left ?? rect.right + 8 }}>
+      {Object.values(ROLES).map((item, itemIndex) => (
+        <button key={item.id} type="button" role="menuitem" className={item.id === current || index === itemIndex ? 'on' : ''} onClick={() => onSwitch(item.id)}>
+          <strong>{item.name}</strong>
+          <span>{item.person}, {item.title}</span>
+        </button>
+      ))}
+      <hr />
+      <button type="button" role="menuitem" className={index === items.length - 1 ? 'on' : ''} onClick={onLogout}>
+        <strong>Back to role selection</strong>
+      </button>
+    </div>,
+    document.body,
   );
 }

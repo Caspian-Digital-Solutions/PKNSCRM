@@ -1,14 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Check, ChevronDown, FileText, Mail, MessageCircle, Phone, StickyNote, X } from 'lucide-react';
-import { useStore } from '../store.jsx';
+import { plusMinutes, useStore } from '../store.jsx';
 import { useUi } from '../ui.jsx';
 import { go } from '../router.js';
 import Num from './Num.jsx';
 import { SourceBadge } from './SourceIcon.jsx';
 import { DescriptionList } from './DescriptionList.jsx';
 import Field from './Field.jsx';
+import Modal from './Modal.jsx';
 import { HandoffDialog, LostDialog, SignedDialog, ZoneMoveDialog, commitStage } from './MoveDialogs.jsx';
-import { AS_AT, PIPELINE_STAGES, ZONES } from '../data/config.js';
+import { PIPELINE_STAGES, ZONES } from '../data/config.js';
+import { nextWorkingSlot } from '../time.js';
 import { zoneOf } from '../data/metrics.js';
 import {
   handoverOf, presentRequirements, qualifiersFor, requirementLine, signalsFor, zoneLabel, zoneMovePlan, zoneTasks,
@@ -44,17 +46,15 @@ const SAVED = {
   Note: 'Note saved',
 };
 
-function nextWorkingDay() {
-  let day = addDays(dateUTC(AS_AT), 1);
-  while (day.getUTCDay() === 0 || day.getUTCDay() === 6) day = addDays(day, 1);
-  return ymd(day);
+function defaultViewing(now) {
+  return nextWorkingSlot(now || '2026-10-28T10:00:00+08:00', 11, 0);
 }
 
 function atOf(enquiry, stage) {
   return (enquiry.history || []).find((entry) => entry[0] === stage)?.[1] || null;
 }
 
-function elapsed(from, to) {
+function gapLabel(from, to) {
   if (!from || !to) return null;
   const minutes = Math.round((new Date(to) - new Date(from)) / 60000);
   if (!Number.isFinite(minutes) || minutes < 0) return null;
@@ -66,10 +66,11 @@ function elapsed(from, to) {
   return `+${days} ${days === 1 ? 'day' : 'days'}`;
 }
 
-function dayGroup(iso) {
+function dayGroup(iso, now) {
   const day = String(iso || '').slice(0, 10);
-  if (day === AS_AT) return 'Today';
-  if (day === ymd(addDays(dateUTC(AS_AT), -1))) return 'Yesterday';
+  const today = String(now || '').slice(0, 10);
+  if (day && day === today) return 'Today';
+  if (day === ymd(addDays(dateUTC(today), -1))) return 'Yesterday';
   return date(iso);
 }
 
@@ -90,6 +91,11 @@ export default function EnquiryRecord({ id, variant = 'page', onClose }) {
   const [openThread, setOpenThread] = useState(false);
   const [viewDate, setViewDate] = useState('');
   const [viewTime, setViewTime] = useState('');
+  const [skipOpen, setSkipOpen] = useState(false);
+  const [outcomeOpen, setOutcomeOpen] = useState(false);
+  const [attended, setAttended] = useState(true);
+  const [interested, setInterested] = useState(true);
+  const [outcomeNote, setOutcomeNote] = useState('Viewing went ahead. The tenant is interested.');
   const stored = ui.drafts[id] || { type: 'Call', text: '' };
   const [entryType, setEntryType] = useState(stored.type || 'Call');
   const [entryText, setEntryText] = useState(stored.text || '');
@@ -119,9 +125,10 @@ export default function EnquiryRecord({ id, variant = 'page', onClose }) {
 
   useEffect(() => {
     if (entryType !== 'Viewing') return;
-    setViewDate((current) => current || nextWorkingDay());
-    setViewTime((current) => current || '11:00');
-  }, [entryType]);
+    const slot = defaultViewing(state.now);
+    setViewDate((current) => current || slot.slice(0, 10));
+    setViewTime((current) => current || slot.slice(11, 16));
+  }, [entryType, state.now]);
 
   useEffect(() => {
     if (enquiry?.stage === 'Signed' && entryType !== 'Note') setEntryType('Note');
@@ -180,7 +187,7 @@ export default function EnquiryRecord({ id, variant = 'page', onClose }) {
   ];
   let previousAt = null;
   const rail = nodes.map((node) => {
-    const gap = node.reached ? elapsed(previousAt, node.at) : null;
+    const gap = node.reached ? gapLabel(previousAt, node.at) : null;
     if (node.reached && node.at) previousAt = node.at;
     return { ...node, gap };
   });
@@ -198,13 +205,13 @@ export default function EnquiryRecord({ id, variant = 'page', onClose }) {
   feed.sort((a, b) => new Date(a.at || 0) - new Date(b.at || 0));
   const groups = [];
   for (const item of feed) {
-    const label = dayGroup(item.at);
+    const label = dayGroup(item.at, state.now);
     const last = groups[groups.length - 1];
     if (!last || last.label !== label) groups.push({ label, items: [item] });
     else last.items.push(item);
   }
 
-  const clock = enquiry.hero ? (state.heroReceivedAt || undefined) : undefined;
+  const clock = state.now;
   const reqs = presentRequirements(enquiry, state, clock);
   const zoneId = zoneOf(enquiry.stage);
   const zoneMeta = ZONES.find((item) => item.id === zoneId);
@@ -220,11 +227,6 @@ export default function EnquiryRecord({ id, variant = 'page', onClose }) {
     commitStage(dispatch, enquiry, stage);
     if (stage === 'Signed' && !enquiry.hero && state.triggers?.T6 !== false) {
       ui.notify({ title: `${enquiry.business} became a Customer`, href: `enquiry/${enquiry.id}`, action: 'Open' });
-    }
-    if (stage === 'Viewing Scheduled' && !enquiry.nextFollowUp) {
-      const when = nextWorkingDay();
-      dispatch({ type: 'followUp', id: enquiry.id, date: when });
-      ui.notify({ title: `Viewing scheduled: ${enquiry.business}`, detail: `${dayMonth(when)}, 11:00`, href: `enquiry/${enquiry.id}`, action: 'Open' });
     }
   };
 
@@ -291,6 +293,53 @@ export default function EnquiryRecord({ id, variant = 'page', onClose }) {
     requestAnimationFrame(() => entryRef.current?.focus());
   };
 
+  const scheduleViewing = () => {
+    const slot = defaultViewing(state.now);
+    const when = viewDate || slot.slice(0, 10);
+    const clockTime = viewTime || slot.slice(11, 16);
+    const viewingAt = `${when}T${clockTime}:00+08:00`;
+    const at = plusMinutes(state.now, 1);
+    const note = entryText.trim() || `Viewing booked for ${bookedWhen(viewingAt)}.`;
+    dispatch({ type: 'setNow', now: at });
+    dispatch({ type: 'note', id: enquiry.id, note: { type: 'Viewing', text: note, by: enquiry.officer, at } });
+    dispatch({ type: 'followUp', id: enquiry.id, date: when });
+    if (STEPS.indexOf(enquiry.stage) > -1 && STEPS.indexOf(enquiry.stage) < STEPS.indexOf('Viewing Scheduled')) {
+      commitStage(dispatch, enquiry, 'Viewing Scheduled', { at, viewingAt });
+    } else if (enquiry.hero) {
+      dispatch({ type: 'heroViewing', viewing: { at: viewingAt, held: false } });
+    }
+    setEntryText('');
+    setEntryType('Note');
+    ui.notify({ title: 'Viewing scheduled', detail: bookedWhen(viewingAt), href: `enquiry/${enquiry.id}`, action: 'Open' });
+  };
+
+  const openOutcome = () => {
+    if (enquiry.viewingAt && new Date(enquiry.viewingAt) > new Date(state.now)) {
+      setSkipOpen(true);
+      return;
+    }
+    setOutcomeOpen(true);
+  };
+
+  const skipAhead = () => {
+    const moved = plusMinutes(enquiry.viewingAt, 60);
+    dispatch({ type: 'setNow', now: moved });
+    setSkipOpen(false);
+    setOutcomeOpen(true);
+    ui.toastOnly({ title: `Demo time moved to ${bookedWhen(moved)}`, duration: 4000 });
+  };
+
+  const saveOutcome = (event) => {
+    event.preventDefault();
+    const bits = [attended ? 'Attended' : 'No-show', interested ? 'Interested' : ''].filter(Boolean);
+    const text = `${bits.join('. ')}. ${outcomeNote.trim()}`.trim();
+    dispatch({ type: 'note', id: enquiry.id, note: { type: 'Note', text, by: enquiry.officer, at: state.now } });
+    if (enquiry.hero) dispatch({ type: 'heroViewing', viewing: { at: enquiry.viewingAt, held: true } });
+    else dispatch({ type: 'requirementDone', id: enquiry.id, req: 'P2' });
+    setOutcomeOpen(false);
+    ui.toastOnly({ title: 'Viewing outcome saved' });
+  };
+
   const addEntry = (event) => {
     event.preventDefault();
     if (entryType === 'Viewing') {
@@ -299,33 +348,24 @@ export default function EnquiryRecord({ id, variant = 'page', onClose }) {
     }
     const note = entryText.trim();
     if (!note) return;
-    dispatch({ type: 'note', id: enquiry.id, note: { type: entryType, text: note, by: enquiry.officer } });
+    const at = plusMinutes(state.now, 1);
+    dispatch({ type: 'setNow', now: at });
+    dispatch({ type: 'note', id: enquiry.id, note: { type: entryType, text: note, by: enquiry.officer, at } });
     if (['Call', 'WhatsApp', 'Email'].includes(entryType) && enquiry.stage === 'New') {
-      commitStage(dispatch, enquiry, 'Contacted');
+      commitStage(dispatch, enquiry, 'Contacted', { at });
     }
     setEntryText('');
     ui.toastOnly({ title: SAVED[entryType] || 'Note saved' });
   };
 
-  const scheduleViewing = () => {
-    const when = viewDate || nextWorkingDay();
-    const clock = viewTime || '11:00';
-    const note = entryText.trim() || `Viewing booked for ${bookedWhen(when, clock)}.`;
-    dispatch({ type: 'note', id: enquiry.id, note: { type: 'Viewing', text: note, by: enquiry.officer } });
-    dispatch({ type: 'followUp', id: enquiry.id, date: when });
-    if (STEPS.indexOf(enquiry.stage) > -1 && STEPS.indexOf(enquiry.stage) < STEPS.indexOf('Viewing Scheduled')) {
-      commitStage(dispatch, enquiry, 'Viewing Scheduled');
-    }
-    setEntryText('');
-    setEntryType('Note');
-    ui.notify({ title: 'Viewing scheduled', detail: `${dayMonth(when)}, ${clock}`, href: `enquiry/${enquiry.id}`, action: 'Open' });
-  };
-
+  const outcomeLogged = enquiry.viewingHeld || (enquiry.notes || []).some((note) => /Attended|No-show|Rescheduled/.test(note.text || ''));
   const primary = {
     New: { label: 'Log first contact', run: () => focusEntry('Call') },
     Contacted: { label: 'Mark as qualified', run: () => requestStage('Qualified') },
     Qualified: { label: 'Schedule viewing', run: () => focusEntry('Viewing') },
-    'Viewing Scheduled': { label: 'Send offer', run: () => requestStage('Negotiation') },
+    'Viewing Scheduled': outcomeLogged
+      ? { label: 'Send offer', run: () => requestStage('Negotiation') }
+      : { label: 'Log viewing outcome', run: openOutcome },
     Negotiation: { label: 'Mark as signed', run: () => requestStage('Signed') },
     Lost: { label: 'Reopen', run: () => requestStage('Contacted') },
   }[enquiry.stage];
@@ -344,18 +384,21 @@ export default function EnquiryRecord({ id, variant = 'page', onClose }) {
           </Tip>
         </div>
       )}
+      <p className="crumb">
+        <a href="#/pipeline" onClick={(event) => { event.preventDefault(); go('pipeline'); }}>Enquiries</a>
+        {campaign && (
+          <a href={`#/campaign/${campaign.id}`} onClick={(event) => { event.preventDefault(); go('campaign', campaign.id); }}>Back to campaign</a>
+        )}
+      </p>
       <h1 className="page-title">{enquiry.business}</h1>
       <p className="lead">
         {enquiry.contact || '–'}{enquiry.title ? `, ${enquiry.title}` : ''}
-        <span className={`zone-chip zone-${zoneId}`}>{zoneId === 'withdrawn' ? 'Withdrawn' : `Zone ${zoneMeta?.n} · ${zoneMeta?.label}`}</span>
-        <span className="stage-pill">{enquiry.stage}</span>
-        <span data-testid="first-response">{minutes == null ? 'Not contacted' : `First contact ${duration(minutes)}`}</span>
+        <span className="record-pills">
+          <span className={`zone-chip zone-${zoneId}`}>{zoneId === 'withdrawn' ? 'Withdrawn' : `Zone ${zoneMeta?.n} · ${zoneMeta?.label}`}</span>
+          <span className="stage-pill">{enquiry.stage}</span>
+          <span data-testid="first-response">{minutes == null ? 'Not contacted' : `First contact in ${duration(minutes)}`}</span>
+        </span>
       </p>
-      {campaign && (
-        <p className="crumb">
-          <a href={`#/campaign/${campaign.id}`} onClick={(event) => { event.preventDefault(); go('campaign', campaign.id); }}>Back to campaign</a>
-        </p>
-      )}
       {enquiry.stage === 'Lost' && (
         <p className="banner">
           Withdrawn from {zoneLabel(activeZone)}{lostAt ? `, ${dayMonth(lostAt)}` : ''} · Reason: {enquiry.lostReason || 'No reason recorded'}
@@ -367,7 +410,7 @@ export default function EnquiryRecord({ id, variant = 'page', onClose }) {
       {enquiry.stage === 'Signed' && <p className="stage-pill">Signed{signedStart ? `, starts ${date(signedStart)}` : ''}</p>}
       {editable && !pending && (
         <div className="record-actions">
-          {primary && <button type="button" className="btn btn-primary" onClick={primary.run}>{primary.label}</button>}
+          {primary && <button type="button" className="btn btn-primary" data-testid="primary-action" onClick={primary.run}>{primary.label}</button>}
           <button type="button" className="btn" onClick={() => setEntryType('Call')}><Phone size={16} strokeWidth={1.75} aria-hidden="true" /> Log call</button>
           <button type="button" className="btn" onClick={() => setEntryType('WhatsApp')}><MessageCircle size={16} strokeWidth={1.75} aria-hidden="true" /> WhatsApp</button>
           <button type="button" className="btn" onClick={() => setEntryType('Email')}><Mail size={16} strokeWidth={1.75} aria-hidden="true" /> Email</button>
@@ -415,8 +458,8 @@ export default function EnquiryRecord({ id, variant = 'page', onClose }) {
                 <p className="journey-value">{node.body}</p>
                 {enquiry.ad && <div className="ad-mock"><p>{enquiry.ad}</p></div>}
               </>
-            ) : node.id === 'viewing' && node.reached && enquiry.nextFollowUp ? (
-              <p className="journey-value">Viewing {dayMonth(enquiry.nextFollowUp)}, 11:00</p>
+            ) : node.id === 'viewing' && enquiry.viewingAt ? (
+              <p className="journey-value">Viewing {bookedWhen(enquiry.viewingAt)}</p>
             ) : node.id === 'tenancy' && enquiry.stage === 'Lost' ? (
               <div className="journey-end">
                 Lost
@@ -426,13 +469,13 @@ export default function EnquiryRecord({ id, variant = 'page', onClose }) {
               <div className="journey-end">
                 <Num value={firstYear} format={rm} watch={`journey-fyv:${enquiry.id}`} />
                 <span className="journey-caption">first-year rent</span>
-                <span className="journey-caption">Signed {dayMonth(node.at || AS_AT)}</span>
+                <span className="journey-caption">Signed {dayMonth(node.at || state.now)}</span>
                 <span className="journey-caption">Starts {date(signedStart || '2026-12-01')}</span>
               </div>
             ) : (
               <p className="journey-value">{node.reached ? (node.at ? time(node.at) : node.body) : node.pending}</p>
             )}
-            {node.id === 'contact' && node.reached && minutes != null && <span className="journey-gap">First contact {duration(minutes)}</span>}
+            {node.id === 'contact' && node.reached && minutes != null && <span className="journey-gap">First contact in {duration(minutes)}</span>}
           </li>
         ))}
       </ol>
@@ -446,6 +489,7 @@ export default function EnquiryRecord({ id, variant = 'page', onClose }) {
         officerName={officer?.name}
         onDone={markRequirement}
         onDocument={toggleDocument}
+        now={clock}
       />
       {zoneId === 'customer' && editable && handover !== 'handed' && reqs.some((req) => req.id === 'C4' && req.status === 'done') && (
         <div className="stage-actions">
@@ -468,7 +512,7 @@ export default function EnquiryRecord({ id, variant = 'page', onClose }) {
               {entryType === 'Viewing' && (
                 <div className="composer-when">
                   <Field label="Date" hint={viewDate ? weekdayDate(viewDate) : ''}>
-                    <input type="date" value={viewDate} onChange={(event) => setViewDate(event.target.value)} />
+                    <input type="date" value={viewDate} min={String(state.now).slice(0, 10)} onChange={(event) => setViewDate(event.target.value)} />
                   </Field>
                   <Field label="Time">
                     <input type="time" value={viewTime} onChange={(event) => setViewTime(event.target.value)} />
@@ -624,11 +668,31 @@ export default function EnquiryRecord({ id, variant = 'page', onClose }) {
           setHandoffOpen(false);
         }}
       />
+      <Modal open={skipOpen} title="Skip ahead?" onClose={() => setSkipOpen(false)}>
+        <p data-testid="skip-ahead">The viewing is on {bookedWhen(enquiry.viewingAt)}. Skip ahead to after the viewing?</p>
+        <div className="dialog-actions">
+          <button type="button" className="btn" onClick={() => setSkipOpen(false)}>Cancel</button>
+          <button type="button" className="btn btn-primary" data-testid="skip-ahead-confirm" onClick={skipAhead}>Skip ahead</button>
+        </div>
+      </Modal>
+      {outcomeOpen && (
+        <form className="composer" data-testid="viewing-outcome" onSubmit={saveOutcome}>
+          <p className="field-label">Viewing outcome</p>
+          <label className="reason-row"><input type="checkbox" checked={attended} onChange={() => setAttended((on) => !on)} /> Attended</label>
+          <label className="reason-row"><input type="checkbox" checked={interested} onChange={() => setInterested((on) => !on)} /> Interested</label>
+          <label className="grow">
+            <span className="sr-only">Note</span>
+            <textarea rows={3} value={outcomeNote} onChange={(event) => setOutcomeNote(event.target.value)} />
+          </label>
+          <button type="submit" className="btn btn-primary">Save outcome</button>
+        </form>
+      )}
       <SignedDialog
         open={pending === 'Signed'}
         enquiry={enquiry}
         assetName={asset?.name}
         unit={unit}
+        now={state.now}
         onClose={() => setPending(null)}
         onConfirm={(extra) => { commitStage(dispatch, enquiry, 'Signed', extra); setPending(null); }}
       />
@@ -657,7 +721,7 @@ const DOC_FIELDS = [
   ['profile', 'Company profile'],
 ];
 
-function RequirementsPanel({ reqs, activeZone, qualifiers, tasks, editable, officerName, onDone, onDocument }) {
+function RequirementsPanel({ reqs, activeZone, qualifiers, tasks, editable, officerName, onDone, onDocument, now }) {
   const rank = { suspect: 1, prospect: 2, customer: 3, withdrawn: 0 };
   const earlier = ZONES.filter((zone) => rank[zone.id] < (rank[activeZone] || 0));
   const meta = ZONES.find((zone) => zone.id === activeZone);
@@ -689,7 +753,7 @@ function RequirementsPanel({ reqs, activeZone, qualifiers, tasks, editable, offi
             <span className="req-title">{req.title}{req.outcome ? ` · ${req.outcome}` : ''}</span>
             <span className="req-who">{officerName || '–'}</span>
             <span className={req.status === 'overdue' ? 'req-when is-overdue' : 'req-when'}>
-              {req.status === 'done' ? `done ${dayMonth(req.doneAt)}` : requirementLine(req).replace(`${req.id} · `, '')}
+              {req.status === 'done' ? `done ${dayMonth(req.doneAt)}` : requirementLine(req, now).replace(`${req.id} · `, '')}
             </span>
             {req.id === 'P3' && req.documents && (
               <span className="req-docs">
@@ -728,7 +792,7 @@ function SignalsCard({ signals }) {
       <h2 className="overline">Signals</h2>
       <ul className="signal-list">
         <li>{from}</li>
-        <li>Lead form answered: {signals.answered ? 'yes' : 'no'}</li>
+        <li>Form answered: {signals.answered ? 'yes' : 'no'}</li>
         <li>Website visits before enquiry: {signals.visits} (sample)</li>
         <li>Replies logged: {signals.replies}</li>
         <li>Last contact: {signals.since}</li>
