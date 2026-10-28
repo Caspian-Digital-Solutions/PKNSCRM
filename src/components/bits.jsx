@@ -42,7 +42,8 @@ export function auditEntry(state, action, targetType, targetId, details) {
 }
 
 export function personal(profile, role, revealed, field) {
-  if (role === 'management' || !revealed) {
+  void revealed;
+  if (role === 'management') {
     if (field === 'fullName') return maskName(profile.fullName);
     if (field === 'mobile') return maskPhone(profile.mobile);
     if (field === 'email') return maskEmail(profile.email);

@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import DataTable from '../components/DataTable.jsx';
 import { PageHead, SearchBox, linkTo, personal } from '../components/bits.jsx';
+import { maskName, maskPhone } from '../mask.js';
 import { AGE_BANDS, LEAD_TYPES, SOURCE_CHANNELS } from '../data/config.js';
 import { filterProfiles } from '../data/selectors.js';
 import { useAmp } from '../useAmp.jsx';
@@ -70,8 +71,8 @@ export default function Audience() {
     email: profile.email,
   }));
   const exportRows = (state.role === 'amp-manager' ? consentedRows : rows).map((profile) => ({
-    name: state.role === 'amp-manager' ? profile.fullName : personal(profile, state.role, false, 'fullName'),
-    mobile: state.role === 'amp-manager' ? profile.mobile : personal(profile, state.role, false, 'mobile'),
+    name: state.role === 'amp-manager' ? profile.fullName : maskName(profile.fullName),
+    mobile: state.role === 'amp-manager' ? profile.mobile : maskPhone(profile.mobile),
     area: profile.area,
     ageBand: profile.ageBand,
     leads: (profile.leadTypes || []).join(', '),
@@ -84,7 +85,7 @@ export default function Audience() {
   }));
   return (
     <section>
-      <PageHead title="Audience" lede="Profiles are built only from information people provide to PKNS and their participation in PKNS activations and channels." />
+      <PageHead title="Audience" />
       <p className="fine">Profiles are built only from information people provide to PKNS and their participation in PKNS activations and channels.</p>
       {state.role === 'amp-manager' && <p className="fine">Contact export includes consented profiles only. {num(rows.length - consentedRows.length)} excluded.</p>}
       <div className="filters">

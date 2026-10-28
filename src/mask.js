@@ -18,7 +18,6 @@ export function maskEmail(email) {
   return `${(user || '').slice(0, 2)}***@${domain}`;
 }
 
-export function showsPersonal(role, revealed) {
-  if (role === 'management') return false;
-  return Boolean(revealed);
+export function showsPersonal(role) {
+  return role !== 'management';
 }
