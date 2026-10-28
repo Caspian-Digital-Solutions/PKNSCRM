@@ -37,11 +37,18 @@ export default function DataTable({
   initialSort,
   className,
   pageSize,
+  pageSizes,
+  empty = 'No rows in this filter.',
   tools,
+  exportRows,
+  onExport,
+  exportMode = 'csv',
+  exportLabel = 'Export CSV',
 }) {
   const [sort, setSort] = useState(() => initialSort || { key: null, dir: 'asc' });
   const [filters, setFilters] = useState({});
   const [page, setPage] = useState(0);
+  const [size, setSize] = useState(pageSize || (pageSizes ? pageSizes[0] : 0));
 
   const filtered = useMemo(() => rows.filter((row) => columns.every((col) => {
     const chosen = filters[col.key];
@@ -60,9 +67,9 @@ export default function DataTable({
     return filtered.slice().sort((a, b) => dir * compare(cellValue(a, col), cellValue(b, col)));
   }, [filtered, columns, sort]);
 
-  useEffect(() => { setPage(0); }, [rows, sort.key, sort.dir, filters]);
-  const shown = pageSize ? sorted.slice(page * pageSize, page * pageSize + pageSize) : sorted;
-  const pages = pageSize ? Math.max(1, Math.ceil(sorted.length / pageSize)) : 1;
+  useEffect(() => { setPage(0); }, [rows, sort.key, sort.dir, filters, size]);
+  const shown = size ? sorted.slice(page * size, page * size + size) : sorted;
+  const pages = size ? Math.max(1, Math.ceil(sorted.length / size)) : 1;
 
   const onHeader = (key) => {
     setSort((cur) => (cur.key === key
@@ -99,7 +106,7 @@ export default function DataTable({
             ))}
           </div>
         )}
-        <ExportButton filename={exportName} columns={columns} rows={sorted} />
+        <ExportButton filename={exportName} columns={columns} rows={exportRows || sorted} mode={exportMode} label={exportLabel} onExport={onExport} />
       </div>
       <div className={className ? `table-scroll ${className}` : 'table-scroll'}>
         <table className={className ? `table data-table ${className}-table` : 'table data-table'}>
@@ -143,7 +150,7 @@ export default function DataTable({
             ))}
             {sorted.length === 0 && (
               <tr>
-                <td colSpan={columns.length}>No rows match these filters.</td>
+                <td colSpan={columns.length}>{empty}</td>
               </tr>
             )}
             {totals && sorted.length > 0 && (
@@ -160,11 +167,19 @@ export default function DataTable({
           </tbody>
         </table>
       </div>
-      {pageSize && pages > 1 && (
+      {size > 0 && (
         <div className="pager">
           <button type="button" className="btn" disabled={page === 0} onClick={() => setPage((current) => current - 1)}>Previous</button>
-          <span>{page + 1} of {pages}</span>
+          <span>{sorted.length ? `${page * size + 1}–${Math.min(sorted.length, (page + 1) * size)} of ${sorted.length}` : '0 rows'}</span>
           <button type="button" className="btn" disabled={page + 1 >= pages} onClick={() => setPage((current) => current + 1)}>Next</button>
+          {pageSizes && (
+            <label className="page-size">
+              <span className="filter-name">Rows</span>
+              <select value={size} onChange={(event) => setSize(Number(event.target.value))}>
+                {pageSizes.map((option) => <option key={option} value={option}>{option}</option>)}
+              </select>
+            </label>
+          )}
         </div>
       )}
     </div>

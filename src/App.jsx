@@ -1,62 +1,94 @@
 import { useEffect } from 'react';
-import { useStore, ROLES, SCREENS } from './store.jsx';
-import { useRoute, go } from './router.js';
+import { can, NAV, ROLES } from './access.js';
 import Shell from './components/Shell.jsx';
+import { go } from './router.js';
+import { useAmp } from './useAmp.jsx';
 import Login from './screens/Login.jsx';
-import Placeholder from './screens/Placeholder.jsx';
-import DataCheck from './screens/DataCheck.jsx';
-import Portfolio from './screens/Portfolio.jsx';
-import Campaign from './screens/Campaign.jsx';
-import Pipeline from './screens/Pipeline.jsx';
-import Enquiry from './screens/Enquiry.jsx';
-import Asset from './screens/Asset.jsx';
-import Marketing from './screens/Marketing.jsx';
+import Overview from './screens/Overview.jsx';
+import Activations from './screens/Activations.jsx';
+import ActivationDetail from './screens/ActivationDetail.jsx';
+import Forms from './screens/Forms.jsx';
+import FormBuilder from './screens/FormBuilder.jsx';
+import PublicForm from './screens/PublicForm.jsx';
+import Audience from './screens/Audience.jsx';
+import Profile from './screens/Profile.jsx';
+import Segments from './screens/Segments.jsx';
+import Insights from './screens/Insights.jsx';
+import Channels from './screens/Channels.jsx';
+import Budget from './screens/Budget.jsx';
+import Assets from './screens/Assets.jsx';
+import Reports from './screens/Reports.jsx';
+import ImportData from './screens/ImportData.jsx';
+import Footfall from './screens/Footfall.jsx';
 import Settings from './screens/Settings.jsx';
-import Visitors from './screens/Visitors.jsx';
-import Report from './screens/Report.jsx';
-import QrForm from './screens/QrForm.jsx';
-import DataTable from './components/DataTable.jsx';
-import Num from './components/Num.jsx';
-import Term from './components/Term.jsx';
-import Kpi from './components/Kpi.jsx';
-import Filters from './components/Filters.jsx';
-import ExportButton from './components/ExportButton.jsx';
-import Modal from './components/Modal.jsx';
+import Privacy from './screens/Privacy.jsx';
 
-// Shared Phase 0 components stay in the module graph.
-export const sharedComponents = { DataTable, Num, Term, Kpi, Filters, ExportButton, Modal };
-
-const BUILT = {
-  portfolio: Portfolio,
-  asset: Asset,
-  marketing: Marketing,
-  campaign: Campaign,
-  pipeline: Pipeline,
-  enquiries: Pipeline,
-  enquiry: Enquiry,
+const PAGES = {
+  overview: Overview,
+  activations: Activations,
+  forms: Forms,
+  audience: Audience,
+  segments: Segments,
+  insights: Insights,
+  channels: Channels,
+  budget: Budget,
+  assets: Assets,
+  reports: Reports,
+  import: ImportData,
+  footfall: Footfall,
   settings: Settings,
-  visitors: Visitors,
-  report: Report,
 };
 
 export default function App() {
-  const { state } = useStore();
-  const { screen, params } = useRoute();
+  const { state, route } = useAmp();
+  const screen = route.screen;
   useEffect(() => {
-    window.scrollTo(0, 0);
-    document.querySelectorAll('.content, .main-col').forEach((node) => { node.scrollTop = 0; });
-    const name = SCREENS.find((item) => item.id === screen)?.name;
-    document.title = name ? `${name} – PKNS Asset Marketing Hub` : 'PKNS Asset Marketing Hub';
-  }, [screen, params]);
-  if (screen === 'qr') return <QrForm />;
+    if (screen === 'f' || screen === 'privacy') {
+      document.title = screen === 'privacy' ? 'Privacy notice – PKNS AMP Hub' : 'Registration – PKNS AMP Hub';
+      return;
+    }
+    const name = NAV.find((item) => item.id === screen)?.name;
+    document.title = name ? `${name} – PKNS AMP Hub` : 'PKNS AMP Hub';
+  }, [screen]);
+
+  if (screen === 'f') return <PublicForm />;
+  if (screen === 'privacy') return <Privacy />;
   if (!state.role) return <Login />;
+
   const role = ROLES[state.role];
-  if (screen === 'data-check') return <Shell current="data-check"><DataCheck /></Shell>;
-  const def = SCREENS.find((s) => s.id === screen);
-  if (!def || !def.roles.includes(state.role)) {
+  let current = screen || role.landing;
+  let page = null;
+  if (!screen) {
     go(role.landing);
     return null;
   }
-  const Screen = BUILT[screen];
-  return <Shell current={screen}>{Screen ? <Screen params={params} /> : <Placeholder id={screen} />}</Shell>;
+  if (screen === 'activation' && route.params[0]) {
+    current = 'activations';
+    page = <ActivationDetail key={route.params[0]} id={route.params[0]} />;
+  } else if (screen === 'form' && route.params[0]) {
+    current = 'forms';
+    page = <FormBuilder key={route.params[0]} id={route.params[0]} />;
+  } else if (screen === 'profile' && route.params[0]) {
+    current = 'audience';
+    if (!can(state.role, 'profile.open')) {
+      go('insights');
+      return null;
+    }
+    page = <Profile id={route.params[0]} />;
+  } else if (screen === 'asset' && route.params[0] && route.params[0] !== 'new') {
+    current = 'assets';
+    page = <Assets id={route.params[0]} />;
+  } else if (PAGES[screen]) {
+    const allowed = NAV.find((item) => item.id === screen)?.roles.includes(state.role);
+    if (!allowed) {
+      go(role.landing);
+      return null;
+    }
+    const Page = PAGES[screen];
+    page = <Page />;
+  } else {
+    go(role.landing);
+    return null;
+  }
+  return <Shell current={current}>{page}</Shell>;
 }
