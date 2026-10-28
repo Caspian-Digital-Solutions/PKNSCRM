@@ -1,191 +1,164 @@
 import { createContext, useContext, useEffect, useMemo, useReducer } from 'react';
 import { generate } from './data/generate.js';
-import { DEMO_START } from './data/config.js';
-import { defaultTriggers } from './data/zones.js';
+import { AS_OF_ISO } from './data/config.js';
 
 const DATA = generate();
-const KEY = 'pkns-hub-demo-v3';
-
-export function plusMinutes(iso, minutes) {
-  const shifted = new Date(new Date(iso).getTime() + minutes * 60000 + 8 * 3600000);
-  return `${shifted.toISOString().slice(0, 19)}+08:00`;
-}
-
-export const ROLES = {
-  marketing: {
-    id: 'marketing', name: 'Marketing', landing: 'marketing',
-    blurb: 'Campaigns, channels, content and cost per enquiry',
-    person: 'Farah Idris', title: 'Digital Marketing', initials: 'FI',
-    sees: 'Campaigns and channel results',
-  },
-  leasing: {
-    id: 'leasing', name: 'Leasing', landing: 'pipeline',
-    blurb: 'Opens on Enquiries',
-    person: 'Aina Rahman', title: 'Leasing Officer, Section 14', initials: 'AR',
-    sees: 'Enquiries, units and tenancies',
-  },
-  management: {
-    id: 'management', name: 'Management', landing: 'portfolio',
-    blurb: 'Portfolio occupancy, spend and return',
-    person: 'Hisham Karim', title: 'General Manager, Asset Management', initials: 'HK',
-    sees: 'Portfolio occupancy, spend and return',
-  },
-};
-
-// Screen access matrix (Confluence page 04, section 3).
-// Enquiry detail and the list route stay out of the nav. The nav item is Enquiries (#/pipeline).
-export const SCREENS = [
-  { id: 'portfolio', n: 2, name: 'Overview', roles: ['marketing', 'leasing', 'management'], milestone: 'M1' },
-  { id: 'asset', n: 3, name: 'Assets', roles: ['marketing', 'leasing', 'management'], milestone: 'M2' },
-  { id: 'marketing', n: 4, name: 'Marketing', roles: ['marketing', 'management'], milestone: 'M2' },
-  { id: 'campaign', n: 5, name: 'Campaigns', roles: ['marketing', 'leasing', 'management'], milestone: 'M1' },
-  { id: 'pipeline', n: 6, name: 'Enquiries', roles: ['marketing', 'leasing', 'management'], milestone: 'M1' },
-  { id: 'enquiries', n: 6, name: 'Enquiries', roles: ['marketing', 'leasing', 'management'], hidden: true },
-  { id: 'enquiry', n: 7, name: 'Enquiry detail', roles: ['marketing', 'leasing', 'management'], hidden: true },
-  { id: 'report', n: 10, name: 'Reports', roles: ['marketing', 'management'], milestone: 'M2' },
-  { id: 'visitors', n: 9, name: 'Visitors', roles: ['marketing', 'management'], milestone: 'M2' },
-  { id: 'settings', n: 8, name: 'Settings', roles: ['management'], milestone: 'M2' },
-];
+const KEY = 'pkns-amp-hub-v1';
 
 export function freshState(role = null) {
   return {
     role,
-    now: DEMO_START,
-    heroStage: null,
-    heroReceivedAt: null,
-    heroLog: [],
-    heroViewing: null,
-    heroSigned: null,
-    moves: {},
-    notes: {},
-    followUps: {},
-    officers: {},
-    customTypes: [],
-    customAssets: [],
-    triggers: defaultTriggers(),
-    requirementDone: {},
-    documents: {},
-    handover: {},
-    flash: 0,
+    now: AS_OF_ISO,
+    rev: 0,
+    seq: 1,
+    assetsAdded: [],
+    assetPatches: {},
+    operatorPatches: {},
+    operatorsAdded: [],
+    activationsAdded: [],
+    activationPatches: {},
+    activationDeleted: {},
+    spendAdded: [],
+    spendPatches: {},
+    spendDeleted: {},
+    formsAdded: [],
+    formPatches: {},
+    profilesAdded: [],
+    profilePatches: {},
+    profileDeleted: {},
+    budgetEdits: {},
+    segmentsAdded: [],
+    segmentPatches: {},
+    importsAdded: [],
+    auditExtra: [],
+    usersAdded: [],
+    fieldsAdded: [],
+    fieldPatches: {},
+    revealed: {},
+    retentionMonths: 36,
+    autoAnonymise: true,
+    deletionRequests: [],
   };
 }
 
 function load() {
   try {
     const raw = sessionStorage.getItem(KEY);
-    return raw ? { ...freshState(), ...JSON.parse(raw) } : freshState();
+    if (!raw) return freshState();
+    return { ...freshState(), ...JSON.parse(raw) };
   } catch {
     return freshState();
   }
 }
 
+function withAudit(state, entry) {
+  return { ...state, auditExtra: [{ id: `AUD-L${state.seq}`, timestamp: state.now, ...entry }, ...state.auditExtra] };
+}
+
 function reducer(state, action) {
   switch (action.type) {
     case 'role':
-      return { ...state, role: action.role };
+      return withAudit({ ...state, role: action.role, seq: state.seq + 1 }, {
+        userName: action.userName, role: action.roleName, action: 'Changed role', targetType: 'User', targetId: action.role, details: `Switched role to ${action.roleName}`,
+      });
     case 'logout':
       return { ...state, role: null };
-    case 'setNow':
-      return { ...state, now: action.now || state.now, flash: state.flash + 1 };
-    case 'heroViewing':
-      return { ...state, heroViewing: { ...(state.heroViewing || {}), ...action.viewing }, flash: state.flash + 1 };
-    case 'simulateHero': {
-      if (state.heroStage) return state;
-      const at = state.now || DEMO_START;
-      return {
-        ...state,
-        now: at,
-        heroStage: 'New',
-        heroReceivedAt: at,
-        heroLog: [{ stage: 'New', at }],
-        flash: state.flash + 1,
-      };
-    }
-    case 'heroStage': {
-      const at = action.at || plusMinutes(state.now || DEMO_START, 1);
-      const entry = { stage: action.stage, at };
-      if (action.lostReason) entry.lostReason = action.lostReason;
-      return {
-        ...state,
-        now: at,
-        heroStage: action.stage,
-        heroLog: [...state.heroLog, entry],
-        heroViewing: action.viewing === undefined ? state.heroViewing : action.viewing,
-        heroSigned: action.signed ? { ...action.signed, at: action.signed.at || at } : state.heroSigned,
-        flash: state.flash + 1,
-      };
-    }
-    case 'move': {
-      const at = action.at || plusMinutes(state.now || DEMO_START, 1);
-      const rec = { stage: action.stage, at };
-      if (action.lostReason) rec.lostReason = action.lostReason;
-      if (action.rent != null) rec.rent = action.rent;
-      if (action.start) rec.start = action.start;
-      return {
-        ...state,
-        now: at,
-        moves: { ...state.moves, [action.id]: rec },
-        flash: state.flash + 1,
-      };
-    }
-    case 'note': {
-      const note = { ...action.note };
-      if (!note.at) note.at = state.now || DEMO_START;
-      const prev = state.notes[action.id] || [];
-      return {
-        ...state,
-        notes: { ...state.notes, [action.id]: [...prev, note] },
-        flash: state.flash + 1,
-      };
-    }
-    case 'followUp':
-      return {
-        ...state,
-        followUps: { ...state.followUps, [action.id]: action.date },
-        flash: state.flash + 1,
-      };
-    case 'reassign':
-      return {
-        ...state,
-        officers: { ...state.officers, [action.id]: action.officer },
-        flash: state.flash + 1,
-      };
-    case 'addType': {
-      const name = (action.name || '').trim();
-      if (!name) return state;
-      return { ...state, customTypes: [...state.customTypes, name], flash: state.flash + 1 };
-    }
-    case 'addAsset':
-      if (!action.asset) return state;
-      return { ...state, customAssets: [...state.customAssets, action.asset], flash: state.flash + 1 };
-    case 'setTrigger':
-      return { ...state, triggers: { ...defaultTriggers(), ...state.triggers, [action.id]: Boolean(action.on) }, flash: state.flash + 1 };
-    case 'requirementDone':
-      return {
-        ...state,
-        requirementDone: {
-          ...state.requirementDone,
-          [action.id]: { ...(state.requirementDone[action.id] || {}), [action.req]: true },
-        },
-        flash: state.flash + 1,
-      };
-    case 'documents':
-      return {
-        ...state,
-        documents: {
-          ...state.documents,
-          [action.id]: { ...(state.documents[action.id] || {}), ...action.documents },
-        },
-        flash: state.flash + 1,
-      };
-    case 'handover':
-      return {
-        ...state,
-        handover: { ...state.handover, [action.id]: { status: 'handed', at: state.now || DEMO_START } },
-        flash: state.flash + 1,
-      };
     case 'reset':
       return freshState(state.role);
+    case 'audit':
+      return withAudit({ ...state, seq: state.seq + 1 }, action.entry);
+    case 'reveal':
+      return withAudit({ ...state, seq: state.seq + 1, revealed: { ...state.revealed, [action.id]: true } }, action.entry);
+    case 'addAsset':
+      return { ...state, rev: state.rev + 1, seq: state.seq + 1, assetsAdded: [...state.assetsAdded, action.asset] };
+    case 'patchAsset':
+      return { ...state, rev: state.rev + 1, assetPatches: { ...state.assetPatches, [action.id]: { ...(state.assetPatches[action.id] || {}), ...action.patch } } };
+    case 'patchOperator':
+      return { ...state, rev: state.rev + 1, operatorPatches: { ...state.operatorPatches, [action.id]: { ...(state.operatorPatches[action.id] || {}), ...action.patch } } };
+    case 'addOperator':
+      return { ...state, rev: state.rev + 1, seq: state.seq + 1, operatorsAdded: [...state.operatorsAdded, action.operator] };
+    case 'addActivation':
+      return { ...state, rev: state.rev + 1, seq: state.seq + 1, activationsAdded: [...state.activationsAdded, action.activation] };
+    case 'patchActivation':
+      return {
+        ...state,
+        rev: state.rev + 1,
+        activationPatches: { ...state.activationPatches, [action.id]: { ...(state.activationPatches[action.id] || {}), ...action.patch, outcomes: { ...(state.activationPatches[action.id]?.outcomes || {}), ...(action.patch.outcomes || {}) } } },
+      };
+    case 'addSpend':
+      return { ...state, rev: state.rev + 1, seq: state.seq + 1, spendAdded: [...state.spendAdded, action.line] };
+    case 'patchSpend':
+      return { ...state, rev: state.rev + 1, spendPatches: { ...state.spendPatches, [action.id]: { ...(state.spendPatches[action.id] || {}), ...action.patch } } };
+    case 'deleteSpend':
+      return { ...state, rev: state.rev + 1, spendDeleted: { ...state.spendDeleted, [action.id]: true } };
+    case 'addForm':
+      return { ...state, rev: state.rev + 1, formsAdded: [...state.formsAdded, action.form] };
+    case 'patchForm':
+      return { ...state, rev: state.rev + 1, formPatches: { ...state.formPatches, [action.id]: { ...(state.formPatches[action.id] || {}), ...action.patch } } };
+    case 'applySubmission': {
+      const next = { ...state, rev: state.rev + 1, seq: state.seq + 1 };
+      if (action.created) next.profilesAdded = [...state.profilesAdded, action.created];
+      if (action.merged) next.profilePatches = { ...state.profilePatches, [action.merged.id]: action.merged.patch };
+      next.activationPatches = {
+        ...state.activationPatches,
+        [action.activationId]: {
+          ...(state.activationPatches[action.activationId] || {}),
+          outcomes: action.outcomes,
+          qrCodes: action.qrCodes,
+        },
+      };
+      next.auditExtra = [{ id: `AUD-L${state.seq}`, timestamp: state.now, ...action.audit }, ...state.auditExtra];
+      return next;
+    }
+    case 'patchProfile':
+      return withAudit({
+        ...state,
+        rev: state.rev + 1,
+        seq: state.seq + 1,
+        profilePatches: { ...state.profilePatches, [action.id]: { ...(state.profilePatches[action.id] || {}), ...action.patch, consent: { ...(state.profilePatches[action.id]?.consent || {}), ...(action.patch.consent || {}) } } },
+      }, action.entry);
+    case 'deleteProfile':
+      return withAudit({
+        ...state,
+        rev: state.rev + 1,
+        seq: state.seq + 1,
+        profileDeleted: { ...state.profileDeleted, [action.id]: true },
+        deletionRequests: [{ id: `DEL-${action.id}`, profileId: action.id, requestedBy: action.entry.userName, requestedAt: '2026-10-28', status: 'Completed', note: 'Delete on request' }, ...state.deletionRequests],
+      }, action.entry);
+    case 'requestDeletion':
+      return withAudit({
+        ...state,
+        seq: state.seq + 1,
+        deletionRequests: [{ id: `DEL-${action.id}-${state.seq}`, profileId: action.id, requestedBy: action.entry.userName, requestedAt: '2026-10-28', status: 'Pending', note: 'Delete on request' }, ...state.deletionRequests],
+      }, action.entry);
+    case 'budget':
+      return { ...state, rev: state.rev + 1, budgetEdits: { ...state.budgetEdits, [action.key]: action.amount } };
+    case 'addSegment':
+      return { ...state, rev: state.rev + 1, seq: state.seq + 1, segmentsAdded: [...state.segmentsAdded, action.segment] };
+    case 'patchSegment':
+      return { ...state, rev: state.rev + 1, segmentPatches: { ...state.segmentPatches, [action.id]: action.segment } };
+    case 'addImport': {
+      const profilePatches = { ...(state.profilePatches || {}) };
+      for (const merge of action.merges || []) {
+        profilePatches[merge.id] = { ...(profilePatches[merge.id] || {}), ...merge.patch };
+      }
+      return withAudit({
+        ...state,
+        rev: state.rev + 1,
+        seq: state.seq + 1,
+        importsAdded: [action.job, ...state.importsAdded],
+        profilesAdded: [...state.profilesAdded, ...(action.profiles || [])],
+        profilePatches,
+      }, action.entry);
+    }
+    case 'addUser':
+      return { ...state, usersAdded: [...state.usersAdded, action.user] };
+    case 'addField':
+      return { ...state, rev: state.rev + 1, fieldsAdded: [...state.fieldsAdded, action.field] };
+    case 'patchField':
+      return { ...state, fieldPatches: { ...state.fieldPatches, [action.id]: { ...(state.fieldPatches[action.id] || {}), ...action.patch } } };
+    case 'retention':
+      return { ...state, retentionMonths: action.months, autoAnonymise: action.autoAnonymise };
     default:
       return state;
   }
@@ -196,10 +169,16 @@ const Ctx = createContext(null);
 export function StoreProvider({ children }) {
   const [state, dispatch] = useReducer(reducer, undefined, load);
   useEffect(() => {
-    try { sessionStorage.setItem(KEY, JSON.stringify(state)); } catch { /* storage unavailable: demo still works in memory */ }
+    try {
+      const { revealed, ...rest } = state;
+      sessionStorage.setItem(KEY, JSON.stringify(rest));
+      void revealed;
+    } catch { /* demo still runs in memory */ }
   }, [state]);
   const value = useMemo(() => ({ state, dispatch, data: DATA }), [state]);
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 
-export const useStore = () => useContext(Ctx);
+export function useStore() {
+  return useContext(Ctx);
+}

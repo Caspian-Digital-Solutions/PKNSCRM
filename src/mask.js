@@ -1,0 +1,24 @@
+export function maskName(name) {
+  if (!name) return '–';
+  return String(name).split(/\s+/).filter(Boolean).map((part, index) => {
+    if (index === 0) return `${part.slice(0, Math.min(3, part.length))}***`;
+    return `${part.slice(0, 1)}***`;
+  }).join(' ');
+}
+
+export function maskPhone(phone) {
+  const digits = String(phone || '').replace(/\D/g, '');
+  if (digits.length < 4) return '***';
+  return `${digits.slice(0, 2)}*-***${digits.slice(-4)}`;
+}
+
+export function maskEmail(email) {
+  const [user, domain] = String(email || '').split('@');
+  if (!domain) return '***';
+  return `${(user || '').slice(0, 2)}***@${domain}`;
+}
+
+export function showsPersonal(role, revealed) {
+  if (role === 'management') return false;
+  return Boolean(revealed);
+}

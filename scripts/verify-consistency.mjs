@@ -1,133 +1,39 @@
-// npm run verify:consistency  —  node scripts/verify-consistency.mjs
-// Proves that every count on every screen comes from the same enquiry records, then plays the hero
-// storyline and prints the figures before and after signing. Exits 1 on any failed check.
+// AMP Hub consistency: generator totals, import history and a filtered view agree.
 import { generate } from '../src/data/generate.js';
-import { campaignChannels, totalRow, statusCounts, medianFirstResponseHours } from '../src/data/metrics.js';
-import { DEMO_START, HERO } from '../src/data/config.js';
-import { boardAudience, octoberMovements, presentRequirements } from '../src/data/zones.js';
-import { reportBlocks } from '../src/data/selectors.js';
+import { buildView, filterProfiles } from '../src/data/selectors.js';
+import { CONSENT_UNKNOWN, IMPORT_MERGED, IMPORT_REJECTED, IMPORT_ROWS, LEGACY_PROFILES } from '../src/data/config.js';
 
-const sum = (a) => a.reduce((s, v) => s + v, 0);
 let failed = 0;
-const check = (label, ok, detail = '') => { if (!ok) failed += 1; console.log(`${ok ? 'PASS' : 'FAIL'}  ${label}${detail ? '  ' + detail : ''}`); };
-const eq = (label, got, want) => check(label, got === want, `got ${got}, expected ${want}`);
-
-const d = generate();
-const recs = d.enquiries;
-const NOW = new Date(DEMO_START).getTime();
-const day = (iso) => iso && iso.slice(0, 10);
-
-// 1. Records versus campaign arrays, channel by channel.
-for (const c of d.campaigns) for (const ch of ['fb', 'ig', 'gads', 'boost']) {
-  const mine = recs.filter((r) => r.campaign === c.id && r.channel === ch);
-  eq(`${c.short} ${ch} enquiries = records`, mine.length, sum(c.daily[ch].enq));
-  eq(`${c.short} ${ch} viewings = records`, mine.filter((r) => r.viewingHeld).length, sum(c.daily[ch].views));
-  eq(`${c.short} ${ch} signed = records`, mine.filter((r) => r.stage === 'Signed').length, sum(c.daily[ch].signed));
-}
-// 2. Nothing happens after the demo clock; every history is in order; nobody signs before viewing.
-check('no timestamp after the demo clock', recs.every((r) => r.history.every(([, t]) => new Date(t).getTime() <= NOW)));
-check('every history in time order', recs.every((r) => r.history.every(([, t], i) => i === 0 || t >= r.history[i - 1][1])));
-check('every signing comes after a viewing', recs.filter((r) => r.stage === 'Signed').every((r) => r.viewingHeld && r.viewingAt < r.signedAt));
-check('one enquiry per Reserved unit', new Set(recs.filter((r) => r.stage === 'Negotiation').map((r) => r.unitId)).size === recs.filter((r) => r.stage === 'Negotiation').length);
-check('no business name twice', new Set(recs.map((r) => r.business)).size === recs.length);
-check('no "sk" in any ad or post', !JSON.stringify(d).includes(' sk'));
-
-// 3. The figures, before the hero.
-function figures(records, now) {
-  const oct = { from: '2026-10-01', to: day(now) };
-  const full = { to: day(now) };
-  const rowsOct = d.campaigns.map((c) => totalRow(campaignChannels(c, records, oct)));
-  const t = { spend: sum(rowsOct.map((r) => r.spend)), enq: sum(rowsOct.map((r) => r.enquiries)), fy: sum(rowsOct.map((r) => r.firstYearValue)), signed: sum(rowsOct.map((r) => r.signed)) };
-  const sa = totalRow(campaignChannels(d.campaigns.find((c) => c.id === 'sa'), records, full));
-  const fb = campaignChannels(d.campaigns.find((c) => c.id === 'sa'), records, full).find((r) => r.channel === 'fb');
-  const units = statusCounts(d.units, records, now);
-  const g = d.campaigns.map((c) => campaignChannels(c, records, oct).find((r) => r.channel === 'gads'));
-  const gS = sum(g.map((r) => r.spend)), gC = sum(g.map((r) => r.clicks)), gI = sum(g.map((r) => r.impressions));
-  const sepRows = d.campaigns.map((c) => totalRow(campaignChannels(c, records, { from: '2026-09-01', to: '2026-09-28' })));
-  const octRecs = records.filter((r) => day(r.receivedAt) >= '2026-10-01');
-  const open = records.filter((r) => !['Signed', 'Lost'].includes(r.stage));
-  return {
-    'Records': records.length,
-    'October paid enquiries (Overview = List filter = Report paid line)': t.enq,
-    'October paid, records count': octRecs.filter((r) => r.paid).length,
-    'October received, all sources (Report)': `${octRecs.length} = ${octRecs.filter((r) => r.paid).length} paid + ${octRecs.filter((r) => !r.paid && r.campaign).length} unpaid from campaigns + ${octRecs.filter((r) => !r.campaign).length} not linked to a campaign`,
-    'Comparison period 1–28 Sep: paid enquiries / spend': `${sum(sepRows.map((r) => r.enquiries))} / ${sum(sepRows.map((r) => r.spend))}`,
-    'Google Ads October: spend / CTR / CPC': `${gS} / ${(gC / gI * 100).toFixed(1)}% / ${(gS / gC).toFixed(2)}`,
-    'Entered Prospect in October (Report)': records.filter((r) => r.history.some(([s, t]) => s === 'Qualified' && t >= '2026-10-01')).length,
-    'October spend': t.spend, 'October CPL': (t.spend / t.enq).toFixed(2), 'October first-year rent': t.fy, 'October ROAS': (t.fy / t.spend).toFixed(1) + 'x', 'New leases (October)': t.signed,
-    'SA Sentral full campaign enquiries / viewings / signed': `${sa.enquiries} / ${sa.viewings} / ${sa.signed}`,
-    'SA Sentral CPL / cost per viewing / cost per signed': `${sa.cpl.toFixed(2)} / ${sa.costPerViewing.toFixed(2)} / ${sa.costPerSigned.toFixed(2)}`,
-    'SA Sentral first-year value / ROAS': `${sa.firstYearValue} / ${sa.roas.toFixed(1)}x`,
-    'SA Sentral Facebook lead ads': `${fb.enquiries} / ${fb.viewings} / ${fb.signed}`,
-    'Units occupied / let not started / reserved / vacant': `${units.Occupied} / ${units.Let} / ${units.Reserved} / ${units.Vacant}`,
-    'Occupancy / committed occupancy': `${(units.occupancy * 100).toFixed(1)}% / ${(units.committedOccupancy * 100).toFixed(1)}%`,
-    'Open enquiries': open.length,
-    'Suspect / Prospect / Customer (handover pending) / Withdrawn in October': [
-      records.filter((r) => ['New', 'Contacted'].includes(r.stage)).length,
-      records.filter((r) => ['Qualified', 'Viewing Scheduled', 'Negotiation'].includes(r.stage)).length,
-      records.filter((r) => r.stage === 'Signed' && (r.leaseStart || '9') > day(now)).length,
-      records.filter((r) => r.stage === 'Lost' && day(r.withdrawnAt) >= '2026-10-01').length,
-    ].join(' / '),
-    'Median first response, October (working hours)': medianFirstResponseHours(records, { from: '2026-10-01' }).toFixed(1),
-  };
-}
-const before = figures(recs, DEMO_START);
-eq('Overview paid enquiries equals the records count', before['October paid enquiries (Overview = List filter = Report paid line)'], before['October paid, records count']);
-
-function weekOf(now) {
-  const date = new Date(`${String(now).slice(0, 10)}T00:00:00Z`);
-  const dow = date.getUTCDay();
-  const start = new Date(date);
-  start.setUTCDate(date.getUTCDate() + (dow === 0 ? -6 : 1 - dow));
-  const end = new Date(start);
-  end.setUTCDate(start.getUTCDate() + 6);
-  const ymd = (value) => value.toISOString().slice(0, 10);
-  return { start: ymd(start), end: ymd(end) };
-}
-function viewingsThisWeek(records, now) {
-  const week = weekOf(now);
-  return records.filter((enquiry) => {
-    const when = String(enquiry.viewingAt || '').slice(0, 10);
-    return when && when >= week.start && when <= week.end;
-  }).length;
-}
-function overdueCount(records, now, triggers = { T2: true }) {
-  return records.filter((enquiry) => enquiry.stage !== 'Lost' && enquiry.handover !== 'handed' && presentRequirements(enquiry, { now, triggers }, now).some((req) => req.status === 'overdue')).length;
-}
-eq('Viewings this week', viewingsThisWeek(recs, DEMO_START), 18);
-eq('Viewings this week after the hero is booked', viewingsThisWeek([...recs, { viewingAt: '2026-10-29T11:00:00+08:00' }], DEMO_START), 19);
-eq('Requirements overdue at the start', overdueCount(recs, DEMO_START), 25);
-eq('Requirements overdue after the first skip', overdueCount(recs, '2026-10-29T12:00:00+08:00'), 25);
-eq('Requirements overdue after the second skip', overdueCount(recs, '2026-10-30T15:00:00+08:00'), 25);
-eq('T2 off lowers overdue by the first-contact count', overdueCount(recs, DEMO_START) - overdueCount(recs, DEMO_START, { T2: false }), 5);
-const audience = boardAudience(recs, { now: DEMO_START });
-eq('Report audience zones match the board', [
-  audience.suspect.count, audience.prospect.count, audience.pending.count, audience.handed, audience.handoversDue,
-  audience.withdrawn.count, audience.withdrawn.fromSuspect, audience.withdrawn.fromProspect,
-].join('/'), '66/107/9/16/9/294/232/62');
-const flow = octoberMovements(recs);
-eq('October medians match on the board and the report', `${flow.enteredProspect}/${flow.medianToProspect}/${flow.becameCustomer}/${flow.medianToCustomer}`, '120/2.5/9/30.9');
-const sources = reportBlocks(d, { now: DEMO_START }, '2026-10').block2.bySource.current;
-const paidSources = ['Facebook lead ads', 'Instagram', 'Google Ads', 'Boosted posts'].reduce((sum, name) => sum + (sources[name] || 0), 0);
-const unpaidSources = ['Website form', 'Walk-in / call', 'Referral', 'WhatsApp'].reduce((sum, name) => sum + (sources[name] || 0), 0);
-eq('Unpaid source rows are present', ['Website form', 'Walk-in / call', 'Referral', 'WhatsApp'].every((name) => Object.prototype.hasOwnProperty.call(sources, name)), true);
-eq('Paid plus unpaid equals enquiries received', paidSources + unpaidSources, recs.filter((enquiry) => String(enquiry.receivedAt || '').startsWith('2026-10')).length);
-
-// 4. The hero storyline on the demo clock.
-const unit = d.units.find((u) => u.asset === HERO.asset && u.lot === HERO.lot);
-const hero = {
-  id: 'ENQ-HERO', business: HERO.business, source: HERO.source, channel: HERO.channel, campaign: HERO.campaign, paid: true,
-  asset: HERO.asset, unitId: unit.id, lot: HERO.lot, rent: HERO.rent, stage: 'Signed',
-  receivedAt: '2026-10-28T10:00:00+08:00', firstResponseAt: '2026-10-28T10:01:00+08:00',
-  viewingAt: '2026-10-29T11:00:00+08:00', viewingHeld: true, signedAt: '2026-10-30T15:00:00+08:00', leaseStart: '2026-12-01',
-  history: [['New', '2026-10-28T10:00:00+08:00'], ['Contacted', '2026-10-28T10:01:00+08:00'], ['Qualified', '2026-10-28T10:03:00+08:00'],
-    ['Viewing Scheduled', '2026-10-28T10:05:00+08:00'], ['Negotiation', '2026-10-29T12:05:00+08:00'], ['Signed', '2026-10-30T15:00:00+08:00']],
+const check = (label, ok, detail = '') => {
+  if (!ok) failed += 1;
+  console.log(`${ok ? 'PASS' : 'FAIL'}  ${label}${detail ? `  ${detail}` : ''}`);
 };
-const after = figures([...recs, hero], '2026-10-30T15:00:00+08:00');
-check('hero signs after the viewing', hero.viewingAt < hero.signedAt);
-eq('Suite 4-07 is Let, not Occupied, after signing', statusCounts([unit], [hero], '2026-10-30T15:00:00+08:00').Let, 1);
 
-console.log('\nFigure: before the hero  →  after signing');
-for (const k of Object.keys(before)) console.log(`${k}: ${before[k]}  →  ${after[k]}`);
-console.log(failed ? `\n${failed} check(s) failed` : '\nAll checks passed');
-process.exit(failed ? 1 : 0);
+const data = generate();
+const sum = (rows, key) => rows.reduce((total, row) => total + (row[key] || 0), 0);
+check('import rows sum', sum(data.imports, 'rowsTotal') === IMPORT_ROWS, String(sum(data.imports, 'rowsTotal')));
+check('import merged sum', sum(data.imports, 'duplicatesMerged') === IMPORT_MERGED);
+check('import rejected sum', sum(data.imports, 'rowsRejected') === IMPORT_REJECTED);
+check('legacy profiles', data.profiles.filter((profile) => profile.importedFromLegacy).length === LEGACY_PROFILES);
+check('consent unknown profiles', data.profiles.filter((profile) => profile.consent?.unknown).length === CONSENT_UNKNOWN);
+check('unique profile ids', new Set(data.profiles.map((profile) => profile.id)).size === data.profiles.length);
+check('activation ids unique', new Set(data.activations.map((act) => act.id)).size === data.activations.length);
+check('every activation has an asset', data.activations.every((act) => data.assets.some((asset) => asset.id === act.assetId)));
+check('spend lines reference known assets', data.spend.every((line) => data.assets.some((asset) => asset.id === line.assetId)));
+
+const state = { role: 'operator', budgetEdits: {}, revealed: {} };
+const view = buildView(data, state, {});
+const allowed = new Set(['pas', 'gsa']);
+check('operator view is Alam Sentral assets', view.byAsset.every((row) => allowed.has(row.id)) && view.byAsset.length === 2, view.byAsset.map((row) => row.id).join(','));
+const people = filterProfiles(view.profiles, view.scope, view.scope.from, view.scope.to, { stock: true });
+check('operator profiles stay on assigned assets', people.every((profile) => (profile.assetIds || []).some((id) => allowed.has(id))));
+
+const manager = buildView(data, { role: 'amp-manager', budgetEdits: {}, revealed: {} }, { asset: 'pas' });
+check('asset filter narrows the by-asset table', manager.byAsset.length === 1 && manager.byAsset[0].id === 'pas');
+check('filtered database is not the full 16000', manager.kpis.database < 16000 && manager.kpis.database > 0, String(manager.kpis.database));
+
+if (failed) {
+  console.log(`\n${failed} CHECKS FAILED`);
+  process.exit(1);
+}
+console.log('\nALL CHECKS PASSED');

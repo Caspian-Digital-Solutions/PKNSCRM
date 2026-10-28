@@ -276,7 +276,7 @@ th .term { max-width: 100%; }
 .lot-pop strong,
 .lot-pop span { display: block; line-height: 20px; white-space: nowrap; }
 
-/* Enquiry record: the message column is wide enough for a normal WhatsApp line. */
+/* Wide message column in a record layout. */
 .record-grid {
   grid-template-columns: minmax(0, 1.15fr) minmax(460px, 0.95fr);
   gap: var(--sp-4);

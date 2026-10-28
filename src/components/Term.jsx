@@ -2,14 +2,13 @@ import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Info } from 'lucide-react';
 import { definitionById } from '../data/definitions.js';
-import { sentence } from '../labels.js';
 
 export function Abbr({ title, children }) {
   return <abbr title={title}>{children}</abbr>;
 }
 
-export default function Term({ id, children }) {
-  const def = definitionById(id);
+export default function Term({ id, formula, children }) {
+  const def = formula ? { name: typeof children === 'string' ? children : '', formula } : definitionById(id);
   const label = children || (def?.name || id || '').replace(/ %$/, '');
   const heading = typeof label === 'string' ? label.replace(/ %$/, '') : (def?.name || '').replace(/ %$/, '');
   const [box, setBox] = useState(null);
@@ -58,8 +57,8 @@ export default function Term({ id, children }) {
       {def && box && createPortal(
         <span className="term-pop is-open" role="tooltip" style={{ top: box.top, left: box.left }}>
           <strong>{heading}</strong>
-          <span>{sentence(def.formula)}</span>
-          {def.note ? <span>{sentence(def.note)}</span> : null}
+          <span>{def.formula}</span>
+          {def.note ? <span>{def.note}</span> : null}
         </span>,
         document.body,
       )}

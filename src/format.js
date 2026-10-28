@@ -2,7 +2,19 @@ const nf0 = new Intl.NumberFormat('en-MY', { maximumFractionDigits: 0 });
 const nf2 = new Intl.NumberFormat('en-MY', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 export const num = (v) => (v == null ? '–' : nf0.format(v));
-export const rm = (v) => (v == null ? '–' : 'RM' + nf0.format(v));
+export const rm = (v) => (v == null || !Number.isFinite(Number(v)) ? '–' : `RM ${nf0.format(Number(v))}`);
+export function rmAxis(v) {
+  const n = Number(v);
+  if (!Number.isFinite(n)) return '';
+  const sign = n < 0 ? '-' : '';
+  const abs = Math.abs(n);
+  if (abs >= 1000) {
+    const k = abs / 1000;
+    const body = k >= 100 ? String(Math.round(k)) : (Math.round(k * 10) / 10).toFixed(1).replace(/\.0$/, '');
+    return `${sign}RM ${body}k`;
+  }
+  return `${sign}RM ${nf0.format(abs)}`;
+}
 export const rm2 = (v) => (v == null ? '–' : 'RM' + nf2.format(v));
 // Round half up on the decimal value (toFixed alone shows 10.35 as 10.3).
 const round = (v, d) => Math.round(v * 10 ** d + 1e-9) / 10 ** d;

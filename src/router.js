@@ -26,6 +26,16 @@ export function useRoute() {
   return route;
 }
 
+export function setSearch(patch) {
+  const route = parse();
+  const search = { ...route.search };
+  Object.entries(patch).forEach(([key, value]) => {
+    if (value == null || value === '') delete search[key];
+    else search[key] = String(value);
+  });
+  go(route.screen || 'overview', ...route.params, search);
+}
+
 export const go = (screen, ...args) => {
   const params = [];
   const query = {};

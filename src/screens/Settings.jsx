@@ -1,388 +1,234 @@
 import { useMemo, useState } from 'react';
-import { useStore } from '../store.jsx';
-import { useUi } from '../ui.jsx';
-import { go } from '../router.js';
 import DataTable from '../components/DataTable.jsx';
-import Field from '../components/Field.jsx';
-import { liveAssets } from '../data/selectors.js';
-import { ASSETS, OFFICERS, SITC_TEMPLATE, WITHDRAWN_STAGE, ZONE_RULES, ZONES } from '../data/config.js';
+import Modal from '../components/Modal.jsx';
+import { PageHead, SampleBadge, SearchBox, auditEntry } from '../components/bits.jsx';
+import { ROLES } from '../access.js';
+import { INTEGRATIONS } from '../data/config.js';
+import { liveFields, liveUsers } from '../data/live.js';
+import { useAmp } from '../useAmp.jsx';
+import { date, dateTime } from '../format.js';
 
-const EXTRA_TYPES = ['Event space', 'Land', 'Residential', 'Township'];
-const STATUSES = ['', 'Available', 'Occupied', 'Reserved', 'Vacant', 'Under redevelopment'];
-
-function emptySpace() {
-  return { name: '', size: '', rate: '', basis: 'per month', status: '' };
-}
-
-function blankForm() {
-  return {
-    name: '',
-    type: ASSETS[0]?.type || 'Event space',
-    location: '',
-    entity: '',
-    grouping: '',
-    officer: 'aina',
-    spaces: [],
-  };
-}
-
-function slug(name, assets) {
-  const base = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 24) || 'asset';
-  let id = base;
-  let n = 2;
-  while (assets.some((asset) => asset.id === id)) {
-    id = `${base}-${n}`;
-    n += 1;
-  }
-  return id;
-}
+const TABS = ['Users & Roles', 'Operators', 'Field Library', 'Integrations', 'Data Retention', 'Hosting & Security', 'Audit Log'];
 
 export default function Settings() {
-  const { state, dispatch, data } = useStore();
-  const ui = useUi();
-  const assets = useMemo(() => liveAssets(data, state), [data, state]);
-  const types = useMemo(() => {
-    const list = [];
-    const push = (name) => { if (name && !list.includes(name)) list.push(name); };
-    ASSETS.forEach((asset) => push(asset.type));
-    EXTRA_TYPES.forEach(push);
-    state.customTypes.forEach(push);
-    return list;
-  }, [state.customTypes]);
-  const [typeName, setTypeName] = useState('');
-  const [form, setForm] = useState(blankForm);
-  const [fromSitc, setFromSitc] = useState(false);
-  const [preview, setPreview] = useState(null);
-  const [notice, setNotice] = useState(null);
-  const [tab, setTab] = useState('portfolio');
-
-  const set = (patch) => setForm((current) => ({ ...current, ...patch }));
-
-  const addType = (event) => {
-    event.preventDefault();
-    const name = typeName.trim();
-    if (!name || types.includes(name)) return;
-    dispatch({ type: 'addType', name });
-    setTypeName('');
-  };
-
-  const fillSitc = () => {
-    setFromSitc(true);
-    setNotice(null);
-    setForm({
-      name: SITC_TEMPLATE.name,
-      type: SITC_TEMPLATE.type,
-      location: SITC_TEMPLATE.location,
-      entity: SITC_TEMPLATE.entity,
-      grouping: SITC_TEMPLATE.grouping || '',
-      officer: SITC_TEMPLATE.officer,
-      spaces: SITC_TEMPLATE.spaces.map((space) => ({
-        name: space.name,
-        size: space.size,
-        rate: String(space.rate),
-        basis: space.basis,
-        status: 'Available',
-      })),
-    });
-  };
-
-  const onFile = (event) => {
-    const file = event.target.files?.[0];
-    if (!file) {
-      setPreview(null);
-      return;
-    }
-    setPreview(URL.createObjectURL(file));
-  };
-
-  const updateSpace = (index, patch) => {
-    setForm((current) => ({
-      ...current,
-      spaces: current.spaces.map((space, i) => (i === index ? { ...space, ...patch } : space)),
-    }));
-  };
-
-  const save = (event) => {
-    event.preventDefault();
-    const name = form.name.trim();
-    if (!name) {
-      setNotice({ kind: 'invalid' });
-      return;
-    }
-    const id = fromSitc ? SITC_TEMPLATE.id : slug(name, assets);
-    if (assets.some((asset) => asset.id === id)) {
-      setNotice({ kind: 'exists', name });
-      return;
-    }
-    const spaces = form.spaces
-      .filter((space) => space.name.trim())
-      .map((space) => {
-        const rate = space.rate === '' ? null : Number(String(space.rate).replace(/,/g, ''));
-        return {
-          name: space.name.trim(),
-          size: space.size.trim(),
-          rate: Number.isFinite(rate) ? rate : null,
-          basis: space.basis,
-          ...(space.status.trim() ? { status: space.status.trim() } : {}),
-        };
-      });
-    const asset = {
-      id,
-      name,
-      short: fromSitc ? SITC_TEMPLATE.short : name,
-      type: form.type,
-      location: form.location.trim(),
-      area: fromSitc ? SITC_TEMPLATE.area : form.location.trim(),
-      entity: form.entity.trim(),
-      grouping: form.grouping.trim() || null,
-      officer: form.officer,
-    };
-    if (form.type === 'Event space' || spaces.length) asset.spaces = spaces;
-    dispatch({ type: 'addAsset', asset });
-    setNotice({ kind: 'saved', name });
-    if (fromSitc || /SITC|Selangor International/.test(name)) {
-      ui.notify({ title: 'SITC added to the portfolio', href: 'portfolio', action: 'View on portfolio' });
-    }
-  };
-
-  const columns = [
-    {
-      key: 'name',
-      label: 'Asset',
-      format: (value, row) => (row ? (
-        <a href={`#/asset/${row.id}`} onClick={(event) => { event.preventDefault(); go('asset', row.id); }}>{value}</a>
-      ) : value),
-    },
-    { key: 'type', label: 'Type' },
-    { key: 'location', label: 'Location' },
-    { key: 'entity', label: 'Managing entity' },
-    { key: 'grouping', label: 'Campaign grouping', format: (value) => value || '–' },
-    { key: 'officer', label: 'Officer', format: (value) => data.officers[value]?.name || '–' },
-  ];
-
+  const amp = useAmp();
+  const [tab, setTab] = useState(TABS[0]);
   return (
     <section>
-      <h1 className="page-title">Settings</h1>
-      <p className="lead">Malls and offices today. Event spaces, land, residential and township assets are added here.</p>
-      <div className="view-toggle" role="tablist" aria-label="Settings sections">
-        <button type="button" role="tab" aria-selected={tab === 'portfolio'} className={tab === 'portfolio' ? 'on' : ''} onClick={() => setTab('portfolio')}>Portfolio</button>
-        <button type="button" role="tab" aria-selected={tab === 'zones'} className={tab === 'zones' ? 'on' : ''} data-testid="audience-zones-tab" onClick={() => setTab('zones')}>Audience zones</button>
+      <PageHead title="Settings" lede="Users, operators, fields, integrations, retention and the audit log." />
+      <div className="tabs">
+        {TABS.map((name) => <button key={name} type="button" className="btn" aria-current={tab === name ? 'page' : undefined} onClick={() => setTab(name)}>{name}</button>)}
       </div>
-      {tab === 'zones' ? <AudienceZoneSettings state={state} dispatch={dispatch} /> : (
-      <>
-      <h2 className="section-title">Asset types</h2>
-      <ul className="type-list">
-        {types.map((type) => <li key={type}>{type}</li>)}
-      </ul>
-      <form className="stack-form" onSubmit={addType}>
-        <label className="grow">
-          Add type
-          <input value={typeName} onChange={(event) => setTypeName(event.target.value)} />
-        </label>
-        <button type="submit" className="btn">Add type</button>
-      </form>
-
-      <div className="section-row">
-        <h2 className="section-title">Add asset</h2>
-        <button type="button" className="btn" data-testid="fill-sitc" onClick={fillSitc}>Fill SITC sample</button>
-      </div>
-      <form noValidate onSubmit={save}>
-        <div className="settings-form">
-          <label>
-            Name
-            <input className="name-field" value={form.name} onChange={(event) => set({ name: event.target.value })} />
-            {!form.name.trim() && notice?.kind === 'invalid' ? <span className="field-error">Enter the asset name</span> : null}
-          </label>
-          <Field label="Type">
-            <select value={form.type} onChange={(event) => set({ type: event.target.value })}>
-              {types.map((type) => <option key={type} value={type}>{type}</option>)}
-            </select>
-          </Field>
-          <label>
-            Location
-            <input value={form.location} onChange={(event) => set({ location: event.target.value })} />
-          </label>
-          <label>
-            Managing entity
-            <input value={form.entity} onChange={(event) => set({ entity: event.target.value })} />
-          </label>
-          <label>
-            Campaign grouping
-            <input value={form.grouping} onChange={(event) => set({ grouping: event.target.value })} />
-          </label>
-          <Field label="Officer">
-            <select value={form.officer} onChange={(event) => set({ officer: event.target.value })}>
-              {Object.values(OFFICERS).map((officer) => <option key={officer.id} value={officer.id}>{officer.name}</option>)}
-            </select>
-          </Field>
-          <label>
-            Image
-            <span className="btn file-btn">Upload image<input type="file" accept="image/*" onChange={onFile} /></span>
-          </label>
-        </div>
-        {preview ? <img className="image-preview" src={preview} alt="Preview of the selected asset image" /> : null}
-
-        <h3 className="section-title">Spaces or units</h3>
-        {form.spaces.map((space, index) => (
-          <div key={index} className="space-row" data-testid="space-row">
-            <label>
-              Name
-              <input value={space.name} onChange={(event) => updateSpace(index, { name: event.target.value })} />
-            </label>
-            <label>
-              Size
-              <input value={space.size} onChange={(event) => updateSpace(index, { size: event.target.value })} />
-            </label>
-            <label>
-              Rate (RM)
-              <input value={space.rate} inputMode="decimal" onChange={(event) => updateSpace(index, { rate: event.target.value })} />
-            </label>
-            <Field label="Basis">
-              <select value={space.basis} onChange={(event) => updateSpace(index, { basis: event.target.value })}>
-                <option value="per month">per month</option>
-                <option value="per day">per day</option>
-              </select>
-            </Field>
-            <Field label="Status">
-              <select value={space.status} onChange={(event) => updateSpace(index, { status: event.target.value })}>
-                {STATUSES.map((status) => <option key={status || 'blank'} value={status}>{status || '–'}</option>)}
-              </select>
-            </Field>
-            <button type="button" className="btn" onClick={() => set({ spaces: form.spaces.filter((_, i) => i !== index) })}>Remove</button>
-          </div>
-        ))}
-        <div className="stage-actions">
-          <button type="button" className="btn" onClick={() => set({ spaces: [...form.spaces, emptySpace()] })}>Add space</button>
-          <button type="submit" className="btn btn-primary" data-testid="save-asset">Save asset</button>
-        </div>
-      </form>
-      {notice?.kind === 'saved' ? (
-        <p className="confirm" data-testid="asset-saved" role="status">
-          {notice.name} is on the portfolio.{' '}
-          <a href="#/portfolio" onClick={(event) => { event.preventDefault(); go('portfolio'); }}>View on the portfolio</a>
-        </p>
-      ) : null}
-      {notice?.kind === 'exists' ? (
-        <p className="confirm" data-testid="asset-exists" role="status">{notice.name} is already on the portfolio.</p>
-      ) : null}
-
-      <h2 className="section-title">Existing assets</h2>
-      <DataTable columns={columns} rows={assets} exportName="assets" />
-      </>
+      {tab === 'Users & Roles' && <Users amp={amp} />}
+      {tab === 'Operators' && <Operators amp={amp} />}
+      {tab === 'Field Library' && <Fields amp={amp} />}
+      {tab === 'Integrations' && <Integrations />}
+      {tab === 'Data Retention' && <Retention amp={amp} />}
+      {tab === 'Hosting & Security' && (
+        <article className="info-card">
+          <h2>Hosting & Security</h2>
+          <p>Hosted in Malaysia · Role-based access · Encryption in transit and at rest · Audit logging · Aligned to PKNS ICT and cybersecurity requirements</p>
+        </article>
       )}
+      {tab === 'Audit Log' && <Audit amp={amp} />}
     </section>
   );
 }
 
-function AudienceZoneSettings({ state, dispatch }) {
+function Users({ amp }) {
+  const { data, state, dispatch } = amp;
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const [form, setForm] = useState({ name: '', email: '', role: 'amp-executive' });
+  const users = liveUsers(data, state).filter((user) => !query.trim() || `${user.name} ${user.email} ${user.role}`.toLowerCase().includes(query.trim().toLowerCase()));
   return (
-    <div className="zone-settings" data-testid="audience-zones-settings">
-      <h2 className="section-title">Stage to zone</h2>
-      <p className="cell-note">{ZONE_RULES.mappingNote}</p>
-      <div className="table-scroll">
-        <table className="table data-table">
-          <thead>
-            <tr>
-              <th>Zone</th>
-              <th>Stages</th>
-            </tr>
-          </thead>
-          <tbody>
-            {ZONES.map((zone) => (
-              <tr key={zone.id}>
-                <td>Zone {zone.n} · {zone.label}</td>
-                <td>{zone.stages.join(', ')}</td>
-              </tr>
-            ))}
-            <tr>
-              <td>Withdrawn</td>
-              <td>{WITHDRAWN_STAGE}</td>
-            </tr>
-          </tbody>
-        </table>
+    <div>
+      <div className="table-toolbar">
+        <SearchBox value={query} onChange={setQuery} placeholder="Search users" />
+        <button type="button" className="btn" onClick={() => setOpen(true)}>Invite user</button>
       </div>
-      <h2 className="section-title">Requirements</h2>
-      <div className="table-scroll">
-        <table className="table data-table">
-          <thead>
-            <tr>
-              <th>Id</th>
-              <th>Zone</th>
-              <th>Requirement</th>
-              <th>Due</th>
-              <th>Done when</th>
-            </tr>
-          </thead>
-          <tbody>
-            {ZONE_RULES.requirements.map((item) => (
-              <tr key={item.id}>
-                <td>{item.id}</td>
-                <td>{ZONES.find((zone) => zone.id === item.zone)?.label}</td>
-                <td>{item.title}</td>
-                <td>{item.due}</td>
-                <td>{String(item.doneWhen).replace(/lead-form/gi, 'enquiry-form')}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <DataTable
+        columns={[
+          { key: 'name', label: 'Name' },
+          { key: 'email', label: 'Email' },
+          { key: 'roleName', label: 'Role' },
+          { key: 'assets', label: 'Assigned assets' },
+          { key: 'status', label: 'Status' },
+          { key: 'lastLogin', label: 'Last login', format: (value) => (value ? dateTime(value) : '–') },
+        ]}
+        rows={users.map((user) => ({ ...user, roleName: ROLES[user.role]?.name || user.role, assets: (user.assetIds || []).join(', ') || 'All' }))}
+        exportName="users"
+        pageSizes={[25, 50, 100]}
+        empty="No users."
+      />
+      <Modal open={open} title="Invite user" onClose={() => setOpen(false)}>
+        <form className="dialog-form" onSubmit={(event) => {
+          event.preventDefault();
+          dispatch({ type: 'addUser', user: { id: `u-${state.seq}`, ...form, operatorId: null, assetIds: [], status: 'Invited', lastLogin: null } });
+          dispatch({ type: 'audit', entry: auditEntry(state, 'Changed role', 'User', form.email, `Invited ${form.name} as ${ROLES[form.role]?.name || form.role}`) });
+          setOpen(false);
+        }}
+        >
+          <label>Name<input required value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} /></label>
+          <label>Email<input required type="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} /></label>
+          <label>Role
+            <select value={form.role} onChange={(event) => setForm({ ...form, role: event.target.value })}>
+              {Object.values(ROLES).map((role) => <option key={role.id} value={role.id}>{role.name}</option>)}
+            </select>
+          </label>
+          <button type="submit" className="btn">Send invite</button>
+        </form>
+      </Modal>
+    </div>
+  );
+}
+
+function Operators({ amp }) {
+  const { operators, assets, dispatch, state } = amp;
+  const [form, setForm] = useState({ name: '', contactName: '', contactEmail: '', assetIds: [] });
+  const toggle = (id) => setForm((current) => ({ ...current, assetIds: current.assetIds.includes(id) ? current.assetIds.filter((item) => item !== id) : [...current.assetIds, id] }));
+  const save = (event) => {
+    event.preventDefault();
+    const id = `op-${state.seq}`;
+    dispatch({ type: 'addOperator', operator: { id, ...form } });
+    form.assetIds.forEach((assetId) => dispatch({ type: 'patchAsset', id: assetId, patch: { operatorId: id } }));
+    setForm({ name: '', contactName: '', contactEmail: '', assetIds: [] });
+  };
+  return (
+    <div>
+      <DataTable
+        columns={[
+          { key: 'name', label: 'Operator' },
+          { key: 'contactName', label: 'Contact' },
+          { key: 'contactEmail', label: 'Email' },
+          { key: 'assets', label: 'Assets' },
+        ]}
+        rows={operators.map((item) => ({ ...item, assets: assets.filter((asset) => item.assetIds?.includes(asset.id) || asset.operatorId === item.id).map((asset) => asset.shortCode).join(', ') }))}
+        exportName="operators"
+        empty="No operators."
+      />
+      <h2>Add operator</h2>
+      <form className="dialog-form" onSubmit={save}>
+        <label>Name<input required value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} /></label>
+        <label>Contact name<input value={form.contactName} onChange={(event) => setForm({ ...form, contactName: event.target.value })} /></label>
+        <label>Email<input type="email" value={form.contactEmail} onChange={(event) => setForm({ ...form, contactEmail: event.target.value })} /></label>
+        <fieldset>
+          <legend>Assets</legend>
+          {assets.map((asset) => (
+            <label key={asset.id}><input type="checkbox" checked={form.assetIds.includes(asset.id)} onChange={() => toggle(asset.id)} />{asset.name}</label>
+          ))}
+        </fieldset>
+        <button type="submit" className="btn">Save operator</button>
+      </form>
+    </div>
+  );
+}
+
+function Fields({ amp }) {
+  const { data, state, dispatch } = amp;
+  const fields = liveFields(data, state);
+  const [form, setForm] = useState({ labelEN: '', labelBM: '', type: 'text', isPersonalData: false });
+  return (
+    <div>
+      <DataTable
+        columns={[
+          { key: 'labelEN', label: 'Label (EN)' },
+          { key: 'labelBM', label: 'Label (BM)' },
+          { key: 'type', label: 'Type' },
+          { key: 'isPersonalData', label: 'Personal data', format: (value, row) => (row ? <input aria-label={`Personal data ${row.labelEN}`} type="checkbox" checked={Boolean(value)} onChange={(event) => dispatch({ type: 'patchField', id: row.id, patch: { isPersonalData: event.target.checked } })} /> : null) },
+        ]}
+        rows={fields}
+        exportName="field-library"
+        pageSizes={[25, 50, 100]}
+      />
+      <h2>Add field</h2>
+      <form className="dialog-form" onSubmit={(event) => {
+        event.preventDefault();
+        const key = form.labelEN.toLowerCase().replace(/[^a-z0-9]+/g, '') || `field${state.seq}`;
+        dispatch({ type: 'addField', field: { id: key, key, ...form, required: false } });
+        setForm({ labelEN: '', labelBM: '', type: 'text', isPersonalData: false });
+      }}
+      >
+        <label>Label EN<input required value={form.labelEN} onChange={(event) => setForm({ ...form, labelEN: event.target.value })} /></label>
+        <label>Label BM<input value={form.labelBM} onChange={(event) => setForm({ ...form, labelBM: event.target.value })} /></label>
+        <label>Type
+          <select value={form.type} onChange={(event) => setForm({ ...form, type: event.target.value })}>
+            {['text', 'phone', 'email', 'number', 'select', 'checkbox'].map((type) => <option key={type}>{type}</option>)}
+          </select>
+        </label>
+        <label><input type="checkbox" checked={form.isPersonalData} onChange={(event) => setForm({ ...form, isPersonalData: event.target.checked })} /> Personal data</label>
+        <button type="submit" className="btn">Add field</button>
+      </form>
+    </div>
+  );
+}
+
+function Integrations() {
+  return (
+    <div className="card-grid">
+      {INTEGRATIONS.map((item) => (
+        <article key={item.id} className="info-card">
+          {(item.status === 'Sample data' || item.id === 'rentx') && <SampleBadge text={item.id === 'rentx' ? 'Sample data, not connected' : 'Sample data, not connected'} />}
+          <h2>{item.name}</h2>
+          <p>Status: {item.status}</p>
+          <p>Method: {item.method}</p>
+          <p>Direction: {item.direction}</p>
+          <p>Owner: {item.owner}</p>
+          <p>{item.notes}</p>
+        </article>
+      ))}
+    </div>
+  );
+}
+
+function Retention({ amp }) {
+  const { state, data, dispatch } = amp;
+  const [months, setMonths] = useState(state.retentionMonths);
+  const [auto, setAuto] = useState(state.autoAnonymise);
+  const requests = [...state.deletionRequests, ...(data.deletionRequests || []).filter((item) => !state.deletionRequests.some((row) => row.id === item.id))];
+  return (
+    <div>
+      <form className="dialog-form" onSubmit={(event) => { event.preventDefault(); dispatch({ type: 'retention', months: Number(months) || 36, autoAnonymise: auto }); }}>
+        <label>Retention for inactive profiles (months)<input type="number" min="1" value={months} onChange={(event) => setMonths(event.target.value)} /></label>
+        <label><input type="checkbox" checked={auto} onChange={(event) => setAuto(event.target.checked)} /> Auto-anonymise when retention ends</label>
+        <button type="submit" className="btn">Save retention</button>
+      </form>
+      <h2>Pending deletion requests</h2>
+      <DataTable columns={[{ key: 'profileId', label: 'Profile' }, { key: 'requestedBy', label: 'Requested by' }, { key: 'requestedAt', label: 'Requested', format: date }, { key: 'status', label: 'Status' }, { key: 'note', label: 'Note' }]} rows={requests} exportName="deletion-requests" empty="No deletion requests." />
+    </div>
+  );
+}
+
+function Audit({ amp }) {
+  const { audit } = amp;
+  const [query, setQuery] = useState('');
+  const [action, setAction] = useState('');
+  const actions = useMemo(() => [...new Set(audit.map((row) => row.action))].sort(), [audit]);
+  const rows = audit.filter((row) => (!action || row.action === action) && (!query.trim() || `${row.userName} ${row.details} ${row.targetId} ${row.action}`.toLowerCase().includes(query.trim().toLowerCase())));
+  return (
+    <div>
+      <div className="table-toolbar">
+        <SearchBox value={query} onChange={setQuery} placeholder="Search audit log" />
+        <select aria-label="Action" value={action} onChange={(event) => setAction(event.target.value)}>
+          <option value="">All actions</option>
+          {actions.map((name) => <option key={name}>{name}</option>)}
+        </select>
       </div>
-      <h2 className="section-title">Qualifiers</h2>
-      <p className="cell-note">Qualifiers guide the decision. They never block a move.</p>
-      <div className="table-scroll">
-        <table className="table data-table">
-          <thead>
-            <tr>
-              <th>From</th>
-              <th>To</th>
-              <th>Qualifier</th>
-              <th>When</th>
-            </tr>
-          </thead>
-          <tbody>
-            {ZONE_RULES.qualifiers.map((item) => (
-              <tr key={item.id}>
-                <td>{item.from === 'suspect' ? 'Suspect' : 'Prospect'}</td>
-                <td>{item.to}</td>
-                <td>{item.label}</td>
-                <td>{item.when}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      <h2 className="section-title">Triggers</h2>
-      <div className="table-scroll">
-        <table className="table data-table">
-          <thead>
-            <tr>
-              <th>On</th>
-              <th>Id</th>
-              <th>When</th>
-              <th>Then</th>
-            </tr>
-          </thead>
-          <tbody>
-            {ZONE_RULES.triggers.map((item) => (
-              <tr key={item.id}>
-                <td>
-                  <input
-                    type="checkbox"
-                    data-testid={`trigger-${item.id}`}
-                    aria-label={`${item.id} ${item.when}`}
-                    checked={state.triggers?.[item.id] !== false}
-                    onChange={(event) => dispatch({ type: 'setTrigger', id: item.id, on: event.target.checked })}
-                  />
-                </td>
-                <td>{item.id}</td>
-                <td>{item.when}</td>
-                <td>{item.then}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      <h2 className="section-title">Assignment</h2>
-      <p>{ZONE_RULES.assignment}</p>
+      <DataTable
+        columns={[
+          { key: 'timestamp', label: 'When', format: dateTime },
+          { key: 'userName', label: 'User' },
+          { key: 'role', label: 'Role' },
+          { key: 'action', label: 'Action' },
+          { key: 'targetType', label: 'Target' },
+          { key: 'targetId', label: 'Id' },
+          { key: 'details', label: 'Details' },
+        ]}
+        rows={rows}
+        exportName="audit-log"
+        pageSizes={[25, 50, 100]}
+        empty="No audit entries."
+      />
     </div>
   );
 }

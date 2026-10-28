@@ -1,3 +1,7 @@
+# Retired: leasing CRM build prompt
+
+This file describes the previous leasing prototype. The product is now the PKNS AMP Hub. Follow README.md. Do not rebuild unit grids, rent, lease expiry or the leasing pipeline from this document.
+
 # Build prompt: PKNS Asset Marketing Hub
 
 **For:** Cursor (Agent mode) working in this repository

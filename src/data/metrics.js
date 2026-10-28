@@ -1,140 +1,139 @@
-import { CHANNELS, LEASING_OCT, AS_AT, ZONES, WITHDRAWN_STAGE } from './config.js';
-import { daysBetween, lastDayOf } from './generate.js';
-import { workingMinutesBetween } from '../time.js';
+import { AS_OF } from './config.js';
+import { addDays } from './rng.js';
 
-const sum = (a) => a.reduce((s, v) => s + v, 0);
-
-export { workingMinutesBetween };
-
-export function inRange(d, from, to) {
-  return (!from || d >= from) && (!to || d <= to);
-}
-
-// Channel rows for a campaign over a date range.
-// Spend, impressions and clicks come from the campaign's daily arrays. Enquiries, viewings, signed and first-year value
-// are COUNTED FROM THE ENQUIRY RECORDS in the store (including the hero and anything moved during the demo), so every
-// dashboard number can be traced to the records behind it. `to` defaults to the demo clock, never a fixed date.
-export function campaignChannels(c, records, { from, to } = {}) {
-  const list = records || [];
-  return CHANNELS.map((ch) => {
-    const d = c.daily[ch.id];
-    const idx = c.days.map((day, i) => (inRange(day, from, to) ? i : -1)).filter((i) => i >= 0);
-    const pick = (arr) => sum(idx.map((i) => arr[i]));
-    const mine = list.filter((r) => r.campaign === c.id && r.channel === ch.id);
-    const day = (iso) => iso && iso.slice(0, 10);
-    const signedRecs = mine.filter((r) => r.stage === 'Signed' && inRange(day(r.signedAt), from, to));
-    const row = {
-      channel: ch.id, name: ch.name, spend: pick(d.spend), impressions: pick(d.imp), clicks: pick(d.clicks),
-      enquiries: mine.filter((r) => inRange(day(r.receivedAt), from, to)).length,
-      viewings: mine.filter((r) => r.viewingHeld && inRange(day(r.viewingAt), from, to)).length,
-      signed: signedRecs.length,
-      firstYearValue: sum(signedRecs.map((r) => r.rent * 12)),
-    };
-    return withRatios(row);
-  });
-}
-
-export function withRatios(row) {
-  return {
-    ...row,
-    cpl: row.enquiries ? row.spend / row.enquiries : null,
-    costPerViewing: row.viewings ? row.spend / row.viewings : null,
-    costPerSigned: row.signed ? row.spend / row.signed : null,
-    roas: row.spend ? row.firstYearValue / row.spend : null,
-    ctr: row.impressions ? row.clicks / row.impressions : null,
-  };
-}
-
-export function totalRow(rows) {
-  const keys = ['spend', 'impressions', 'clicks', 'enquiries', 'viewings', 'signed', 'firstYearValue'];
-  const t = Object.fromEntries(keys.map((k) => [k, sum(rows.map((r) => r[k] || 0))]));
-  return withRatios(t);
-}
-
-// A unit's status follows its records: Negotiation holds it Reserved; Signed makes it Let until the lease starts,
-// then Occupied. "Occupied" means the tenant is in. Units with no live record keep their register status.
-export function unitStatus(u, records, now) {
-  const list = records || [];
-  const clock = (now || AS_AT).slice(0, 10);
-  const r = list.find((x) => x.unitId === u.id && (x.stage === 'Signed' || x.stage === 'Negotiation') && (x.stage !== 'Signed' || x.leaseStart || u.leaseStart));
-  if (r && r.stage === 'Negotiation') return 'Reserved';
-  if (r && r.stage === 'Signed') return (r.leaseStart || u.leaseStart) > clock ? 'Let' : 'Occupied';
-  return u.status;
-}
-
-// Occupancy = tenants in place. Committed occupancy also counts leases signed but not started.
-export function statusCounts(units, records, now) {
-  const c = { Occupied: 0, Let: 0, Reserved: 0, Vacant: 0, 'Under redevelopment': 0 };
-  for (const u of units) c[unitStatus(u, records, now)] += 1;
-  const lettable = units.length - c['Under redevelopment'];
-  return { ...c, total: units.length, lettable, occupancy: lettable ? c.Occupied / lettable : null, committedOccupancy: lettable ? (c.Occupied + c.Let) / lettable : null };
-}
-
-const median = (arr) => {
-  if (!arr.length) return null;
-  const s = arr.slice().sort((a, b) => a - b);
-  const m = Math.floor(s.length / 2);
-  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+export const FORMULAS = {
+  ampSpend: 'Sum of spend line amounts in the filter scope.',
+  activations: 'Activations with status Completed or Reported whose end date falls in the period.',
+  attendance: 'Sum of activation attendance for activations that overlap the period.',
+  newProfiles: 'Profiles whose first seen date falls in the period.',
+  database: 'Total profiles in the asset scope with first seen on or before the end of the period.',
+  consented: 'Profiles with marketing opt-in, counted and shown as a percentage of database size.',
+  costAttendee: 'AMP spend on activations ÷ total attendance.',
+  costProfile: 'AMP spend ÷ new profiles.',
+  costLead: 'AMP spend ÷ profiles tagged with that lead type in the period.',
+  returning: 'Returning profiles ÷ (new profiles + returning profiles).',
+  rating: 'Mean of survey ratings, weighted by the number of responses.',
+  utilisation: 'Actual spend in overlapping 2026 quarters ÷ approved budget for those quarters.',
+  engagement: 'Engagements ÷ reach.',
 };
 
-export function daysVacant(u, records, now) {
-  const st = unitStatus(u, records, now);
-  const clock = (now || AS_AT).slice(0, 10);
-  if ((st === 'Vacant' || st === 'Reserved') && u.vacantSince) return daysBetween(u.vacantSince, clock);
-  return null;
+export const QUARTERS = [
+  { id: 'Q1', from: '2026-01-01', to: '2026-03-31' },
+  { id: 'Q2', from: '2026-04-01', to: '2026-06-30' },
+  { id: 'Q3', from: '2026-07-01', to: '2026-09-30' },
+  { id: 'Q4', from: '2026-10-01', to: '2026-12-31' },
+];
+
+export function inRange(iso, from, to) {
+  const day = String(iso || '').slice(0, 10);
+  return day >= from && day <= to;
 }
 
-export function medianDaysVacant(units, records, now) {
-  return median(units.map((u) => daysVacant(u, records, now)).filter((v) => v != null));
+export function overlaps(start, end, from, to) {
+  return start <= to && end >= from;
 }
 
-export function leasingKpis(units, records, now) {
-  const clock = (now || AS_AT).slice(0, 10);
-  const leased = units.filter((u) => unitStatus(u, records, now) === 'Occupied' && u.leaseExpiry && u.rent);
-  const totalRent = sum(leased.map((u) => u.rent));
-  const yearsLeft = (u) => Math.max(0, daysBetween(clock, u.leaseExpiry) / 365.25);
-  const wale = totalRent ? sum(leased.map((u) => yearsLeft(u) * u.rent)) / totalRent : null;
-  const bucket = (u) => (u.leaseExpiry <= '2026-12-31' ? 'Nov–Dec 2026' : u.leaseExpiry <= '2027-12-31' ? '2027' : '2028 and later');
-  const expiry = {};
-  for (const u of leased) expiry[bucket(u)] = (expiry[bucket(u)] || 0) + u.rent;
-  const expiryPct = Object.fromEntries(['Nov–Dec 2026', '2027', '2028 and later'].map((k) => [k, totalRent ? (expiry[k] || 0) / totalRent : null]));
-  const retail = leased.filter((u) => u.trade);
-  const retailRent = sum(retail.map((u) => u.rent));
-  const trade = {};
-  for (const u of retail) trade[u.trade] = (trade[u.trade] || 0) + u.rent;
-  const tradePct = Object.fromEntries(Object.entries(trade).map(([k, v]) => [k, retailRent ? v / retailRent : null]));
-  const rentNext12 = totalRent ? sum(leased.filter((u) => u.leaseExpiry <= '2027-10-31').map((u) => u.rent)) / totalRent : null;
+export function monthKey(iso) {
+  return String(iso || '').slice(0, 7);
+}
+
+export function monthsBetween(from, to) {
+  const out = [];
+  let year = Number(from.slice(0, 4));
+  let month = Number(from.slice(5, 7));
+  const end = monthKey(to);
+  while (`${year}-${String(month).padStart(2, '0')}` <= end) {
+    out.push(`${year}-${String(month).padStart(2, '0')}`);
+    month += 1;
+    if (month === 13) { month = 1; year += 1; }
+  }
+  return out;
+}
+
+export function safeDiv(num, den) {
+  if (!den) return null;
+  return num / den;
+}
+
+export function channelMatch(profile, channels) {
+  if (!channels.length) return true;
+  return channels.includes(profile.sourceChannelFirst) || (profile.socialNetwork && channels.includes(profile.socialNetwork));
+}
+
+export function assetMatch(profile, assetIds, unrestricted) {
+  if (unrestricted) return true;
+  return (profile.assetIds || []).some((id) => assetIds.includes(id));
+}
+
+export function budgetAmount(budgets, edits, assetId, from, to) {
+  return QUARTERS.reduce((sum, quarter) => {
+    if (quarter.from > to || quarter.to < from) return sum;
+    const key = `2026|${assetId}|${quarter.id}`;
+    if (edits && edits[key] != null && edits[key] !== '') return sum + Number(edits[key] || 0);
+    const row = budgets.find((item) => item.assetId === assetId && item.quarter === quarter.id && item.year === 2026);
+    return sum + (row?.approvedRM || 0);
+  }, 0);
+}
+
+export function spendTotal(lines) {
+  return lines.reduce((sum, line) => sum + (Number(line.amountRM) || 0), 0);
+}
+
+export function activationFigures(activations, spendLines) {
+  const ids = new Set(activations.map((act) => act.id));
+  const linkedSpend = spendLines.filter((line) => line.activationId && ids.has(line.activationId));
+  const attendance = activations.reduce((sum, act) => sum + (act.outcomes?.totalAttendance || 0), 0);
+  const fresh = activations.reduce((sum, act) => sum + (act.outcomes?.newProfiles || 0), 0);
+  const returning = activations.reduce((sum, act) => sum + (act.outcomes?.returningProfiles || 0), 0);
+  let weight = 0;
+  let rated = 0;
+  for (const act of activations) {
+    const n = act.outcomes?.surveyResponses || 0;
+    if (!n || act.outcomes.avgRating == null) continue;
+    weight += n;
+    rated += n * act.outcomes.avgRating;
+  }
   return {
-    wale, expiryPct, tradePct, rentNext12, monthlyContractedRent: totalRent,
-    medianDaysVacant: medianDaysVacant(units, records, now),
-    renewalRate: LEASING_OCT.renewed / LEASING_OCT.expiring, ...LEASING_OCT,
+    attendance,
+    newFromActivations: fresh,
+    returning,
+    returningRate: safeDiv(returning, fresh + returning),
+    avgRating: weight ? rated / weight : null,
+    activationSpend: spendTotal(linkedSpend),
+    costPerAttendee: safeDiv(spendTotal(linkedSpend), attendance),
+    completed: activations.filter((act) => (act.status === 'Completed' || act.status === 'Reported')).length,
   };
 }
 
-export function medianFirstResponseHours(enquiries, { from, to } = {}) {
-  const mins = enquiries.filter((e) => e.firstResponseAt && inRange(e.receivedAt.slice(0, 10), from, to)).map((e) => workingMinutesBetween(e.receivedAt, e.firstResponseAt));
-  return median(mins) / 60;
-}
-
-export function withinOneWorkingHourShare(enquiries, { from, to } = {}) {
-  const mins = enquiries.filter((e) => e.firstResponseAt && inRange(e.receivedAt.slice(0, 10), from, to)).map((e) => workingMinutesBetween(e.receivedAt, e.firstResponseAt));
-  if (!mins.length) return null;
-  return mins.filter((m) => m <= 60).length / mins.length;
-}
-
-export function occupancyAtMonthEnd(units, month) {
-  const end = lastDayOf(month);
-  let occ = 0, lettable = 0;
-  for (const u of units) {
-    if (u.status === 'Under redevelopment') continue;
-    lettable += 1;
-    if ((u.status === 'Occupied' || u.status === 'Let') && (!u.leaseStart || !u.signedDate || u.leaseStart <= end)) occ += 1;
+export function profileStats(profiles, from, to, mode) {
+  let database = 0;
+  let fresh = 0;
+  let consented = 0;
+  let engaged = 0;
+  const leads = {};
+  for (const profile of profiles) {
+    if (profile.firstSeen <= to) database += 1;
+    if (inRange(profile.firstSeen, from, to)) fresh += 1;
+    const active = profile.firstSeen <= to && profile.lastSeen >= from;
+    if (active) engaged += 1;
+    const opted = profile.consent?.marketingOptIn && !profile.consent.unknown && !profile.anonymised;
+    if (opted && profile.consent.consentDate <= to && profile.firstSeen <= to) consented += 1;
+    if (active) {
+      for (const lead of profile.leadTypes || []) leads[lead] = (leads[lead] || 0) + 1;
+    }
+    void mode;
   }
-  return occ / lettable;
+  return { database, fresh, consented, engaged, leads, consentPct: safeDiv(consented, database) };
 }
 
-export function zoneOf(stage) {
-  if (stage === WITHDRAWN_STAGE) return 'withdrawn';
-  const zone = ZONES.find((item) => item.stages.includes(stage));
-  return zone ? zone.id : 'withdrawn';
+export function upcomingWindow() {
+  return { from: addDays(new Date(`${AS_OF}T00:00:00Z`), 1).toISOString().slice(0, 10), to: addDays(new Date(`${AS_OF}T00:00:00Z`), 30).toISOString().slice(0, 10) };
+}
+
+export function costPerLead(spend, count) {
+  return safeDiv(spend, count);
+}
+
+export function engagementRate(engagements, reach) {
+  return safeDiv(engagements, reach);
 }

@@ -1,135 +1,20 @@
-# PKNS Asset Marketing Hub — pitch prototype
+# PKNS AMP Hub
 
-Working prototype for the PKNS pitch on Wed 28 Oct 2026 (Google Meet, 60 minutes; demo slot 15 minutes).
-Every figure is dummy data. Specs live in Confluence space **PCD**; work is tracked in Jira project **TP**.
+Prototype for Advertising, Marketing and Promotion. It captures audience data from activations, profiles that audience, and reports what AMP spend produced. All figures are demo data generated in the browser from a fixed seed.
 
-| Confluence page | What it governs |
-| --- | --- |
-| 04 Prototype Specification | Screens, role access, acceptance criteria, calculation rules, management KPI set |
-| 05 Demo Storyline & Pitch Run Sheet | The 9-step demo the app must support, in order |
-| 06 Dummy Data Specification | Every number the app shows |
-
-**Building the rest:** follow `BUILD_PROMPT.md` (the complete brief for Cursor, with paste-in messages per phase in Appendix A).
+Leasing, unit grids, rent and lease expiry are not part of this product. A RentX card on an asset is a read-only occupancy snapshot marked sample data.
 
 ## Run it
 
 1. Install Node.js 20 or newer.
-2. In this folder: `npm install`
+2. `npm install`
 3. `npm run dev`, then open http://localhost:5173
-4. Pick a role on the first screen. **Reset demo** (footer, or Alt+Shift+R) returns the demo to its starting figures and keeps the current role. Reloading the tab keeps the same screen and the same live demo state.
+4. Pick a role. AMP Manager is the full demo. Reset demo (footer, or Alt+Shift+R) clears session changes and keeps the role.
 
-## Test it
+`npm run verify` and `npm run verify:consistency` check the seeded volumes and the section 15 acceptance rules. Both must print `ALL CHECKS PASSED`.
 
-`npm run verify` checks the generated data and selectors against page 06. It must print `ALL CHECKS PASSED`.
+`npm run build` writes the static site to `dist`.
 
-The storyline test drives the demo in a browser:
+## Roles
 
-1. Install the browser once: `npx playwright install chromium`
-2. `npm run e2e`
-
-That test logs in as Management, walks the demo at 1920×1080, checks the visible figures, and also checks 1440×900 layout, reload, and both reset paths. Leave `npm run dev` running; the test reuses http://127.0.0.1:5173.
-
-## Deploy it
-
-Deploy to Vercel: framework **Vite**, build command `npm run build`, output folder `dist`. The storyline runs with no environment variables. The QR form needs the variables in the next section, and Vite reads them at build time, so set them before you redeploy.
-
-`npm run build` is the hosted build. `npm run build:single` writes one self-contained HTML file, `artifact/pkns-asset-marketing-hub.html`. Open that file in Chrome on the presenting laptop if the network is down. It runs the full storyline offline. The offline file does not talk to Supabase.
-
-## QR live enquiry (Supabase and Vercel)
-
-This is the phone form at `#/qr` and the QR code on Enquiry pipeline (**Show QR code**). You create the Supabase project and paste the keys yourself. The app does not ship any keys. If the variables are missing, or Supabase cannot be reached, the pipeline stays as it is and **Simulate enquiry** still runs the demo.
-
-Do these steps in order.
-
-1. In [Supabase](https://supabase.com), create a free project. Wait until it finishes starting.
-2. Open **SQL Editor**, start a new query, paste the script below, and run it. It creates one table, turns on row-level security, and lets the public anon role insert a row and read only rows from the last 2 hours. It cannot update or delete.
-
-```sql
-create table public.qr_enquiries (
-  id uuid primary key default gen_random_uuid(),
-  created_at timestamptz not null default now(),
-  name text not null,
-  business text not null,
-  space_type text not null,
-  asset text not null,
-  phone text not null
-);
-
-alter table public.qr_enquiries enable row level security;
-
-grant select, insert on table public.qr_enquiries to anon;
-
-create policy "Submit an enquiry"
-  on public.qr_enquiries
-  for insert
-  to anon
-  with check (true);
-
-create policy "Read enquiries from the last 2 hours"
-  on public.qr_enquiries
-  for select
-  to anon
-  using (created_at >= now() - interval '2 hours');
-```
-
-3. In the Supabase project, open **Project Settings → API**. Copy the **Project URL** and the **anon public** key. Leave the service role key where it is. Do not put that key in Vercel or in this repo.
-4. In the Vercel project, open **Settings → Environment Variables** and add these three for Production (and Preview, if you will rehearse on a preview URL):
-
-| Name | Value |
-| --- | --- |
-| `VITE_SUPABASE_URL` | The Project URL from step 3 |
-| `VITE_SUPABASE_ANON_KEY` | The anon public key from step 3 |
-| `VITE_HOSTED_URL` | The public site origin only, such as `https://your-app.vercel.app`. No path and no `#/qr`. |
-
-5. Redeploy. Vite copies `VITE_` variables into the browser bundle when it builds, so a deploy that ran before the variables existed will not see them. Use **Deployments → Redeploy** after saving the variables.
-6. Open the hosted site, choose **Leasing**, and open **Enquiry pipeline**. Click **Show QR code**. The code is 300×300 and points at `<your hosted URL>/#/qr`.
-7. Scan it with a phone (or open that address). The form asks for name, business, space type, asset and phone, and it says **Demo: please use made-up details**. Send the form.
-8. On the laptop, within about 2 seconds, a card appears in **New**. Its source is **Website form – QR demo**. The officer is the officer for the asset you picked (Aina Rahman for Kompleks PKNS Shah Alam, Siti Nur Izzati for Kompleks PKNS Bangi, Hafiz Kamal for Menara PKNS, and Nurul Huda Azman for the Section 13 and other Shah Alam assets).
-9. If the card does not appear, the storyline is unchanged: use **Simulate enquiry**. Check that the latest deployment was built after the variables were saved, and that the Supabase project is not paused.
-
-## How it is put together
-
-```
-src/
-  data/config.js     Fixed inputs copied from page 06: assets, campaigns by channel, signed tenancies, hero enquiry, social, website
-  data/generate.js   Builds the full data set from config.js with a fixed seed (same output on every load): 838 units, daily campaign data, 120 enquiries, website, social, visitors
-  data/metrics.js    The ONLY place calculations live: CPL, cost per viewing, cost per signed, ROAS, occupancy, WALE, expiry profile, days vacant, response time
-  data/rng.js        Seeded random numbers and an exact-split helper (parts always add back to the total)
-  store.jsx          Role, screen access matrix (page 04 §3) and live demo state (hero stage, stage moves, notes, SITC added), kept for the browser session
-  router.js          Hash routes (#/portfolio, #/campaign/sa …) so a reload keeps the presenter's place
-  format.js          Number, RM, % and ROAS formatting (rounds half up)
-  components/Shell.jsx  Header, role switcher, navigation, footer, Reset demo (also Alt+Shift+R)
-  screens/           Login plus the built screens (portfolio, asset, marketing, campaign, pipeline, enquiry, settings, visitors, report)
-scripts/verify.mjs   Reconciliation test against page 06
-```
-
-To add a screen: create `src/screens/Portfolio.jsx` (etc.), then register it in the `BUILT` map in `src/App.jsx` under its screen id from `SCREENS` in `store.jsx`.
-
-### The hero enquiry (storyline steps 4–6)
-
-`state.heroStage` moves through `New → Contacted → Qualified → Viewing Scheduled → Negotiation → Signed`. Pass it to the metrics functions and every figure updates on its own:
-
-- `campaignChannels(campaign, data.signed, range, heroStage)` adds +1 enquiry, +1 viewing (from Viewing Scheduled) and +1 signed with RM40,320 first-year rent (at Signed) to SA Sentral, Facebook lead ads.
-- `statusCounts(units, heroStage)` and `unitStatus(unit, heroStage)` move suite 4-07 Vacant → Reserved (Negotiation) → Occupied (Signed).
-
-Expected results are on page 06 §4 ("SA Sentral after the hero enquiry is signed") and are checked by `npm run verify`.
-
-## Status (20 Oct)
-
-| Jira | Story | State |
-| --- | --- | --- |
-| TP-26 | 2.1 Brand and UI shell | Built, in review |
-| TP-27 | 2.2 Dummy data and calculation rules | Built; checked by `npm run verify` |
-| TP-28 | 2.3 Setup, hosting, reset | App, reset, storyline test and offline HTML built; Vercel hosting by Bharg |
-| TP-29 … TP-34 | 3.1–3.6 Core screens and end-to-end flow (M1, Fri 23 Oct) | Built (Phases 0–1) |
-| TP-35 … TP-40 | 4.1–4.6 Dry-run screens (M2, Mon 26 Oct) | Built (Phases 2–3) |
-| TP-41 | 4.7 QR live enquiry | Built. Supabase project and Vercel keys are set up from the README section above |
-
-## Rules for anyone building on this
-
-- Every number shown must come from `generate.js` through `metrics.js`. Never type a figure into a screen.
-- If you change `config.js` or `generate.js`, run `npm run verify` and update page 06 if a figure moves.
-- Raw numbers with sorting and filtering. No scores, health ratings or red/amber/green colouring (spec G8).
-- Keep the "Demo data" tag on every screen and CDS branding only in the footer.
-- Campaign, ad and post names stay in Bahasa Malaysia; the interface is English.
-- Design for a 1920×1080 screen share: body text at least 16px, headline figures at least 32px.
+AMP Manager, AMP Executive, Operator (Alam Sentral assets only), Management (aggregates only) and System Admin (settings). The header role switcher is for the demo.
