@@ -16,14 +16,27 @@ export function openScreen(screen, search, ...params) {
   go(screen, ...params, globalQuery(search));
 }
 
-export function PageHead({ title, lede, actions }) {
+export function PageHead({ title, lede, actions, tabs, back }) {
   return (
-    <div className="screen-head">
-      <div>
-        <h1>{title}</h1>
-        {lede ? <p className="lead">{lede}</p> : null}
+    <div className="screen-head page-head">
+      {back ? <a className="back-link" href={back.href} onClick={back.onClick}>{back.label || 'Back'}</a> : null}
+      <div className="page-head-row">
+        <div>
+          <h1>{title}</h1>
+          {lede ? <p className="lead">{lede}</p> : null}
+        </div>
+        {actions ? <div className="screen-actions">{actions}</div> : null}
       </div>
-      {actions ? <div className="screen-actions">{actions}</div> : null}
+      {tabs || null}
+    </div>
+  );
+}
+
+export function EmptyState({ title, action }) {
+  return (
+    <div className="empty-state">
+      <p>{title}</p>
+      {action || null}
     </div>
   );
 }
@@ -32,8 +45,27 @@ export function SampleBadge({ text = 'Sample data, not connected' }) {
   return <span className="sample-badge">{text}</span>;
 }
 
+const STATUS_CLASS = {
+  Planned: 'st-planned',
+  Approved: 'st-approved',
+  Live: 'st-live',
+  Completed: 'st-completed',
+  Reported: 'st-reported',
+  Draft: 'st-planned',
+  Published: 'st-live',
+  Scheduled: 'st-approved',
+  Closed: 'st-completed',
+  Archived: 'st-reported',
+  Active: 'st-live',
+  Paused: 'st-completed',
+  Expired: 'st-reported',
+  New: 'st-approved',
+  'Matched to existing profile': 'st-reported',
+  Flagged: 'st-completed',
+};
+
 export function Status({ value }) {
-  return <span className="status-chip">{value || '–'}</span>;
+  return <span className={`status-chip ${STATUS_CLASS[value] || ''}`}>{value || '–'}</span>;
 }
 
 export function auditEntry(state, action, targetType, targetId, details) {

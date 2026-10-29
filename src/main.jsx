@@ -12,6 +12,7 @@ import './styles/type.css';
 import './styles/round2.css';
 import './styles/alignment.css';
 import './styles/amp.css';
+import './styles/v2.css';
 
 createRoot(document.getElementById('root')).render(
   <StoreProvider>
