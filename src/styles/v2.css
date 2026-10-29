@@ -147,6 +147,8 @@ label:has(> input[type="checkbox"]) { display: inline-flex; flex-direction: row;
 .rule-card { border: 1px solid var(--ink-300); border-radius: 12px; padding: 12px; margin-bottom: 12px; }
 .util-bar { height: 6px; background: #E5E7EB; border-radius: 99px; overflow: hidden; }
 .util-bar span { display: block; height: 100%; background: #64748B; }
+.timeline { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; }
+.timeline li { display: flex; gap: 8px; align-items: baseline; }
 .date-block { width: 56px; text-align: center; }
 .date-block strong { display: block; font-size: 22px; }
 .demo-pill { background: var(--pkns-gold); color: #111827; }

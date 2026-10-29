@@ -54,6 +54,7 @@ export function matchCondition(profile, condition, activationById) {
 }
 
 export function matchSegment(profile, segment, activationById) {
+  if ((segment.memberIds || []).includes(profile.id)) return true;
   const groups = segment.groups || [];
   const results = groups.map((group) => {
     const checks = (group.conditions || []).map((condition) => matchCondition(profile, condition, activationById));
