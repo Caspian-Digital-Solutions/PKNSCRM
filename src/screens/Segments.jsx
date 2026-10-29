@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { HBars } from '../components/Charts.jsx';
 import Avatar from '../components/Avatar.jsx';
 import ChartCard from '../components/ChartCard.jsx';
 import DataTable from '../components/DataTable.jsx';
@@ -60,7 +61,7 @@ function Compare({ rows }) {
 
 export default function Segments({ id }) {
   const amp = useAmp();
-  const { segments, profiles, allActivations, scope, state, dispatch, route, assets } = amp;
+  const { segments, profiles, allActivations, scope, state, dispatch, route, assets, forms } = amp;
   const [table, setTable] = useState(false);
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState(blank);
@@ -126,6 +127,9 @@ export default function Segments({ id }) {
             </div>
           ))}
         </div>
+        <ChartCard title="Captured via" rows={forms.map((form) => ({ name: form.publicTitle || form.name, value: members.filter((profile) => (profile.links || []).some((link) => link.activationId === form.activationId)).length })).filter((row) => row.value).sort((a, b) => b.value - a.value).slice(0, 6)} exportName="captured-via">
+          <HBars data={forms.map((form) => ({ name: form.publicTitle || form.name, value: members.filter((profile) => (profile.links || []).some((link) => link.activationId === form.activationId)).length })).filter((row) => row.value).sort((a, b) => b.value - a.value).slice(0, 6)} />
+        </ChartCard>
         <h2>Members</h2>
         <DataTable
           columns={[

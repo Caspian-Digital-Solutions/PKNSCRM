@@ -10,6 +10,7 @@ import ActivationDetail from './screens/ActivationDetail.jsx';
 import Forms from './screens/Forms.jsx';
 import FormBuilder from './screens/FormBuilder.jsx';
 import PublicForm from './screens/PublicForm.jsx';
+import QrDetail from './screens/QrDetail.jsx';
 import Audience from './screens/Audience.jsx';
 import Profile from './screens/Profile.jsx';
 import Segments from './screens/Segments.jsx';
@@ -51,7 +52,7 @@ export default function App() {
     document.title = name ? `${name} – PKNS AMP Hub` : 'PKNS AMP Hub';
   }, [screen]);
 
-  if (screen === 'f') return <PublicForm />;
+  if (screen === 'f' || screen === 'kiosk') return <PublicForm kiosk={screen === 'kiosk'} />;
   if (screen === 'privacy') return <Privacy />;
   if (!state.role) return <Login />;
 
@@ -65,6 +66,9 @@ export default function App() {
   if (screen === 'activation' && route.params[0]) {
     current = 'activations';
     page = <ActivationDetail key={route.params[0]} id={route.params[0]} />;
+  } else if (screen === 'qr' && route.params[0]) {
+    current = 'forms';
+    page = <QrDetail id={route.params[0]} />;
   } else if (screen === 'form' && route.params[0]) {
     current = 'forms';
     page = <FormBuilder key={route.params[0]} id={route.params[0]} />;

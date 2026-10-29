@@ -3,7 +3,7 @@ import { rangeFor, previousRange, splitList } from '../filters.js';
 import { SOURCE_CHANNELS } from './config.js';
 import {
   liveActivations, liveAssets, liveAudit, liveBudgets, liveForms, liveImports, liveOperators,
-  liveProfiles, liveSegments, liveSpend,
+  liveProfiles, liveQrCodes, liveSegments, liveSpend,
 } from './live.js';
 import {
   budgetAmount, channelMatch, costPerLead, engagementRate, inRange, monthsBetween,
@@ -233,17 +233,20 @@ export function buildView(data, state, search) {
     }
     return row;
   });
+  const running = Object.fromEntries(SOURCE_CHANNELS.map((source) => [source, 0]));
+  const periodStart = months[0] ? `${months[0]}-01` : from;
+  const additions = Object.fromEntries(months.map((month) => [month, Object.fromEntries(SOURCE_CHANNELS.map((source) => [source, 0]))]));
+  for (const profile of profiles) {
+    if (!channelMatch(profile, scope.channels)) continue;
+    if (!(profile.assetIds || []).some((id) => scope.assetIds.includes(id))) continue;
+    const source = SOURCE_CHANNELS.includes(profile.sourceChannelFirst) ? profile.sourceChannelFirst : 'Manual entry';
+    const month = monthKey(profile.firstSeen);
+    if (additions[month]) additions[month][source] += 1;
+    else if (profile.firstSeen < periodStart) running[source] += 1;
+  }
   const growth = months.map((month) => {
-    const row = { month };
-    for (const source of SOURCE_CHANNELS) row[source] = 0;
-    for (const profile of profiles) {
-      if (monthKey(profile.firstSeen) !== month) continue;
-      if (!channelMatch(profile, scope.channels)) continue;
-      if (!(profile.assetIds || []).some((id) => scope.assetIds.includes(id))) continue;
-      const source = SOURCE_CHANNELS.includes(profile.sourceChannelFirst) ? profile.sourceChannelFirst : 'Manual entry';
-      row[source] += 1;
-    }
-    return row;
+    for (const source of SOURCE_CHANNELS) running[source] += additions[month][source];
+    return { month, ...running };
   });
   const window = upcomingWindow();
   const roster = activations.filter((act) => scope.assetIds.includes(act.assetId) && (!scope.types.length || scope.types.includes(act.type)) && channelOk(act, scope, spend));
@@ -269,6 +272,9 @@ export function buildView(data, state, search) {
     profiles,
     budgets,
     forms: liveForms(data, state),
+    qrCodes: liveQrCodes(data, state),
+    submissions: state.submissionsAdded || [],
+    submissionPatches: state.submissionPatches || {},
     segments: liveSegments(data, state),
     imports: liveImports(data, state),
     audit: liveAudit(data, state),

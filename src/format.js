@@ -19,7 +19,10 @@ export function rmAxis(v) {
 export const rm2 = (v) => (v == null ? '–' : 'RM' + nf2.format(v));
 // Round half up on the decimal value (toFixed alone shows 10.35 as 10.3).
 const round = (v, d) => Math.round(v * 10 ** d + 1e-9) / 10 ** d;
-export const pct = (v, d = 1) => (finite(v) ? round(Number(v) * 100, d).toFixed(d) + '%' : '–');
+export const pct = (v, d = 1) => {
+  const digits = Number.isFinite(Number(d)) ? Number(d) : 1;
+  return finite(v) ? `${round(Number(v) * 100, digits).toFixed(digits)}%` : '–';
+};
 export const x = (v) => (v == null ? '–' : round(v, 1).toFixed(1) + 'x');
 const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
@@ -79,9 +82,18 @@ export const dayMonth = (iso) => {
 export const dateTime = (iso) => {
   if (!iso) return '–';
   const part = klParts(iso);
-  if (iso.length === 10) return `${part.day} ${part.month}`;
-  return `${part.day} ${part.month}, ${part.hour}:${part.minute}`;
+  if (iso.length === 10) return `${part.day} ${part.month} ${part.year}`;
+  return `${part.day} ${part.month} ${part.year}, ${part.hour}:${part.minute}`;
 };
+export function dateSpan(start, end) {
+  if (!start) return '–';
+  if (!end || start === end) return date(start);
+  const a = klParts(start);
+  const b = klParts(end);
+  if (a.month === b.month && a.year === b.year) return `${a.day}–${b.day} ${a.month} ${a.year}`;
+  if (a.year === b.year) return `${a.day} ${a.month} – ${b.day} ${b.month} ${a.year}`;
+  return `${date(start)} – ${date(end)}`;
+}
 export const tooltipDate = (iso) => {
   if (!iso) return '–';
   const part = klParts(iso);

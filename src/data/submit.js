@@ -74,10 +74,12 @@ export function buildSubmission({ data, state, form, activation, values, touchpo
     interestedRent: values.interestedRent || 'No',
     interestedBuy: values.interestedBuy || 'No',
   };
+  const activationId = activation?.id || null;
+  const assetId = activation?.assetId || form?.assetIds?.[0] || null;
   if (existingId) {
     const existing = findProfile(data, state, existingId);
-    const links = [...(existing.links || []), { activationId: activation.id, isNew: false, spendRM: 0 }];
-    const assetIds = [...new Set([...(existing.assetIds || []), activation.assetId])];
+    const links = activationId ? [...(existing.links || []), { activationId, isNew: false, spendRM: 0 }] : (existing.links || []);
+    const assetIds = assetId ? [...new Set([...(existing.assetIds || []), assetId])] : (existing.assetIds || []);
     return {
       kind: 'merge',
       id: existingId,
@@ -118,9 +120,9 @@ export function buildSubmission({ data, state, form, activation, values, touchpo
       sourceChannelFirst: 'Event QR',
       socialNetwork: null,
       webPage: null,
-      assetIds: [activation.assetId],
-      links: [{ activationId: activation.id, isNew: true, spendRM: 0 }],
-      activationIds: [activation.id],
+      assetIds: assetId ? [assetId] : [],
+      links: activationId ? [{ activationId, isNew: true, spendRM: 0 }] : [],
+      activationIds: activationId ? [activationId] : [],
       totalActivationsAttended: 1,
       spendCapturedRM: 0,
       consent: {
@@ -134,7 +136,7 @@ export function buildSubmission({ data, state, form, activation, values, touchpo
       },
       importedFromLegacy: false,
       legacySourceFile: null,
-      createdFromActivationId: activation.id,
+      createdFromActivationId: activationId,
     },
   };
 }

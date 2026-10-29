@@ -12,7 +12,7 @@ import { useAmp } from '../useAmp.jsx';
 import { date } from '../format.js';
 
 export default function Profile({ id }) {
-  const { data, state, dispatch, allActivations, assets, route } = useAmp();
+  const { data, state, dispatch, allActivations, assets, forms, route } = useAmp();
   const profile = findProfile(data, state, id);
   const revealed = Boolean(state.revealed?.[id]);
   const [confirm, setConfirm] = useState('');
@@ -84,7 +84,7 @@ export default function Profile({ id }) {
               <li key={row.act.id}>
                 <i className="asset-dot" style={{ background: ASSET_COLOURS[row.act.assetId] }} />
                 <a href={linkTo(`activation/${row.act.id}`, route.search)}>{row.act.name}</a>
-                <span>{date(row.act.startDate)} · {row.isNew ? 'First visit' : 'Returning'}</span>
+                <span>{date(row.act.startDate)} · {row.isNew ? 'First visit' : 'Returning'} · {forms.find((form) => form.activationId === row.act.id)?.publicTitle || 'Activation'}</span>
               </li>
             ))}
           </ol>

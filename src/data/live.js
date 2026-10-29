@@ -36,6 +36,19 @@ export function liveSpend(data, state) {
     .map((line) => (patches[line.id] ? { ...line, ...patches[line.id] } : line));
 }
 
+export function liveQrCodes(data, state) {
+  const byId = new Map();
+  for (const qr of data.qrCodes || []) byId.set(qr.id, qr);
+  for (const patch of Object.values(state.activationPatches || {})) {
+    for (const qr of patch.qrCodes || []) byId.set(qr.id, { ...(byId.get(qr.id) || {}), ...qr });
+  }
+  for (const [id, patch] of Object.entries(state.qrPatches || {})) {
+    const current = byId.get(id) || { id };
+    byId.set(id, { ...current, ...patch, style: { ...(current.style || {}), ...(patch.style || {}) } });
+  }
+  return [...byId.values(), ...(state.qrAdded || [])];
+}
+
 export function liveForms(data, state) {
   const patches = state.formPatches || {};
   return [...data.forms, ...(state.formsAdded || [])].map((form) => (patches[form.id] ? { ...form, ...patches[form.id], consentBlock: { ...form.consentBlock, ...(patches[form.id].consentBlock || {}) } } : form));
