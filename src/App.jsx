@@ -68,6 +68,9 @@ export default function App() {
   } else if (screen === 'form' && route.params[0]) {
     current = 'forms';
     page = <FormBuilder key={route.params[0]} id={route.params[0]} />;
+  } else if (screen === 'segment' && route.params[0]) {
+    current = 'segments';
+    page = <Segments id={route.params[0]} />;
   } else if (screen === 'profile' && route.params[0]) {
     current = 'audience';
     if (!can(state.role, 'profile.open')) {
