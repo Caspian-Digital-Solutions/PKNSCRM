@@ -5,10 +5,10 @@ import { useAmp } from '../useAmp.jsx';
 import { date } from '../format.js';
 
 export default function Forms() {
-  const { forms, activations, route } = useAmp();
+  const { forms, allActivations, route } = useAmp();
   const [query, setQuery] = useState('');
   const rows = forms.map((form) => {
-    const act = activations.find((item) => item.id === form.activationId) || null;
+    const act = allActivations.find((item) => item.id === form.activationId) || null;
     return {
       ...form,
       activation: act?.name || '–',

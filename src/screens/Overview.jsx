@@ -18,7 +18,7 @@ export default function Overview() {
   const columns = [
     { key: 'asset', label: 'Asset' },
     { key: 'operator', label: 'Operator' },
-    { key: 'activations', label: 'Activations', align: 'right', total: 'sum' },
+    { key: 'activationsCompleted', label: 'Activations', align: 'right', total: 'sum' },
     { key: 'ampSpend', label: 'AMP spend', align: 'right', format: rm, total: 'sum' },
     { key: 'attendance', label: 'Attendance', align: 'right', format: num, total: 'sum' },
     { key: 'newProfiles', label: 'New profiles', align: 'right', format: num, total: 'sum' },
@@ -49,7 +49,7 @@ export default function Overview() {
         <Kpi label="Activations completed" formula={formulas.activations} value={kpis.activationsCompleted} format={num} sub={prev(previous.activationsCompleted, num)} href={linkTo('activations', search, { done: '1' })} />
         <Kpi label="Total attendance" formula={formulas.attendance} value={kpis.attendance} format={num} sub={prev(previous.attendance, num)} href={linkTo('activations', search)} />
         <Kpi label="New profiles" formula={formulas.newProfiles} value={kpis.newProfiles} format={num} sub={prev(previous.newProfiles, num)} href={linkTo('audience', search, { arrived: '1' })} />
-        <Kpi label="Database size" formula={formulas.database} value={kpis.database} format={num} sub={prev(previous.database, num)} href={linkTo('audience', search, { stock: '1' })} />
+        <Kpi label="Database size" formula={formulas.database} value={kpis.database} format={num} sub={`Prev: ${num(kpis.databaseAtStart)}`} href={linkTo('audience', search, { stock: '1' })} />
         <Kpi label="Consented for marketing" formula={formulas.consented} value={kpis.consented} format={() => `${num(kpis.consented)} (${pct(kpis.consentPct)})`} sub={`Prev: ${num(previous.consented)} (${pct(previous.consentPct)})`} href={linkTo('audience', search, { consent: 'yes' })} />
         <Kpi label="Cost per attendee" formula={formulas.costAttendee} value={kpis.costPerAttendee} format={rm} sub={prev(previous.costPerAttendee, rm)} href={linkTo('activations', search)} />
         <Kpi label="Cost per new profile" formula={formulas.costProfile} value={kpis.costPerNewProfile} format={rm} sub={prev(previous.costPerNewProfile, rm)} href={linkTo('audience', search, { arrived: '1' })} />

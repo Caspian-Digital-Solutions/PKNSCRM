@@ -51,8 +51,10 @@ export function monthsBetween(from, to) {
 }
 
 export function safeDiv(num, den) {
-  if (!den) return null;
-  return num / den;
+  const top = Number(num);
+  const bottom = Number(den);
+  if (!bottom || !Number.isFinite(top) || !Number.isFinite(bottom)) return null;
+  return top / bottom;
 }
 
 export function channelMatch(profile, channels) {

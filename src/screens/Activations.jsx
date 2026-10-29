@@ -161,7 +161,7 @@ function Pipeline({ rows, search, canDrag, dispatch, state }) {
 
 export default function Activations() {
   const amp = useAmp();
-  const { route, activations, spend, assets, state, dispatch } = amp;
+  const { route, activations, roster, scope, spend, assets, state, dispatch } = amp;
   const [view, setView] = useState('list');
   const [query, setQuery] = useState('');
   const [doneOnly, setDoneOnly] = useState(route.search.done === '1');
@@ -175,7 +175,7 @@ export default function Activations() {
   }, [spend]);
   if (route.params[0] === 'new') return <NewActivation />;
   const assetName = (id) => assets.find((asset) => asset.id === id)?.name || id;
-  let rows = activations.map((act) => ({
+  const shape = (act) => ({
     ...act,
     asset: assetName(act.assetId),
     dates: `${date(act.startDate)} – ${date(act.endDate)}`,
@@ -184,7 +184,9 @@ export default function Activations() {
     fresh: act.outcomes?.newProfiles || 0,
     cost: act.outcomes?.totalAttendance ? (spendById.get(act.id) || 0) / act.outcomes.totalAttendance : null,
     rating: act.outcomes?.avgRating,
-  }));
+  });
+  let rows = activations.map(shape);
+  const rosterRows = (roster || activations).map(shape);
   if (doneOnly || route.search.done === '1') rows = rows.filter((act) => act.status === 'Completed' || act.status === 'Reported');
   if (query) {
     const q = query.toLowerCase();
@@ -226,8 +228,8 @@ export default function Activations() {
       {view === 'list' && (
         <DataTable columns={columns} rows={rows} pageSizes={[25, 50, 100]} exportName="activations" onRowClick={(row) => { window.location.hash = linkTo(`activation/${row.id}`, route.search); }} />
       )}
-      {view === 'calendar' && <Calendar rows={rows} search={route.search} />}
-      {view === 'pipeline' && <Pipeline rows={rows} search={route.search} canDrag={can(state.role, 'activation.status')} dispatch={dispatch} state={state} />}
+      {view === 'calendar' && <Calendar rows={scope.includeUpcoming === false ? rows : rosterRows} search={route.search} />}
+      {view === 'pipeline' && <Pipeline rows={rosterRows} search={route.search} canDrag={can(state.role, 'activation.status')} dispatch={dispatch} state={state} />}
     </section>
   );
 }

@@ -103,12 +103,38 @@ function withCapture(activations, profiles) {
   return activations.map((act) => ({ ...act, captureChannels: [...(map.get(act.id) || [])] }));
 }
 
+function primaryAsset(profile) {
+  return (profile.assetIds || [])[0] || '';
+}
+
+function population(profiles, scope) {
+  return profiles.filter((profile) => !profile.anonymised && channelMatch(profile, scope.channels) && (scope.unrestricted || (profile.assetIds || []).some((id) => scope.assetIds.includes(id))));
+}
+
+// New profiles are counted once, on the asset of first capture, so a By-asset total matches the KPI.
+function countedFresh(profiles, scope, from, to, assetId) {
+  let count = 0;
+  for (const profile of profiles) {
+    if (profile.anonymised) continue;
+    if (!channelMatch(profile, scope.channels)) continue;
+    if (!inRange(profile.firstSeen, from, to)) continue;
+    const primary = primaryAsset(profile);
+    if (assetId) {
+      if (primary !== assetId) continue;
+    } else if (!scope.assetIds.includes(primary)) continue;
+    count += 1;
+  }
+  return count;
+}
+
 function kpisFor(scope, from, to, activations, spend, profiles, budgets, edits) {
   const overlapping = activations.filter((act) => activationIn(act, scope, from, to, { dateMode: 'overlap' }) && channelOk(act, scope, spend));
   const completed = activations.filter((act) => activationIn(act, scope, from, to, { dateMode: 'end' }) && (act.status === 'Completed' || act.status === 'Reported') && channelOk(act, scope, spend));
   const lines = spend.filter((line) => spendIn(line, scope, from, to, new Map(activations.map((act) => [act.id, act]))));
   const figures = activationFigures(overlapping, lines);
-  const stats = profileStats(profiles.filter((profile) => channelMatch(profile, scope.channels) && (scope.unrestricted || (profile.assetIds || []).some((id) => scope.assetIds.includes(id)))), from, to);
+  const people = population(profiles, scope);
+  const stats = profileStats(people, from, to);
+  const fresh = countedFresh(profiles, scope, from, to);
   const ampSpend = spendTotal(lines);
   const budget = scope.assetIds.reduce((sum, id) => sum + budgetAmount(budgets, edits, id, from, to), 0);
   const budgetSpend = lines.filter((line) => line.date >= '2026-01-01' && line.date <= '2026-12-31').reduce((sum, line) => sum + line.amountRM, 0);
@@ -116,12 +142,13 @@ function kpisFor(scope, from, to, activations, spend, profiles, budgets, edits) 
     ampSpend,
     activationsCompleted: completed.length,
     attendance: figures.attendance,
-    newProfiles: stats.fresh,
+    newProfiles: fresh,
     database: stats.database,
+    databaseAtStart: people.filter((profile) => profile.firstSeen < from).length,
     consented: stats.consented,
     consentPct: stats.consentPct,
     costPerAttendee: figures.costPerAttendee,
-    costPerNewProfile: safeDiv(ampSpend, stats.fresh),
+    costPerNewProfile: safeDiv(ampSpend, fresh),
     returningRate: figures.returningRate,
     avgRating: figures.avgRating,
     budget,
@@ -135,21 +162,27 @@ function kpisFor(scope, from, to, activations, spend, profiles, budgets, edits) 
 }
 
 function byAsset(scope, activations, spend, profiles, budgets, edits, from, to) {
+  const actMap = new Map(activations.map((act) => [act.id, act]));
   return scope.assets.filter((asset) => scope.assetIds.includes(asset.id)).map((asset) => {
     const acts = activations.filter((act) => act.assetId === asset.id && overlaps(act.startDate, act.endDate, from, to) && (!scope.types.length || scope.types.includes(act.type)) && channelOk(act, scope, spend));
-    const lines = spend.filter((line) => line.assetId === asset.id && inRange(line.date, from, to) && (!scope.types.length || (line.activationId && acts.some((act) => act.id === line.activationId))));
-    const mine = profiles.filter((profile) => (profile.assetIds || []).includes(asset.id) && channelMatch(profile, scope.channels));
+    const completed = activations.filter((act) => act.assetId === asset.id && (act.status === 'Completed' || act.status === 'Reported') && inRange(act.endDate, from, to) && (!scope.types.length || scope.types.includes(act.type)) && channelOk(act, scope, spend));
+    const lines = spend.filter((line) => line.assetId === asset.id && spendIn(line, scope, from, to, actMap));
+    const mine = profiles.filter((profile) => (profile.assetIds || []).includes(asset.id) && channelMatch(profile, scope.channels) && !profile.anonymised);
     const figures = activationFigures(acts, lines);
-    const fresh = mine.filter((profile) => inRange(profile.firstSeen, from, to)).length;
+    const fresh = countedFresh(profiles, scope, from, to, asset.id);
     const returning = figures.returning;
     const budget = budgetAmount(budgets, edits, asset.id, from, to);
-    const budgetSpend = lines.filter((line) => line.date >= '2026-01-01').reduce((sum, line) => sum + line.amountRM, 0);
+    const budgetSpend = lines.filter((line) => line.date >= '2026-01-01' && line.date <= '2026-12-31').reduce((sum, line) => sum + line.amountRM, 0);
     const ampSpend = spendTotal(lines);
     return {
       id: asset.id,
       asset: asset.name,
+      shortCode: asset.shortCode,
+      colour: asset.colour,
       operator: asset.operatorId ? (scope.operators.find((item) => item.id === asset.operatorId)?.name || '–') : 'PKNS-run',
-      activations: acts.length,
+      activations: completed.length,
+      activationsCompleted: completed.length,
+      activationsInPeriod: acts.length,
       ampSpend,
       activationSpend: figures.activationSpend,
       attendance: figures.attendance,
@@ -160,7 +193,7 @@ function byAsset(scope, activations, spend, profiles, budgets, edits, from, to) 
       avgRating: figures.avgRating,
       budget,
       utilisation: safeDiv(budgetSpend, budget),
-      consented: mine.filter((profile) => profile.consent?.marketingOptIn && !profile.consent.unknown).length,
+      consented: mine.filter((profile) => profile.consent?.marketingOptIn && !profile.consent.unknown && profile.firstSeen <= to).length,
       tenantLeads: mine.filter((profile) => profile.firstSeen <= to && profile.lastSeen >= from && (profile.leadTypes || []).includes('Prospective tenant')).length,
       buyerLeads: mine.filter((profile) => profile.firstSeen <= to && profile.lastSeen >= from && (profile.leadTypes || []).includes('Prospective buyer')).length,
     };
@@ -213,14 +246,24 @@ export function buildView(data, state, search) {
     return row;
   });
   const window = upcomingWindow();
-  const upcoming = activations.filter((act) => activationIn(act, scope, window.from, window.to, { dateMode: 'upcoming' }) && act.status !== 'Completed' && act.status !== 'Reported');
+  const roster = activations.filter((act) => scope.assetIds.includes(act.assetId) && (!scope.types.length || scope.types.includes(act.type)) && channelOk(act, scope, spend));
+  const includeUpcoming = (search?.upcoming ?? '1') !== '0';
+  const upcoming = activations.filter((act) => {
+    if (!scope.assetIds.includes(act.assetId)) return false;
+    if (scope.types.length && !scope.types.includes(act.type)) return false;
+    if (act.status === 'Completed' || act.status === 'Reported') return false;
+    if (includeUpcoming) return act.endDate >= scope.from || act.startDate > scope.to;
+    return activationIn(act, scope, window.from, window.to, { dateMode: 'upcoming' });
+  });
   const awaiting = activations.filter((act) => scope.assetIds.includes(act.assetId) && act.status === 'Completed' && (!scope.types.length || scope.types.includes(act.type)));
+  scope.includeUpcoming = includeUpcoming;
   return {
     scope,
     formulas: FORMULAS,
     kpis,
     prev,
     activations: channelActs,
+    roster,
     allActivations: activations,
     spend,
     profiles,

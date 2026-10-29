@@ -1,8 +1,9 @@
 const nf0 = new Intl.NumberFormat('en-MY', { maximumFractionDigits: 0 });
 const nf2 = new Intl.NumberFormat('en-MY', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-export const num = (v) => (v == null ? '–' : nf0.format(v));
-export const rm = (v) => (v == null || !Number.isFinite(Number(v)) ? '–' : `RM ${nf0.format(Number(v))}`);
+const finite = (v) => v != null && v !== '' && Number.isFinite(Number(v));
+export const num = (v) => (finite(v) ? nf0.format(Number(v)) : '–');
+export const rm = (v) => (finite(v) ? `RM ${nf0.format(Number(v))}` : '–');
 export function rmAxis(v) {
   const n = Number(v);
   if (!Number.isFinite(n)) return '';
@@ -18,7 +19,7 @@ export function rmAxis(v) {
 export const rm2 = (v) => (v == null ? '–' : 'RM' + nf2.format(v));
 // Round half up on the decimal value (toFixed alone shows 10.35 as 10.3).
 const round = (v, d) => Math.round(v * 10 ** d + 1e-9) / 10 ** d;
-export const pct = (v, d = 1) => (v == null ? '–' : round(v * 100, d).toFixed(d) + '%');
+export const pct = (v, d = 1) => (finite(v) ? round(Number(v) * 100, d).toFixed(d) + '%' : '–');
 export const x = (v) => (v == null ? '–' : round(v, 1).toFixed(1) + 'x');
 const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 

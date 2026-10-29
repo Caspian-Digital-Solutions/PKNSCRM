@@ -17,7 +17,7 @@ export default function Profile({ id }) {
   const show = (field) => personal(profile, state.role, revealed, field);
   return (
     <section>
-      <PageHead title={show('fullName')} lede="Profile" actions={state.role === 'management' && can(state.role, 'profile.reveal') && !revealed ? <button type="button" className="btn" onClick={() => dispatch({ type: 'reveal', id, entry: auditEntry(state, 'Revealed contact', 'Profile', id, `Revealed ${id}`) })}>Reveal contact</button> : null} />
+      <PageHead title={show('fullName')} lede="Profile" actions={can(state.role, 'profile.reveal') && !revealed ? <button type="button" className="btn" onClick={() => dispatch({ type: 'reveal', id, entry: auditEntry(state, 'Revealed contact', 'Profile', id, `Revealed ${id}`) })}>Reveal contact</button> : null} />
       <div className="fact-grid">
         <div><div className="fact-label">Mobile</div><div>{show('mobile')}</div></div>
         <div><div className="fact-label">Email</div><div>{show('email')}</div></div>

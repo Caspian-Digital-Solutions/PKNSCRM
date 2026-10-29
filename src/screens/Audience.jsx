@@ -57,8 +57,8 @@ export default function Audience() {
   ];
   const shaped = rows.map((profile) => ({
     id: profile.id,
-    name: personal(profile, state.role, false, 'fullName'),
-    mobile: personal(profile, state.role, false, 'mobile'),
+    name: personal(profile, state.role, state.revealed, 'fullName'),
+    mobile: personal(profile, state.role, state.revealed, 'mobile'),
     area: profile.area,
     ageBand: profile.ageBand,
     leads: (profile.leadTypes || []).join(', '),

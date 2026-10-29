@@ -1,6 +1,6 @@
+import { can, ROLES } from '../access.js';
 import { globalQuery } from '../filters.js';
 import { go } from '../router.js';
-import { ROLES } from '../access.js';
 import { maskEmail, maskName, maskPhone } from '../mask.js';
 
 export function linkTo(path, search, extra = {}) {
@@ -42,13 +42,11 @@ export function auditEntry(state, action, targetType, targetId, details) {
 }
 
 export function personal(profile, role, revealed, field) {
-  void revealed;
-  if (role === 'management') {
-    if (field === 'fullName') return maskName(profile.fullName);
-    if (field === 'mobile') return maskPhone(profile.mobile);
-    if (field === 'email') return maskEmail(profile.email);
-  }
-  return profile[field] || '–';
+  const shown = revealed === true || (revealed && (revealed[profile?.id] === true || revealed[`${profile?.id}:${field}`] === true));
+  if (field === 'mobile') return shown && can(role, 'profile.reveal') ? (profile.mobile || '–') : maskPhone(profile?.mobile);
+  if (field === 'email') return shown && can(role, 'profile.reveal') ? (profile.email || '–') : maskEmail(profile?.email);
+  if (role === 'management' && field === 'fullName') return maskName(profile.fullName);
+  return profile?.[field] || '–';
 }
 
 export function SearchBox({ value, onChange, placeholder = 'Search' }) {

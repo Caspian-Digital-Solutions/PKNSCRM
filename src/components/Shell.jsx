@@ -47,6 +47,12 @@ export default function Shell({ current, children }) {
   };
 
   useEffect(() => {
+    window.scrollTo(0, 0);
+    document.querySelector('.main-col')?.scrollTo?.(0, 0);
+    document.querySelector('.content')?.scrollTo?.(0, 0);
+  }, [route.screen, route.params.join('|')]);
+
+  useEffect(() => {
     const onKey = (event) => {
       const field = event.target instanceof HTMLElement && event.target.closest('input, textarea, select, [contenteditable="true"]');
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
