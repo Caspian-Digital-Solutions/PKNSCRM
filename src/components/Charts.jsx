@@ -96,17 +96,37 @@ export function SeasonChart({ data, lines, bands = [] }) {
   );
 }
 
-export function HBars({ data, colour = '#1F6FEB', onPick, valueKey = 'value', nameKey = 'name' }) {
+export function GroupedBars({ data, bars, money = false, categoryKey = 'name' }) {
+  return (
+    <div className="chart-wrap">
+      <ResponsiveContainer width="100%" height="100%">
+        <BarChart data={data} margin={{ top: 12, right: 16, left: 8, bottom: 8 }}>
+          <CartesianGrid stroke="#E2E5EA" vertical={false} />
+          <XAxis dataKey={categoryKey} tick={{ fill: '#374151', fontSize: 12 }} tickFormatter={monthTick} />
+          <YAxis domain={[0, 'auto']} tickFormatter={(value) => (money ? rmAxis(value) : num(value))} />
+          <Tooltip formatter={(value, name) => [money ? rm(value) : num(value), name]} />
+          <Legend />
+          {(bars || []).map((bar, index) => (
+            <Bar key={bar.key} dataKey={bar.key} name={bar.name} fill={bar.colour || PALETTE[index % PALETTE.length]} radius={[4, 4, 0, 0]} />
+          ))}
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+export function HBars({ data, colour = '#1F6FEB', onPick, valueKey = 'value', nameKey = 'name', money = false }) {
   const height = Math.max(200, (data?.length || 1) * 36);
   return (
     <div className="chart-wrap" style={{ height }}>
       <ResponsiveContainer width="100%" height="100%">
         <BarChart data={data} layout="vertical" margin={{ top: 8, right: 36, left: 8, bottom: 8 }}>
           <CartesianGrid stroke="#E2E5EA" horizontal={false} />
-          <XAxis type="number" domain={[0, 'auto']} tickFormatter={(value) => num(value)} />
+          <XAxis type="number" domain={[0, 'auto']} tickFormatter={(value) => (money ? rmAxis(value) : num(value))} />
           <YAxis type="category" dataKey={nameKey} width={128} tick={{ fill: '#374151', fontSize: 12 }} />
-          <Tooltip formatter={(value) => num(value)} />
-          <Bar dataKey={valueKey} radius={[0, 4, 4, 0]} onClick={(row) => onPick?.(row)} cursor={onPick ? 'pointer' : undefined}>
+          <Tooltip formatter={(value) => (money ? rm(value) : num(value))} />
+          <Legend />
+          <Bar dataKey={valueKey} name={money ? 'Amount' : 'Count'} radius={[0, 4, 4, 0]} onClick={(row) => onPick?.(row)} cursor={onPick ? 'pointer' : undefined}>
             {(data || []).map((row, index) => <Cell key={row[nameKey] || index} fill={row.colour || colour || PALETTE[index % PALETTE.length]} />)}
           </Bar>
         </BarChart>
@@ -124,7 +144,8 @@ export function VBars({ data, colour = '#E31E24', onPick }) {
           <XAxis dataKey="name" tick={{ fill: '#374151', fontSize: 12 }} />
           <YAxis domain={[0, 'auto']} tickFormatter={(value) => num(value)} />
           <Tooltip formatter={(value) => num(value)} />
-          <Bar dataKey="value" fill={colour} radius={[4, 4, 0, 0]} onClick={(row) => onPick?.(row)} label={(data || []).length <= 8 ? { position: 'top', fontSize: 11, formatter: (value) => num(value) } : false} />
+          <Legend />
+          <Bar dataKey="value" name="Count" fill={colour} radius={[4, 4, 0, 0]} onClick={(row) => onPick?.(row)} label={(data || []).length <= 8 ? { position: 'top', fontSize: 11, formatter: (value) => num(value) } : false} />
         </BarChart>
       </ResponsiveContainer>
     </div>

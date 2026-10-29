@@ -2,15 +2,15 @@ import { useMemo, useState } from 'react';
 import DataTable from '../components/DataTable.jsx';
 import { PageHead, SampleBadge, SearchBox, Status, linkTo } from '../components/bits.jsx';
 import { can } from '../access.js';
-import { AS_OF } from '../data/config.js';
+import { ASSET_COLOURS, AS_OF } from '../data/config.js';
 import { useAmp } from '../useAmp.jsx';
 import { date, num, pct, rm } from '../format.js';
 
 const TYPES = ['Mall', 'Office', 'Mixed-use', 'Open space', 'Township site'];
 const STATUSES = ['Active', 'Under redevelopment', 'Planned'];
 
-function Photo({ code }) {
-  return <div className="asset-photo" aria-hidden="true">{code}</div>;
+function Photo({ code, colour }) {
+  return <div className="asset-photo" style={{ borderTopColor: colour || '#E31E24' }} aria-hidden="true"><span>{code}</span></div>;
 }
 
 export default function Assets({ id }) {
@@ -35,7 +35,8 @@ function AssetList({ amp }) {
         ...row,
         shortCode: asset?.shortCode,
         type: asset?.type,
-        location: `${asset?.area || ''}, ${asset?.city || ''}`,
+        location: asset?.area && asset?.city && asset.area !== asset.city ? `${asset.area} · ${asset.city}` : (asset?.area || asset?.city || ''),
+        colour: asset?.colour || ASSET_COLOURS[row.id],
         status: asset?.status,
         profiles: profiles.filter((profile) => (profile.assetIds || []).includes(row.id) && profile.firstSeen <= scope.to).length,
         ytdActivations: ytdActs.length,
@@ -94,13 +95,16 @@ function AssetList({ amp }) {
         <div className="card-grid">
           {rows.map((row) => (
             <a key={row.id} className="asset-card" href={linkTo(`asset/${row.id}`, route.search)}>
-              <Photo code={row.shortCode} />
+              <Photo code={row.shortCode} colour={row.colour} />
               <h2>{row.asset}</h2>
               <p>{row.type} · {row.location}</p>
               <p>{row.operator}</p>
               <p><Status value={row.status} /></p>
-              <p>Activations YTD {num(row.ytdActivations)} · Attendance YTD {num(row.ytdAttendance)}</p>
-              <p>Profiles linked {num(row.profiles)}</p>
+              <div className="kpi-row">
+                <p><span className="fine">Activations YTD</span><strong>{num(row.ytdActivations)}</strong></p>
+                <p><span className="fine">Attendance YTD</span><strong>{num(row.ytdAttendance)}</strong></p>
+                <p><span className="fine">Profiles linked</span><strong>{num(row.profiles)}</strong></p>
+              </div>
             </a>
           ))}
           {rows.length === 0 && <p>No assets in this filter.</p>}
@@ -138,8 +142,8 @@ function AssetDetail({ id, amp }) {
   const snap = asset.rentxSnapshot;
   return (
     <section>
-      <PageHead title={asset.name} lede={`${asset.type} · ${asset.area}, ${asset.city} ${asset.postcode}`} actions={<a className="btn" href={linkTo('assets', route.search)}>All assets</a>} />
-      <Photo code={asset.shortCode} />
+      <PageHead title={asset.name} lede={`${asset.type} · ${asset.area === asset.city ? asset.area : `${asset.area} · ${asset.city}`} ${asset.postcode}`} actions={<a className="btn" href={linkTo('assets', route.search)}>All assets</a>} />
+      <Photo code={asset.shortCode} colour={asset.colour || ASSET_COLOURS[asset.id]} />
       <p>{asset.description}</p>
       <p>Operator: {operator?.name || 'PKNS-run'}</p>
       <p>Status: <Status value={asset.status} /></p>

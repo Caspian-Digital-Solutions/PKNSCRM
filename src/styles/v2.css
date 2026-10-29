@@ -151,6 +151,19 @@ label:has(> input[type="checkbox"]) { display: inline-flex; flex-direction: row;
 .cal-heat i { width: 10px; height: 10px; display: block; }
 .timeline { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; }
 .timeline li { display: flex; gap: 8px; align-items: baseline; }
+.public-shell { min-height: 100vh; background: var(--canvas); display: flex; justify-content: center; padding: 16px; }
+.public-card { width: min(480px, 100%); background: white; border-radius: 16px; padding: 16px 16px 72px; }
+.public-submit { position: sticky; bottom: 8px; width: 100%; }
+.create-menu { position: relative; }
+.create-menu-panel { position: absolute; right: 0; z-index: 6; background: white; border: 1px solid var(--ink-300); border-radius: 8px; display: grid; min-width: 200px; }
+.create-menu-panel button { background: white; border: 0; text-align: left; padding: 10px 12px; }
+.banner-thumb { height: 8px; border-radius: 8px; margin-bottom: 8px; }
+.qr-art { display: inline-grid; justify-items: center; padding: 8px; position: relative; }
+.qr-svg-src { position: absolute; width: 1px; height: 1px; overflow: hidden; }
+.form-error { color: #B91C1C; }
+.asset-photo { height: 88px; border-top: 4px solid #E31E24; display: flex; align-items: flex-end; padding: 8px; background: linear-gradient(#fff, #eef1f4); font-weight: 700; }
+.stepper { display: flex; gap: 12px; list-style: none; padding: 0; flex-wrap: wrap; }
+.stepper button { display: flex; align-items: center; gap: 8px; background: none; border: 0; padding: 0; }
 .date-block { width: 56px; text-align: center; }
 .date-block strong { display: block; font-size: 22px; }
 .demo-pill { background: var(--pkns-gold); color: #111827; }

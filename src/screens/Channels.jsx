@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
+import ChartCard from '../components/ChartCard.jsx';
 import DataTable from '../components/DataTable.jsx';
-import { TrendChart } from '../components/Charts.jsx';
-import { PageHead, SampleBadge, SearchBox } from '../components/bits.jsx';
+import { TrendChart, VBars } from '../components/Charts.jsx';
+import { PageHead, SampleBadge, SearchBox, Status } from '../components/bits.jsx';
 import { DIGITAL_CHANNELS, INTEGRATIONS } from '../data/config.js';
 import { adsIn, digitalRows, postsIn } from '../data/selectors.js';
 import { engagementRate } from '../data/metrics.js';
@@ -78,16 +79,34 @@ export default function Channels() {
           <article key={item.id} className="info-card">
             <div className="screen-actions"><SampleBadge /></div>
             <h2>{item.name}</h2>
-            <p>Status: {item.status === 'Sample data' ? 'Not connected' : item.status}</p>
+            <p><Status value="Not connected" /> Sample data</p>
             <p>Access type: {item.access}</p>
             <p>Account: {ACCOUNTS[item.id]?.account}</p>
-            <p>Last sync: {ACCOUNTS[item.id]?.sync}</p>
           </article>
         ))}
       </div>
       <p className="note">PKNS retains its own media and social agencies. The AMP Hub reads performance data only and does not manage campaigns.</p>
-      <h2>Reach by channel</h2>
-      <TrendChart data={monthly} lines={DIGITAL_CHANNELS.map((channel) => ({ key: channel, name: channel }))} />
+      <ChartCard title="Organic social reach" rows={monthly} columns={[{ key: 'month', label: 'Month' }, { key: 'Facebook', label: 'Facebook', align: 'right', format: num }, { key: 'Instagram', label: 'Instagram', align: 'right', format: num }, { key: 'TikTok', label: 'TikTok', align: 'right', format: num }]} exportName="organic-reach">
+        <TrendChart data={monthly} lines={['Facebook', 'Instagram', 'TikTok'].map((channel) => ({ key: channel, name: channel }))} />
+      </ChartCard>
+      <div className="chart-grid">
+        <div className="span-6">
+          <ChartCard title="Website sessions" rows={monthly.map((row) => ({ name: row.month, value: row.Website || 0 }))} exportName="website-sessions">
+            <TrendChart data={monthly} lines={[{ key: 'Website', name: 'Sessions', colour: '#1F6FEB' }]} />
+          </ChartCard>
+        </div>
+        <div className="span-6">
+          <ChartCard title="Website form submissions" rows={tableRows.filter((row) => row.channel === 'Website').map((row) => ({ name: row.month, value: row.formSubmissions }))} exportName="website-forms">
+            <VBars data={tableRows.filter((row) => row.channel === 'Website').map((row) => ({ name: row.month, value: row.formSubmissions }))} />
+          </ChartCard>
+        </div>
+      </div>
+      <ChartCard title="Google Ads spend" rows={monthly.map((row) => ({ name: row.month, value: tableRows.find((item) => item.month === row.month && item.channel === 'Google Ads')?.spendRM || 0 }))} exportName="ads-spend">
+        <VBars colour="#F59E0B" data={monthly.filter((row) => row.month >= '2026-07').map((row) => ({ name: row.month, value: tableRows.find((item) => item.month === row.month && item.channel === 'Google Ads')?.spendRM || 0 }))} />
+      </ChartCard>
+      <ChartCard title="Google Ads clicks" rows={monthly.filter((row) => row.month >= '2026-07').map((row) => ({ name: row.month, value: tableRows.find((item) => item.month === row.month && item.channel === 'Google Ads')?.clicks || 0 }))} exportName="ads-clicks">
+        <TrendChart data={monthly.filter((row) => row.month >= '2026-07').map((row) => ({ month: row.month, clicks: tableRows.find((item) => item.month === row.month && item.channel === 'Google Ads')?.clicks || 0 }))} lines={[{ key: 'clicks', name: 'Clicks', colour: '#1F6FEB' }]} />
+      </ChartCard>
       <div className="table-toolbar"><SearchBox value={query} onChange={setQuery} placeholder="Search month or channel" /></div>
       <DataTable
         columns={[
@@ -102,7 +121,7 @@ export default function Channels() {
           { key: 'formSubmissions', label: 'Form submissions', align: 'right', format: num },
           { key: 'followersGained', label: 'Followers gained', align: 'right', format: num },
         ]}
-        rows={tableRows}
+        rows={[...tableRows].sort((a, b) => String(b.month).localeCompare(String(a.month)) || a.channel.localeCompare(b.channel))}
         exportName="digital-channels"
         pageSizes={[25, 50, 100]}
         empty="No digital rows in this filter."

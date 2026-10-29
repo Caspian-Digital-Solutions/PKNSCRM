@@ -1,3 +1,4 @@
+import ChartCard from '../components/ChartCard.jsx';
 import DataTable from '../components/DataTable.jsx';
 import Kpi from '../components/Kpi.jsx';
 import { StackedArea, StackedBars, TrendChart } from '../components/Charts.jsx';
@@ -16,25 +17,25 @@ export default function Overview() {
   const operatorName = (id) => operators.find((item) => item.id === id)?.name || 'PKNS-run';
   void operatorName;
   const columns = [
-    { key: 'asset', label: 'Asset' },
-    { key: 'operator', label: 'Operator' },
+    { key: 'asset', label: 'Asset', format: (value, row) => <span>{value}<span className="fine" style={{ display: 'block' }}>{row?.operator}</span></span> },
+    { key: 'operator', label: 'Operator', optional: true },
     { key: 'activationsCompleted', label: 'Activations', align: 'right', total: 'sum' },
     { key: 'ampSpend', label: 'AMP spend', align: 'right', format: rm, total: 'sum' },
     { key: 'attendance', label: 'Attendance', align: 'right', format: num, total: 'sum' },
     { key: 'newProfiles', label: 'New profiles', align: 'right', format: num, total: 'sum' },
-    { key: 'returningProfiles', label: 'Returning profiles', align: 'right', format: num, total: 'sum' },
+    { key: 'returningProfiles', label: 'Returning profiles', align: 'right', format: num, total: 'sum', optional: true },
     { key: 'costPerAttendee', label: 'Cost per attendee', align: 'right', format: rm, total: (rows) => {
       const spend = rows.reduce((sum, row) => sum + (row.activationSpend || 0), 0);
       const attendance = rows.reduce((sum, row) => sum + (row.attendance || 0), 0);
       return attendance ? spend / attendance : null;
     } },
-    { key: 'costPerNewProfile', label: 'Cost per new profile', align: 'right', format: rm, total: (rows) => {
+    { key: 'costPerNewProfile', label: 'Cost per new profile', align: 'right', optional: true, format: rm, total: (rows) => {
       const spend = rows.reduce((sum, row) => sum + (row.ampSpend || 0), 0);
       const fresh = rows.reduce((sum, row) => sum + (row.newProfiles || 0), 0);
       return fresh ? spend / fresh : null;
     } },
-    { key: 'avgRating', label: 'Avg rating', align: 'right', format: (value) => dec1(value) },
-    { key: 'budget', label: 'Budget', align: 'right', format: rm, total: 'sum' },
+    { key: 'avgRating', label: 'Avg rating', align: 'right', optional: true, format: (value) => dec1(value) },
+    { key: 'budget', label: 'Budget', align: 'right', optional: true, format: rm, total: 'sum' },
     { key: 'utilisation', label: 'Budget utilisation', align: 'right', format: pct, total: (rows) => {
       const spend = rows.reduce((sum, row) => sum + (row.budget ? row.utilisation * row.budget : 0), 0);
       const budget = rows.reduce((sum, row) => sum + (row.budget || 0), 0);
@@ -55,13 +56,20 @@ export default function Overview() {
         <Kpi label="Cost per new profile" formula={formulas.costProfile} value={kpis.costPerNewProfile} format={rm} sub={prev(previous.costPerNewProfile, rm)} href={linkTo('audience', search, { arrived: '1' })} />
       </div>
       <div className="chart-grid">
-        <div>
-          <h2>Attendance and new profiles</h2>
-          <TrendChart data={monthly} lines={[{ key: 'attendance', name: 'Attendance' }, { key: 'newProfiles', name: 'New profiles' }]} />
+        <div className="span-6">
+          <ChartCard title="Attendance" rows={monthly.map((row) => ({ id: row.month, name: row.month, value: row.attendance }))} exportName="attendance-by-month">
+            <TrendChart data={monthly} lines={[{ key: 'attendance', name: 'Attendance', colour: '#E31E24' }]} />
+          </ChartCard>
         </div>
-        <div>
-          <h2>AMP spend by category</h2>
-          <StackedBars data={spendMonthly} keys={spendCategories} money />
+        <div className="span-6">
+          <ChartCard title="New profiles" rows={monthly.map((row) => ({ id: row.month, name: row.month, value: row.newProfiles }))} exportName="new-profiles-by-month">
+            <TrendChart data={monthly} lines={[{ key: 'newProfiles', name: 'New profiles', colour: '#1F6FEB' }]} />
+          </ChartCard>
+        </div>
+        <div className="span-12">
+          <ChartCard title="AMP spend by category" rows={spendMonthly} columns={[{ key: 'month', label: 'Month' }, ...spendCategories.map((name) => ({ key: name, label: name, align: 'right', format: rm }))]} exportName="spend-by-category">
+            <StackedBars data={spendMonthly} keys={spendCategories} money />
+          </ChartCard>
         </div>
       </div>
       <h2>By asset</h2>
@@ -69,19 +77,21 @@ export default function Overview() {
       <div className="split">
         <div>
           <h2>Upcoming activations</h2>
-          <DataTable
-            columns={[
-              { key: 'name', label: 'Name' },
-              { key: 'asset', label: 'Asset' },
-              { key: 'when', label: 'Date' },
-              { key: 'status', label: 'Status', format: (value) => <Status value={value} /> },
-              { key: 'budget', label: 'Budget', align: 'right', format: rm },
-            ]}
-            rows={upcoming.map((act) => ({ id: act.id, name: act.name, asset: byAsset.find((row) => row.id === act.assetId)?.asset || act.assetId, when: date(act.startDate), status: act.status, budget: act.budget }))}
-            exportName="upcoming-activations"
-            onRowClick={(row) => { window.location.hash = linkTo(`activation/${row.id}`, search); }}
-            empty="No activations in the next 30 days."
-          />
+          <div className="card-grid">
+            {upcoming.slice(0, 8).map((act) => {
+              const when = date(act.startDate).split(' ');
+              const assetRow = byAsset.find((row) => row.id === act.assetId);
+              return (
+                <a key={act.id} className="info-card" href={linkTo(`activation/${act.id}`, search)}>
+                  <div className="date-block"><strong>{when[0]}</strong><span>{when[1]}</span></div>
+                  <p><i className="asset-dot" style={{ background: assetRow?.colour || '#64748B' }} /> {act.name}</p>
+                  <Status value={act.status} />
+                  <p>{rm(act.budget)}</p>
+                </a>
+              );
+            })}
+            {upcoming.length === 0 && <p>No upcoming activations in this filter.</p>}
+          </div>
         </div>
         <div>
           <h2>Completed, not reported</h2>
@@ -94,8 +104,9 @@ export default function Overview() {
           />
         </div>
       </div>
-      <h2>Database growth by source channel</h2>
-      <StackedArea data={growth} keys={SOURCE_CHANNELS} />
+      <ChartCard title="Database growth by source channel" rows={growth} columns={[{ key: 'month', label: 'Month' }, ...SOURCE_CHANNELS.map((name) => ({ key: name, label: name, align: 'right', format: num }))]} exportName="database-growth">
+        <StackedArea data={growth} keys={SOURCE_CHANNELS} />
+      </ChartCard>
     </section>
   );
 }

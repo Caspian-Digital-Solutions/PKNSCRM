@@ -1,5 +1,8 @@
 import { useMemo, useState } from 'react';
+import ChartCard from '../components/ChartCard.jsx';
 import DataTable from '../components/DataTable.jsx';
+import { HBars } from '../components/Charts.jsx';
+import { ChipSelect } from '../components/controls.jsx';
 import { PageHead, linkTo } from '../components/bits.jsx';
 import { SPEND_CATEGORIES, SOURCE_CHANNELS } from '../data/config.js';
 import { exportSheets } from '../components/ExportButton.jsx';
@@ -30,7 +33,7 @@ function packFor(assets, from, to, allActivations, spend, profiles, byAsset) {
 }
 
 export default function Reports() {
-  const { assets, scope, allActivations, spend, profiles, byAsset, route } = useAmp();
+  const { assets, scope, allActivations, spend, profiles, byAsset, route, data, qrCodes } = useAmp();
   const [month, setMonth] = useState('2026-10');
   const [chosen, setChosen] = useState(() => scope.assetIds.slice());
   const [assetId, setAssetId] = useState(scope.assetIds[0] || '');
@@ -73,6 +76,7 @@ export default function Reports() {
     { heading: 'Audience mix', columns: [{ label: 'First source', key: 'source' }, { label: 'New profiles', key: 'count' }], rows: mix },
     { heading: 'Ratings and comment sentiment', lines: [`Positive ${num(sentiment.positive)}`, `Neutral ${num(sentiment.neutral)}`, `Negative ${num(sentiment.negative)}`] },
     { heading: 'Budget utilisation by asset', columns: [{ label: 'Asset', key: 'asset' }, { label: 'Utilisation', key: 'utilisation' }], rows: pack.rows },
+    { heading: 'Capture performance', lines: [`Forms ${num((data.forms || []).length)}`, `QR scans ${num((qrCodes || []).reduce((sum, qr) => sum + (qr.scans || 0), 0))}`, `QR submissions ${num((qrCodes || []).reduce((sum, qr) => sum + (qr.submissions || 0), 0))}`] },
   ];
   const pdf = () => exportReportPdf({ filename: 'amp-performance-report.pdf', title, subtitle, sections: sections() });
   const excel = () => exportSheets({
@@ -92,23 +96,21 @@ export default function Reports() {
       <PageHead title="Reports" lede="Monthly AMP management report, activation reports and asset reports." />
       <h2>Monthly AMP Management Report</h2>
       <form className="dialog-form" onSubmit={(event) => event.preventDefault()}>
-        <label>Month<input type="month" value={month} onChange={(event) => setMonth(event.target.value)} /></label>
-        <fieldset>
-          <legend>Assets</legend>
-          {selectable.map((item) => (
-            <label key={item.id}>
-              <input type="checkbox" checked={chosen.includes(item.id)} onChange={(event) => setChosen((current) => (event.target.checked ? [...current, item.id] : current.filter((id) => id !== item.id)))} />
-              {item.name}
-            </label>
-          ))}
-        </fieldset>
+        <label>Month<input className="control" type="month" value={month} onChange={(event) => setMonth(event.target.value)} /></label>
+        <div className="screen-actions">
+          <button type="button" className="btn" onClick={() => setChosen(selectable.map((item) => item.id))}>Select all</button>
+          <button type="button" className="btn" onClick={() => setChosen([])}>Clear</button>
+        </div>
+        <ChipSelect ariaLabel="Assets" value={chosen} onChange={setChosen} options={selectable.map((item) => ({ id: item.id, label: item.shortCode }))} />
       </form>
       <article className="report-sheet">
         <h2>{title}</h2>
         <p>{subtitle}</p>
         <DataTable columns={[{ key: 'label', label: 'Measure' }, { key: 'value', label: 'Value', align: 'right' }]} rows={headline} exportName="report-headline" />
-        <h2>Spend by category</h2>
-        <DataTable columns={[{ key: 'category', label: 'Category' }, { key: 'amount', label: 'Amount', align: 'right', format: rm }]} rows={categoryRows} exportName="report-spend-category" />
+        <ChartCard title="Spend by category" rows={categoryRows.map((row) => ({ name: row.category, value: row.amount }))} exportName="report-spend-category">
+          <HBars money data={categoryRows.map((row) => ({ name: row.category, value: row.amount }))} />
+        </ChartCard>
+        <p className="fine">Generated from PKNS AMP Hub · {date(`${month}-01`)}</p>
         <h2>Activations completed</h2>
         <DataTable columns={[{ key: 'name', label: 'Activation' }, { key: 'asset', label: 'Asset' }, { key: 'attendance', label: 'Attendance', align: 'right', format: num }, { key: 'cost', label: 'Cost per attendee', align: 'right', format: rm }]} rows={activationRows} exportName="report-activations" empty="No completed activations in this month." pageSizes={[25, 50, 100]} />
         <h2>Audience mix</h2>
@@ -128,7 +130,7 @@ export default function Reports() {
       />
       <h2>Asset report</h2>
       <label>Asset
-        <select value={asset?.id || ''} onChange={(event) => setAssetId(event.target.value)}>
+        <select className="control" value={asset?.id || ''} onChange={(event) => setAssetId(event.target.value)}>
           {selectable.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
         </select>
       </label>

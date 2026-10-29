@@ -3,6 +3,8 @@ import * as XLSX from 'xlsx';
 import DataTable from '../components/DataTable.jsx';
 import { exportCsv } from '../components/ExportButton.jsx';
 import { PageHead, SearchBox, auditEntry } from '../components/bits.jsx';
+import { Dropzone } from '../components/controls.jsx';
+import Kpi from '../components/Kpi.jsx';
 import { CONSENT_UNKNOWN, IMPORT_MERGED, IMPORT_ROWS, LEGACY_PROFILES, POSTCODES } from '../data/config.js';
 import { findExistingId, normaliseMobile } from '../data/submit.js';
 import { useAmp } from '../useAmp.jsx';
@@ -157,24 +159,22 @@ export default function ImportData() {
   return (
     <section>
       <PageHead title="Data Import" lede="One-time load of legacy Google Forms and Excel files." />
-      <article className="info-card">
-        <p>Legacy records imported: {num(IMPORT_ROWS)} · Merged duplicates: {num(IMPORT_MERGED)} · Unique profiles created: {num(LEGACY_PROFILES)} · Flagged consent unknown: {num(CONSENT_UNKNOWN)}</p>
-      </article>
-      <div className="tabs" role="tablist">
-        {STEPS.map((label, index) => (
-          <button key={label} type="button" className="btn" aria-current={step === index ? 'step' : undefined} onClick={() => rows.length && setStep(index)}>{index + 1}. {label}</button>
-        ))}
+      <div className="kpi-row">
+        <Kpi label="Rows imported" value={IMPORT_ROWS} format={num} />
+        <Kpi label="Merged duplicates" value={IMPORT_MERGED} format={num} />
+        <Kpi label="Profiles created" value={LEGACY_PROFILES} format={num} />
+        <Kpi label="Consent unknown" value={CONSENT_UNKNOWN} format={num} />
       </div>
+      <ol className="stepper">
+        {STEPS.map((label, index) => (
+          <li key={label}><button type="button" onClick={() => rows.length && setStep(index)}><span className={step === index ? 'on' : index < step ? 'done' : ''}>{index < step ? '✓' : index + 1}</span>{label}</button></li>
+        ))}
+      </ol>
       {step === 0 && (
         <div className="dialog-form">
-          <label>Upload .xlsx or .csv
-            <input type="file" accept=".xlsx,.xls,.csv" onChange={(event) => {
-              const file = event.target.files?.[0];
-              if (!file) return;
-              readSheet(file).then((parsed) => loadRows(parsed, file.name)).catch(() => setMessage('Could not read that file.'));
-            }}
-            />
-          </label>
+          <Dropzone accept=".xlsx,.xls,.csv" label="Drop an .xlsx or .csv file" onFile={(file) => {
+            readSheet(file).then((parsed) => loadRows(parsed, file.name)).catch(() => setMessage('Could not read that file.'));
+          }} />
           <button type="button" className="btn" onClick={() => loadRows(SHEET_ROWS, 'Google Sheet – sample visitor list')}>Connect Google Sheet</button>
           {message && <p>{message}</p>}
         </div>
