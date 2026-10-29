@@ -1,7 +1,7 @@
 import { AS_OF } from './data/config.js';
 import { addDays, dateUTC } from './data/rng.js';
 
-export const GLOBAL_KEYS = ['preset', 'from', 'to', 'asset', 'operator', 'type', 'channel'];
+export const GLOBAL_KEYS = ['preset', 'from', 'to', 'asset', 'operator', 'type', 'channel', 'upcoming'];
 
 export const PRESETS = [
   { id: 'month', label: 'This month', from: '2026-10-01', to: AS_OF },

@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
+import ChartCard from '../components/ChartCard.jsx';
 import DataTable from '../components/DataTable.jsx';
-import { TrendChart } from '../components/Charts.jsx';
+import { GroupedBars, HBars } from '../components/Charts.jsx';
 import { PageHead, SearchBox, auditEntry, linkTo } from '../components/bits.jsx';
 import { can } from '../access.js';
 import { SPEND_CATEGORIES } from '../data/config.js';
@@ -26,6 +27,7 @@ export default function Budget() {
   const [draft, setDraft] = useState({ assetId: '', date: '2026-10-15', category: SPEND_CATEGORIES[0], vendor: '', description: '', amountRM: '', activationId: '', attachmentName: '' });
   const [editing, setEditing] = useState(null);
   const [windowStart, setWindowStart] = useState('2025-11');
+  const [quarter, setQuarter] = useState('Q4');
   const [exportAssets, setExportAssets] = useState(() => scope.assetIds.slice());
   const editable = can(state.role, 'budget.edit');
   const spendEditable = can(state.role, 'spend.edit');
@@ -130,26 +132,34 @@ export default function Budget() {
     });
   };
 
-  const quarterColumns = QUARTERS.flatMap((quarter) => ([
-    { key: `${quarter.id}Approved`, label: `${quarter.id} approved`, align: 'right', format: (value, row) => (!row || !editable ? rm(value) : <input aria-label={`${row.asset} ${quarter.id} approved`} type="number" defaultValue={value} onClick={(event) => event.stopPropagation()} onBlur={(event) => saveBudget(row.id, quarter.id, event.target.value)} />) },
-    { key: `${quarter.id}Actual`, label: `${quarter.id} spend`, align: 'right', format: rm },
-    { key: `${quarter.id}Diff`, label: `${quarter.id} difference`, align: 'right', format: rm },
-    { key: `${quarter.id}Util`, label: `${quarter.id} utilisation`, align: 'right', format: pct },
-  ]));
+  const quarterColumns = [
+    { key: `${quarter}Approved`, label: 'Approved', align: 'right', format: (value, row) => (!row || !editable ? rm(value) : <span className="money-input"><span>RM</span><input className="control" aria-label={`${row.asset} ${quarter} approved`} defaultValue={value} onClick={(event) => event.stopPropagation()} onBlur={(event) => saveBudget(row.id, quarter, event.target.value.replace(/[^\d]/g, ''))} /></span>) },
+    { key: `${quarter}Actual`, label: 'Spend', align: 'right', format: rm },
+    { key: `${quarter}Diff`, label: 'Difference', align: 'right', format: rm },
+    { key: `${quarter}Util`, label: 'Utilisation', align: 'right', format: (value) => <span className="util-cell"><span className="util-bar"><span style={{ width: `${Math.min(100, Math.round((Number(value) || 0) * 100))}%` }} /></span> {pct(value)}</span> },
+  ];
 
   return (
     <section>
       <PageHead title="Budget & Spend" lede="Approved AMP budget against spend lines." actions={<a className="btn" href={linkTo('reports', route.search)}>Open reports</a>} />
       <h2>Approved budget by quarter</h2>
+      <div className="tabs">{QUARTERS.map((item) => <button key={item.id} type="button" className={quarter === item.id ? 'on' : ''} onClick={() => setQuarter(item.id)}>{item.id}</button>)}</div>
       <DataTable columns={[{ key: 'asset', label: 'Asset' }, ...quarterColumns]} rows={grid} exportName="amp-budget-grid" empty="No assets in this filter." />
       <div className="chart-grid">
-        <div>
-          <h2>Spend by category</h2>
-          <TrendChart data={byCategory} lines={SPEND_CATEGORIES.map((name) => ({ key: name, name }))} money />
+        <div className="span-6">
+          <ChartCard title="Spend by category" rows={SPEND_CATEGORIES.map((name) => ({ name, value: byCategory[0][name] || 0 }))} exportName="spend-category">
+            <HBars money data={SPEND_CATEGORIES.map((name) => ({ name, value: byCategory[0][name] || 0 }))} />
+          </ChartCard>
         </div>
-        <div>
-          <h2>Spend by asset</h2>
-          <TrendChart data={byAssetChart} lines={[{ key: 'Spend', name: 'AMP spend' }]} money />
+        <div className="span-6">
+          <ChartCard title="Spend by asset" rows={byAssetChart.map((row) => ({ name: row.month, value: row.Spend }))} exportName="spend-asset">
+            <HBars money data={byAsset.map((row) => ({ name: assets.find((asset) => asset.id === row.id)?.shortCode || row.asset, value: row.ampSpend, colour: row.colour }))} />
+          </ChartCard>
+        </div>
+        <div className="span-12">
+          <ChartCard title="Budget and actual by asset" rows={byAsset.map((row) => ({ name: assets.find((asset) => asset.id === row.id)?.shortCode || row.asset, Budget: row.budget, Actual: row.ampSpend }))} columns={[{ key: 'name', label: 'Asset' }, { key: 'Budget', label: 'Budget', align: 'right', format: rm }, { key: 'Actual', label: 'Actual', align: 'right', format: rm }]} exportName="budget-vs-actual">
+            <GroupedBars money categoryKey="name" data={byAsset.map((row) => ({ name: assets.find((asset) => asset.id === row.id)?.shortCode || row.asset, Budget: row.budget, Actual: row.ampSpend }))} bars={[{ key: 'Budget', name: 'Budget', colour: '#64748B' }, { key: 'Actual', name: 'Actual', colour: '#E31E24' }]} />
+          </ChartCard>
         </div>
       </div>
       <h2>Outcome per ringgit</h2>
@@ -228,9 +238,9 @@ export default function Budget() {
         <fieldset>
           <legend>Assets</legend>
           {assets.filter((asset) => scope.allowed.includes(asset.id)).map((asset) => (
-            <label key={asset.id}>
+            <label key={asset.id} className="check-inline">
               <input type="checkbox" checked={exportAssets.includes(asset.id)} onChange={(event) => setExportAssets((current) => (event.target.checked ? [...current, asset.id] : current.filter((id) => id !== asset.id)))} />
-              {asset.name}
+              <span>{asset.name}</span>
             </label>
           ))}
         </fieldset>

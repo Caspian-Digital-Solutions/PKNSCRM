@@ -8,8 +8,10 @@ export function maskName(name) {
 
 export function maskPhone(phone) {
   const digits = String(phone || '').replace(/\D/g, '');
-  if (digits.length < 4) return '***';
-  return `${digits.slice(0, 2)}*-***${digits.slice(-4)}`;
+  if (digits.length < 4) return '•••';
+  const head = digits.slice(0, 3);
+  const tail = digits.slice(-4);
+  return `${head}-•••• ${tail}`;
 }
 
 export function maskEmail(email) {

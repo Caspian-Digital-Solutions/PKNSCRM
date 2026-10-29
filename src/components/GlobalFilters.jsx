@@ -65,6 +65,14 @@ export default function GlobalFilters() {
       )}
       <Multi label="Activation type" options={typeOptions} selected={scope.types} allIds={typeOptions.map((item) => item.id)} param="type" />
       <Multi label="Channel" options={channelOptions} selected={scope.channels} allIds={channelOptions.map((item) => item.id)} param="channel" />
+      <label className="check-inline">
+        <input
+          type="checkbox"
+          checked={scope.includeUpcoming !== false}
+          onChange={(event) => setSearch({ upcoming: event.target.checked ? '' : '0' })}
+        />
+        <span>Include upcoming</span>
+      </label>
     </div>
   );
 }

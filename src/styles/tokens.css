@@ -1,5 +1,23 @@
 /* Text stays Inter. Headline figures use Barlow Semi Condensed. */
 :root {
+  --pkns-red: #E31E24;
+  --pkns-red-50: #FDECEC;
+  --pkns-red-100: #FAD4D5;
+  --pkns-gold: #F5B700;
+  --ink-900: #111827;
+  --ink-700: #374151;
+  --ink-500: #6B7280;
+  --ink-300: #D1D5DB;
+  --surface: #FFFFFF;
+  --canvas: #F6F7F9;
+  --chart-1: #E31E24;
+  --chart-2: #1F6FEB;
+  --chart-3: #10B981;
+  --chart-4: #F59E0B;
+  --chart-5: #8B5CF6;
+  --chart-6: #06B6D4;
+  --chart-7: #EC4899;
+  --chart-8: #64748B;
   --font-text: "Inter", "Segoe UI", system-ui, sans-serif;
   --font-figure: "Barlow Semi Condensed", "Arial Narrow", sans-serif;
 

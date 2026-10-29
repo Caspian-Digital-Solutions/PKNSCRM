@@ -307,9 +307,9 @@ export const NAMED_ACTIVATIONS = [
     type: 'Festive',
     objective: 'Footfall',
     targetAudience: 'Families in Shah Alam',
-    description: 'Open house with a registration booth and a family programme.',
-    startDate: '2026-04-02',
-    endDate: '2026-04-05',
+    description: 'Open house with a registration booth and a family programme. Hari Raya Aidilfitri 2026 is 20 Mar; this open house is the following weekend.',
+    startDate: '2026-03-21',
+    endDate: '2026-03-24',
     status: 'Reported',
     budget: 42000,
     fresh: 900,
@@ -698,6 +698,17 @@ export const FESTIVE_BANDS = [
   { name: 'Deepavali 2026', start: '2026-11-01', end: '2026-11-30' },
   { name: 'School holiday', start: '2026-11-01', end: '2026-12-31' },
 ];
+
+export const ASSET_COLOURS = {
+  kpsa: '#E31E24',
+  pas: '#1F6FEB',
+  sacc: '#10B981',
+  gsa: '#F59E0B',
+  pp: '#8B5CF6',
+  mpk: '#06B6D4',
+  s13: '#EC4899',
+  kd: '#64748B',
+};
 
 export function operatorById(id) {
   return OPERATORS.find((item) => item.id === id) || null;

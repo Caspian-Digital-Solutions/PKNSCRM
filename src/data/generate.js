@@ -1,6 +1,6 @@
 import { makeRng, allocate, scatter } from './rng.js';
 import {
-  AS_OF, ASSETS, OPERATORS, BUDGETS_2026, POSTCODES, FIRST_NAMES, LAST_NAMES, LOCATIONS, VENDORS,
+  AS_OF, ASSET_COLOURS, ASSETS, OPERATORS, BUDGETS_2026, POSTCODES, VENDORS,
   NAMED_ACTIVATIONS, BAZAAR_MONTHS, TEMPLATES, CONSENT, FIELD_LIBRARY, DEFAULT_FORM_KEYS, USERS,
   SEGMENT_SEEDS, IMPORT_EXAMPLE, IMPORT_NAMES, COMMENTS, CAPTION_TEMPLATES, WEB_PAGES, ACTIVATION_TYPES,
   SPEND_CATEGORIES, CONSENT_VERSION, LEGACY_PROFILES, NEW_PROFILES_2026, CONSENT_UNKNOWN, IMPORT_ROWS,
@@ -54,6 +54,78 @@ function spreadDates(year, count) {
   return dates;
 }
 
+const PLACES = {
+  Mall: ['Central atrium', 'Concourse', 'Level 1 foyer', 'Exhibition corner'],
+  Office: ['Lobby', 'Multipurpose hall', 'Level 1 foyer'],
+  'Mixed-use': ['Open plaza, ground floor', 'Concourse', 'Central atrium'],
+  'Open space': ['Township field', 'Plaza lawn', 'Car park B'],
+  'Township site': ['Community hall', 'Open plaza', 'Car park B'],
+};
+
+const MALAY_F = ['Nur Aisyah', 'Siti Hana', 'Nurul Izzah', 'Farah Nadia', 'Aina Sofea', 'Intan Balqis', 'Puteri Yasmin', 'Nur Amira'];
+const MALAY_M = ['Muhammad Hafiz', 'Ahmad Danial', 'Muhammad Arif', 'Hafiz Hakim', 'Ahmad Faiz', 'Muhammad Imran', 'Adam Luqman', 'Ahmad Syafiq'];
+const MALAY_FATHER = ['Rahman', 'Ismail', 'Abdullah', 'Hassan', 'Yusof', 'Karim', 'Osman', 'Bakar'];
+const CHINESE_SUR = ['Tan', 'Lim', 'Wong', 'Lee', 'Chong', 'Ong', 'Goh', 'Yap'];
+const CHINESE_F = ['Wei Ling', 'Mei Yan', 'Jia Yi', 'Xin Yi', 'Hui Min', 'Shu Ting'];
+const CHINESE_M = ['Jun Hao', 'Wei Jian', 'Zhi Hao', 'Jian Hong', 'Kai Wen', 'Ming Han'];
+const INDIAN_F = ['Kavitha', 'Priya', 'Divya', 'Lakshmi', 'Shalini', 'Meena'];
+const INDIAN_M = ['Arun', 'Rajesh', 'Kumar', 'Selvam', 'Gopal', 'Vikram'];
+const INDIAN_FATHER = ['Subramaniam', 'Krishnan', 'Pillai', 'Nair', 'Rajan', 'Singh'];
+const OTHER_F = ['Hannah', 'Grace', 'Sofia'];
+const OTHER_M = ['Daniel', 'Adam', 'Nathan'];
+const OTHER_LAST = ['Ong', 'Teoh', 'Pereira'];
+
+function personName(rng, gender) {
+  const roll = rng.next();
+  const group = roll < 0.6 ? 'malay' : roll < 0.85 ? 'chinese' : roll < 0.98 ? 'indian' : 'other';
+  const female = gender === 'Female';
+  if (group === 'malay') {
+    const given = rng.pick(female ? MALAY_F : MALAY_M);
+    return `${given} ${female ? 'binti' : 'bin'} ${rng.pick(MALAY_FATHER)}`;
+  }
+  if (group === 'chinese') return `${rng.pick(CHINESE_SUR)} ${rng.pick(female ? CHINESE_F : CHINESE_M)}`;
+  if (group === 'indian') {
+    const given = rng.pick(female ? INDIAN_F : INDIAN_M);
+    return `${given} ${female ? 'a/p' : 'a/l'} ${rng.pick(INDIAN_FATHER)}`;
+  }
+  return `${rng.pick(female ? OTHER_F : OTHER_M)} ${rng.pick(OTHER_LAST)}`;
+}
+
+const calendarCursor = { ramadan: 0, raya: 0, school: 0 };
+
+function alignCalendar(act) {
+  if (!String(act.id).startsWith('ACT-Y')) return;
+  const year = Number(String(act.startDate).slice(0, 4));
+  const span = Math.max(0, Math.round((Date.parse(`${act.endDate}T00:00:00Z`) - Date.parse(`${act.startDate}T00:00:00Z`)) / 86400000));
+  const label = `${act.name} ${act.type}`;
+  let start = null;
+  // Windows checked against published calendars: Ramadan 2025 is 1–29 Mar (Raya 30 Mar);
+  // Ramadan 2026 is 18 Feb–19 Mar (Raya 20 Mar); CNY 29 Jan 2025 and 17 Feb 2026;
+  // Deepavali 20 Oct 2025 and 8 Nov 2026; Merdeka 31 Aug; KPM mid-year break late May–mid June.
+  if (/Ramadan/i.test(label)) {
+    start = addDays(year === 2026 ? '2026-02-21' : '2025-03-01', (calendarCursor.ramadan % 4) * 7);
+    calendarCursor.ramadan += 1;
+  } else if (/Raya Open House/i.test(label)) {
+    start = addDays(year === 2026 ? '2026-03-21' : '2025-04-03', (calendarCursor.raya % 2) * 7);
+    calendarCursor.raya += 1;
+  } else if (/Deepavali/i.test(label)) start = year === 2026 ? '2026-11-07' : '2025-10-18';
+  else if (/Merdeka/i.test(label)) start = `${year}-08-30`;
+  else if (act.type === 'School holiday programme') {
+    const past = act.startDate <= AS_OF;
+    const windows = year >= 2026
+      ? (past ? [['2026-05-30', '2026-06-14']] : [['2026-11-21', '2026-12-28']])
+      : [['2025-05-31', '2025-06-15'], ['2025-11-22', '2025-12-20']];
+    const window = windows[calendarCursor.school % windows.length];
+    start = addDays(window[0], (calendarCursor.school % 3) * 4);
+    if (start > window[1]) start = window[0];
+    calendarCursor.school += 1;
+  }
+  if (!start) return;
+  if ((start <= AS_OF) !== (act.startDate <= AS_OF)) return;
+  act.startDate = start;
+  act.endDate = addDays(start, span);
+}
+
 function fieldFromKey(key, required) {
   const src = FIELD_LIBRARY.find((item) => item.key === key);
   return {
@@ -83,7 +155,9 @@ function consentBlock() {
 
 function buildActivations(rng) {
   const list = [];
-  const push = (act) => list.push({
+  const push = (act) => {
+    alignCalendar(act);
+    list.push({
     ...act,
     status: inferStatus(act),
     operatorId: act.runBy === 'Operator' ? (ASSETS.find((a) => a.id === act.assetId)?.operatorId || null) : null,
@@ -92,6 +166,7 @@ function buildActivations(rng) {
     createdAt: `${act.startDate}T08:00:00+08:00`,
     updatedAt: `${act.endDate}T18:00:00+08:00`,
   });
+  };
 
   for (const act of NAMED_ACTIVATIONS) push({ ...act, fresh: act.fresh ?? 0 });
   BAZAAR_MONTHS.forEach(([start, end, status, fresh], index) => {
@@ -152,7 +227,7 @@ function buildActivations(rng) {
         id: `${idPrefix}${String(i + 1).padStart(3, '0')}`,
         name: `${template.name} – ${asset.shortCode} – ${monthLabel(start)}`,
         assetId: asset.id,
-        specificLocation: rng.pick(LOCATIONS),
+        specificLocation: rng.pick(PLACES[asset.type] || PLACES.Mall),
         runBy: operator ? 'Operator' : 'PKNS AMP',
         type: template.type,
         objective: template.objective,
@@ -189,9 +264,10 @@ function assignFresh(list) {
 function buildImports() {
   const names = IMPORT_NAMES;
   const rest = names.slice(1);
-  const imported = allocate(LEGACY_PROFILES - IMPORT_EXAMPLE.rowsImported, rest.map(() => 1));
-  const merged = allocate(IMPORT_MERGED - IMPORT_EXAMPLE.duplicatesMerged, rest.map(() => 1));
-  const rejected = allocate(IMPORT_REJECTED - IMPORT_EXAMPLE.rowsRejected, rest.map(() => 1));
+  const weights = rest.map((_, index) => 1 + (index % 5));
+  const imported = allocate(LEGACY_PROFILES - IMPORT_EXAMPLE.rowsImported, weights);
+  const merged = allocate(IMPORT_MERGED - IMPORT_EXAMPLE.duplicatesMerged, weights);
+  const rejected = allocate(IMPORT_REJECTED - IMPORT_EXAMPLE.rowsRejected, weights);
   const rows = names.map((fileName, index) => {
     if (index === 0) {
       return { ...IMPORT_EXAMPLE, fileName };
@@ -209,7 +285,7 @@ function buildImports() {
     id: `IMP-${String(index + 1).padStart(2, '0')}`,
     fileName: row.fileName,
     uploadedBy: index % 2 ? 'Danish Hakim' : 'Farah Idris',
-    uploadedAt: `2026-0${1 + (index % 3)}-${String(3 + index).padStart(2, '0')}T10:00:00+08:00`,
+    uploadedAt: `${index < 8 ? 2025 : 2026}-${String((index % 12) + 1).padStart(2, '0')}-${String(4 + (index % 20)).padStart(2, '0')}T${String(8 + (index % 8)).padStart(2, '0')}:${String((index * 7) % 60).padStart(2, '0')}:00+08:00`,
     rowsTotal: row.rowsTotal,
     rowsImported: row.rowsImported,
     duplicatesMerged: row.duplicatesMerged,
@@ -219,6 +295,59 @@ function buildImports() {
     fieldMapping: { Nama: 'fullName', Telefon: 'mobile', Emel: 'email', Poskod: 'postcode', Umur: 'ageBand' },
     errors: row.rowsRejected ? [{ row: 4, field: 'mobile', message: 'Invalid phone' }] : [],
   }));
+}
+
+function buildQrSet(act, outcomes, rng) {
+  const touches = ['Entrance banner', 'Booth A', 'Flyer', 'Standee', 'Social post'];
+  const live = outcomes.registrations > 0;
+  const count = live ? Math.min(5, 2 + (outcomes.registrations > 120 ? 1 : 0) + (outcomes.registrations > 280 ? 1 : 0) + (outcomes.registrations > 500 ? 1 : 0)) : 1;
+  const factor = live ? rng.range(1.35, 1.7) : 0;
+  const scans = Math.round(outcomes.registrations * factor);
+  const weights = touches.slice(0, count).map(() => rng.int(1, 5));
+  const scanParts = allocate(scans, weights);
+  const subParts = allocate(outcomes.registrations, weights);
+  const days = [];
+  let cursor = act.startDate;
+  while (cursor <= act.endDate && days.length < 8) {
+    days.push(cursor);
+    cursor = addDays(cursor, 1);
+  }
+  if (!days.length) days.push(act.startDate);
+  const hours = ['10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00', '18:00', '19:00', '20:00'];
+  return touches.slice(0, count).map((touchpoint, index) => {
+    const scan = scanParts[index] || 0;
+    const submissions = subParts[index] || 0;
+    const uniqueScans = Math.round(scan * 0.72);
+    const hourParts = scatter(scan, [1, 2, 3, 4, 5, 6, 6, 5, 4, 3, 2], rng);
+    const dayParts = scatter(scan, days.map((_, dayIndex) => (dayIndex === 0 ? 3 : 2)), rng);
+    const slug = touchpoint.toLowerCase().replace(/[^a-z0-9]+/g, '');
+    const ios = Math.round(uniqueScans * 0.48);
+    const android = Math.round(uniqueScans * 0.46);
+    return {
+      id: `QR-${act.id}-${index + 1}`,
+      name: `${String(act.name).split(' – ')[0]} · ${touchpoint}`,
+      formId: act.formId,
+      targetType: 'Form',
+      targetUrl: `#/f/${act.formId}?tp=${encodeURIComponent(slug)}`,
+      shortLink: `pkns.my/a/${String(act.id).replace(/[^a-z0-9]/gi, '').slice(-8).toLowerCase()}-${slug}`,
+      touchpoint,
+      sourceTag: `${String(act.id).slice(-8).toLowerCase()}-${slug}`,
+      assetId: act.assetId,
+      activationId: act.id,
+      status: act.endDate < AS_OF ? 'Expired' : 'Active',
+      expiresAt: act.endDate,
+      style: { foreground: '#111827', background: '#FFFFFF', logo: 'PKNS', frame: 'Scan to register', frameText: '', cornerStyle: 'Rounded' },
+      scans: scan,
+      uniqueScans,
+      submissions,
+      byDay: days.map((day, dayIndex) => ({ day, scans: dayParts[dayIndex] || 0 })),
+      byHour: hours.map((hour, hourIndex) => ({ hour, scans: hourParts[hourIndex] || 0 })),
+      devices: { iOS: ios, Android: android, Other: Math.max(0, uniqueScans - ios - android) },
+      funnel: { scans: scan, opened: Math.round(scan * 0.82), started: Math.round(scan * 0.64), submitted: submissions },
+      createdBy: act.createdBy || 'Farah Idris',
+      createdAt: act.createdAt,
+    };
+  });
 }
 
 function emptyOutcomes() {
@@ -300,14 +429,16 @@ export function generate() {
     for (let i = 0; i < act.fresh; i += 1) {
       const legacy = act.startDate < '2026-01-01';
       const postcode = rng.weighted(POSTCODES, POSTCODES.map((item) => item.w));
-      const first = rng.pick(FIRST_NAMES);
-      const last = rng.pick(LAST_NAMES);
+      const gender = rng.weighted(['Female', 'Male', 'Prefer not to say'], [52, 46, 2]);
+      const namedAs = gender === 'Prefer not to say' ? (rng.next() < 0.5 ? 'Female' : 'Male') : gender;
+      const fullName = personName(rng, namedAs);
       const hasChildren = childLeft > 0 && rng.next() < childLeft / createLeft;
       createLeft -= 1;
       if (hasChildren) childLeft -= 1;
       const childrenCount = hasChildren ? rng.int(1, 3) : 0;
+      const childOrder = ['0–3', '4–6', '7–12', '13–17'];
       const childrenAgeBands = [];
-      for (let c = 0; c < childrenCount; c += 1) childrenAgeBands.push(rng.pick(['0–3', '4–6', '7–12', '13–17']));
+      for (let c = 0; c < childrenCount; c += 1) childrenAgeBands.push(rng.pick(childOrder));
       let party = 'Alone';
       if (hasChildren) party = rng.next() < 0.8 ? 'Family with kids' : rng.pick(['Partner', 'Friends']);
       else {
@@ -317,7 +448,6 @@ export function generate() {
       const ageBand = hasChildren
         ? rng.weighted(['25–34', '35–44', '45–54'], [5, 4, 1])
         : rng.weighted(['18–24', '25–34', '35–44', '45–54', '55–64', '65+'], [12, 24, 22, 18, 14, 10]);
-      const gender = rng.weighted(['Female', 'Male', 'Prefer not to say'], [52, 46, 2]);
       const interestCount = rng.int(1, 3);
       const interests = [];
       while (interests.length < interestCount) {
@@ -357,16 +487,16 @@ export function generate() {
       }
       const person = {
         id: `PR-${String(seq).padStart(6, '0')}`,
-        fullName: `${first} ${last}`,
+        fullName,
         mobile,
-        email: `${slug(first)}.${slug(last)}.${seq}@example.com`,
+        email: `${slug(fullName)}.${seq}@example.com`,
         postcode: postcode.code,
         area: postcode.area,
         ageBand,
         gender,
         householdSize: hasChildren ? childrenCount + rng.int(1, 2) : (party === 'Alone' ? 1 : rng.int(1, 3)),
         childrenCount,
-        childrenAgeBands: [...new Set(childrenAgeBands)],
+        childrenAgeBands: childOrder.filter((band) => childrenAgeBands.includes(band)),
         interests,
         leadTypes: ['Visitor'],
         firstSeen: act.startDate,
@@ -431,7 +561,19 @@ export function generate() {
   imports.forEach((job) => {
     for (let i = 0; i < job.rowsImported; i += 1) slots.push(job.fileName);
   });
-  legacyPeople.forEach((person, index) => { person.legacySourceFile = slots[index] || imports[0].fileName; });
+  legacyPeople.forEach((person, index) => {
+    person.legacySourceFile = slots[index] || imports[0].fileName;
+    const fileIndex = Math.max(0, IMPORT_NAMES.indexOf(person.legacySourceFile));
+    const monthOffset = Math.round((fileIndex * 35) / Math.max(1, IMPORT_NAMES.length - 1));
+    const year = 2023 + Math.floor(monthOffset / 12);
+    const month = (monthOffset % 12) + 1;
+    const day = 1 + (index % 27);
+    const fileDate = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    if (fileDate < person.firstSeen) {
+      person.firstSeen = fileDate;
+      if (!person.consent.unknown) person.consent.consentDate = fileDate;
+    }
+  });
 
   const byId = new Map(activations.map((act) => [act.id, act]));
   for (const act of activations) {
@@ -477,17 +619,8 @@ export function generate() {
     const counts = scatter(outcomes.registrations, [2, 3, 5, 8, 9, 8, 7, 6, 5, 4, 2], rng);
     outcomes.hourly = hours.map((hour, index) => ({ hour, registrations: counts[index] }));
     act.outcomes = outcomes;
-    const formScans = outcomes.registrations;
-    const touch = formScans > 180 ? 3 : 1;
-    const scanParts = allocate(formScans, touch === 3 ? [5, 3, 2] : [1]);
-    act.qrCodes = [
-      { id: `QR-${act.id}`, touchpoint: 'Form', scans: scanParts[0] || 0 },
-      ...(touch === 3 ? [
-        { id: `QR-${act.id}-A`, touchpoint: 'Entrance banner', scans: scanParts[1] },
-        { id: `QR-${act.id}-B`, touchpoint: 'Flyer', scans: scanParts[2] },
-      ] : []),
-    ];
     act.formId = `FORM-${act.id}`;
+    act.qrCodes = buildQrSet(act, outcomes, rng);
     void byId;
   }
 
@@ -543,18 +676,65 @@ export function generate() {
     }
   }
 
-  const forms = activations.map((act) => ({
-    id: act.formId,
-    name: `${act.name} registration`,
-    activationId: act.id,
-    language: act.id.startsWith('ACT-Y') && rng.next() < 0.25 ? (rng.next() < 0.5 ? 'BM' : 'EN') : 'BM+EN',
-    fields: DEFAULT_FORM_KEYS.map((key) => fieldFromKey(key, key === 'fullName' || key === 'mobile')),
+  const forms = activations.map((act) => {
+    const regs = act.outcomes?.registrations || 0;
+    const views = regs ? Math.round(regs / 0.68) : (act.startDate > AS_OF ? 0 : 12);
+    const closed = act.endDate < AS_OF;
+    const future = act.startDate > AS_OF;
+    return {
+      id: act.formId,
+      name: `${act.name} registration`,
+      publicTitle: String(act.name).split(' – ')[0],
+      purpose: 'Activation registration',
+      mode: 'Activation',
+      activationId: act.id,
+      assetIds: [act.assetId],
+      status: closed ? 'Closed' : future ? 'Scheduled' : 'Published',
+      opensAt: `${act.startDate}T08:00:00+08:00`,
+      closesAt: `${act.endDate}T21:00:00+08:00`,
+      capacity: null,
+      closedMessageEN: 'Registration for this activation is closed.',
+      closedMessageBM: 'Pendaftaran untuk pengaktifan ini telah ditutup.',
+      design: { themeColour: '#E31E24', showPKNSLogo: true, headlineEN: String(act.name).split(' – ')[0], headlineBM: String(act.name).split(' – ')[0], introEN: act.description, introBM: act.description },
+      settings: { preventDuplicateByMobile: true, requireOtp: false, thankYouEN: 'Thank you. Your response has been recorded.', thankYouBM: 'Terima kasih. Maklum balas anda telah direkodkan.', showAddToCalendar: true, issueEntryPass: false },
+      language: 'BM+EN',
+      fields: DEFAULT_FORM_KEYS.map((key) => fieldFromKey(key, key === 'fullName' || key === 'mobile')),
+      consentBlock: consentBlock(),
+      thankYouMessage: 'Thank you. Your response has been recorded.',
+      thankYouMessageBM: 'Terima kasih. Maklum balas anda telah direkodkan.',
+      active: !closed,
+      submissionsCount: regs,
+      viewsCount: views,
+      completionRate: views ? regs / views : null,
+      createdAt: act.createdAt,
+      updatedAt: act.updatedAt,
+    };
+  });
+  forms.push({
+    id: 'FORM-TENANT',
+    name: 'Tenant enquiry',
+    publicTitle: 'Enquire about a PKNS space',
+    purpose: 'Tenant enquiry',
+    mode: 'Always-on',
+    activationId: null,
+    assetIds: ASSETS.filter((asset) => asset.type === 'Office' || asset.type === 'Mall').map((asset) => asset.id),
+    status: 'Published',
+    opensAt: '2026-01-01T00:00:00+08:00',
+    closesAt: null,
+    design: { themeColour: '#E31E24', showPKNSLogo: true, headlineEN: 'Enquire about a PKNS space', headlineBM: 'Pertanyaan ruang PKNS', introEN: 'Tell us about the space you need.', introBM: 'Beritahu kami ruang yang anda perlukan.' },
+    settings: { preventDuplicateByMobile: true, requireOtp: false, thankYouEN: 'Thank you. The AMP team will be in touch.', thankYouBM: 'Terima kasih. Pasukan AMP akan menghubungi anda.', showAddToCalendar: false, issueEntryPass: false },
+    language: 'BM+EN',
+    fields: ['fullName', 'mobile', 'email', 'interestedRent'].map((key) => fieldFromKey(key, key !== 'email')),
     consentBlock: consentBlock(),
-    thankYouMessage: 'Thank you. Your response has been recorded.',
-    thankYouMessageBM: 'Terima kasih. Maklum balas anda telah direkodkan.',
+    thankYouMessage: 'Thank you. The AMP team will be in touch.',
+    thankYouMessageBM: 'Terima kasih. Pasukan AMP akan menghubungi anda.',
     active: true,
-    createdAt: act.createdAt,
-  }));
+    submissionsCount: 0,
+    viewsCount: 40,
+    completionRate: 0,
+    createdAt: '2026-02-02T09:00:00+08:00',
+    updatedAt: '2026-10-01T09:00:00+08:00',
+  });
 
   const budgets = [];
   for (const asset of ASSETS) {
@@ -731,11 +911,12 @@ export function generate() {
 
   return {
     asOf: AS_OF,
-    assets: ASSETS.map((asset) => ({ ...asset, photoUrl: '', createdBy: 'Razak Ibrahim', createdAt: '2025-01-06T09:00:00+08:00' })),
+    assets: ASSETS.map((asset) => ({ ...asset, colour: ASSET_COLOURS[asset.id], photoUrl: '', createdBy: 'Razak Ibrahim', createdAt: '2025-01-06T09:00:00+08:00' })),
     operators: OPERATORS.map((item) => ({ ...item, assetIds: item.assetIds.slice() })),
     activations,
     spend,
     forms,
+    qrCodes: activations.flatMap((act) => act.qrCodes || []),
     profiles,
     segments: SEGMENT_SEEDS.map((item) => ({ ...item, groups: item.groups.map((group) => ({ ...group, conditions: group.conditions.map((cond) => ({ ...cond })) })) })),
     digital,

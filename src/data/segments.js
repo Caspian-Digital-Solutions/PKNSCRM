@@ -1,3 +1,5 @@
+import { fieldLabel, opLabel } from '../labels.js';
+
 function includes(list, value) {
   return (list || []).includes(value);
 }
@@ -52,6 +54,7 @@ export function matchCondition(profile, condition, activationById) {
 }
 
 export function matchSegment(profile, segment, activationById) {
+  if ((segment.memberIds || []).includes(profile.id)) return true;
   const groups = segment.groups || [];
   const results = groups.map((group) => {
     const checks = (group.conditions || []).map((condition) => matchCondition(profile, condition, activationById));
@@ -76,10 +79,12 @@ export function segmentCounts(segment, profiles, activationById) {
 export function summariseRules(segment) {
   const parts = [];
   for (const group of segment.groups || []) {
-    const bits = (group.conditions || []).map((condition) => `${condition.field} ${condition.op} ${condition.value}`);
-    if (bits.length) parts.push(bits.join(group.match === 'or' ? ' OR ' : ' AND '));
+    const bits = (group.conditions || []).map((condition) => `${fieldLabel(condition.field)} ${opLabel(condition.op)} ${condition.value}`);
+    if (!bits.length) continue;
+    const joiner = group.match === 'or' ? ' or ' : ' and ';
+    parts.push(bits.length > 1 ? `(${bits.join(joiner)})` : bits[0]);
   }
-  return parts.join(segment.match === 'or' ? ' OR ' : ' AND ');
+  return parts.join(segment.match === 'or' ? ' or ' : ' and ');
 }
 
 export const CONDITION_FIELDS = [

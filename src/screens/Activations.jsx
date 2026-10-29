@@ -2,10 +2,10 @@ import { useMemo, useState } from 'react';
 import DataTable from '../components/DataTable.jsx';
 import { PageHead, SearchBox, Status, linkTo, openScreen } from '../components/bits.jsx';
 import { can } from '../access.js';
-import { ACTIVATION_TYPES, ASSETS, CONSENT, DEFAULT_FORM_KEYS, FIELD_LIBRARY, OBJECTIVES } from '../data/config.js';
+import { ACTIVATION_TYPES, ASSETS, AS_OF, CONSENT, DEFAULT_FORM_KEYS, FIELD_LIBRARY, OBJECTIVES } from '../data/config.js';
 import { blankOutcomes } from '../data/submit.js';
 import { useAmp } from '../useAmp.jsx';
-import { date, dec1, num, rm } from '../format.js';
+import { date, dateSpan, dec1, num, rm } from '../format.js';
 
 const SERIES = ['#3D5A80', '#8A9A5B', '#C9A227', '#7D6B91', '#5C8D89', '#9C6644', '#5E6A82', '#8C7A6B'];
 const STATUSES = ['Planned', 'Approved', 'Live', 'Completed', 'Reported'];
@@ -86,7 +86,7 @@ function NewActivation() {
         <label>Start<input type="date" required value={form.startDate} onChange={set('startDate')} /></label>
         <label>End<input type="date" required value={form.endDate} onChange={set('endDate')} /></label>
         <label>Budget (RM)<input type="number" min="0" value={form.budget} onChange={set('budget')} /></label>
-        <label><input type="checkbox" checked={form.createForm} onChange={set('createForm')} /> Create a capture form now</label>
+        <label className="check-inline"><input type="checkbox" checked={form.createForm} onChange={set('createForm')} /><span>Next: create a registration form</span></label>
         <div className="dialog-actions"><button className="btn btn-primary" type="submit">Save activation</button></div>
       </form>
     </section>
@@ -161,7 +161,7 @@ function Pipeline({ rows, search, canDrag, dispatch, state }) {
 
 export default function Activations() {
   const amp = useAmp();
-  const { route, activations, spend, assets, state, dispatch } = amp;
+  const { route, activations, roster, scope, spend, assets, state, dispatch } = amp;
   const [view, setView] = useState('list');
   const [query, setQuery] = useState('');
   const [doneOnly, setDoneOnly] = useState(route.search.done === '1');
@@ -175,36 +175,44 @@ export default function Activations() {
   }, [spend]);
   if (route.params[0] === 'new') return <NewActivation />;
   const assetName = (id) => assets.find((asset) => asset.id === id)?.name || id;
-  let rows = activations.map((act) => ({
+  const shape = (act) => ({
     ...act,
     asset: assetName(act.assetId),
-    dates: `${date(act.startDate)} – ${date(act.endDate)}`,
+    dates: dateSpan(act.startDate, act.endDate),
+    colour: assets.find((asset) => asset.id === act.assetId)?.colour,
     actual: spendById.get(act.id) || 0,
     attendance: act.outcomes?.totalAttendance || 0,
     fresh: act.outcomes?.newProfiles || 0,
     cost: act.outcomes?.totalAttendance ? (spendById.get(act.id) || 0) / act.outcomes.totalAttendance : null,
     rating: act.outcomes?.avgRating,
-  }));
+  });
+  let rows = activations.map(shape).sort((a, b) => {
+    const aUp = a.endDate >= AS_OF ? 0 : 1;
+    const bUp = b.endDate >= AS_OF ? 0 : 1;
+    if (aUp !== bUp) return aUp - bUp;
+    return aUp === 0 ? String(a.startDate).localeCompare(String(b.startDate)) : String(b.startDate).localeCompare(String(a.startDate));
+  });
+  const rosterRows = (roster || activations).map(shape);
   if (doneOnly || route.search.done === '1') rows = rows.filter((act) => act.status === 'Completed' || act.status === 'Reported');
   if (query) {
     const q = query.toLowerCase();
     rows = rows.filter((act) => `${act.name} ${act.asset} ${act.type} ${act.specificLocation}`.toLowerCase().includes(q));
   }
   const columns = [
-    { key: 'name', label: 'Name' },
+    { key: 'name', label: 'Name', format: (value, row) => <span><i className="asset-dot" style={{ background: row?.colour || '#64748B' }} /> {value}</span> },
     { key: 'asset', label: 'Asset' },
-    { key: 'specificLocation', label: 'Location' },
-    { key: 'runBy', label: 'Run by' },
+    { key: 'specificLocation', label: 'Location', optional: true },
+    { key: 'runBy', label: 'Run by', optional: true },
     { key: 'type', label: 'Type' },
-    { key: 'objective', label: 'Objective' },
+    { key: 'objective', label: 'Objective', optional: true },
     { key: 'dates', label: 'Dates' },
-    { key: 'status', label: 'Status' },
+    { key: 'status', label: 'Status', format: (value) => <Status value={value} /> },
     { key: 'budget', label: 'Budget', align: 'right', format: rm },
     { key: 'actual', label: 'Actual spend', align: 'right', format: rm },
     { key: 'attendance', label: 'Attendance', align: 'right', format: num },
-    { key: 'fresh', label: 'New profiles', align: 'right', format: num },
+    { key: 'fresh', label: 'New profiles', align: 'right', format: num, optional: true },
     { key: 'cost', label: 'Cost per attendee', align: 'right', format: rm },
-    { key: 'rating', label: 'Avg rating', align: 'right', format: (value) => dec1(value) },
+    { key: 'rating', label: 'Avg rating', align: 'right', format: (value) => dec1(value), optional: true },
   ];
   return (
     <section>
@@ -221,13 +229,18 @@ export default function Activations() {
       />
       <div className="list-tools" style={{ display: 'flex', gap: 12, marginBottom: 12 }}>
         <SearchBox value={query} onChange={setQuery} placeholder="Search activations" />
-        <label><input type="checkbox" checked={doneOnly || route.search.done === '1'} onChange={(event) => setDoneOnly(event.target.checked)} /> Completed or reported</label>
+        <label className="check-inline"><input type="checkbox" checked={doneOnly || route.search.done === '1'} onChange={(event) => setDoneOnly(event.target.checked)} /><span>Completed or reported</span></label>
       </div>
       {view === 'list' && (
-        <DataTable columns={columns} rows={rows} pageSizes={[25, 50, 100]} exportName="activations" onRowClick={(row) => { window.location.hash = linkTo(`activation/${row.id}`, route.search); }} />
+        <>
+          <p className="summary-strip">
+            {num(rosterRows.filter((act) => act.status === 'Planned').length)} planned · {num(rosterRows.filter((act) => act.status === 'Live').length)} live · {num(rosterRows.filter((act) => act.status === 'Completed').length)} completed awaiting report · {rm(rows.reduce((sum, act) => sum + (act.budget || 0), 0))} budget in view
+          </p>
+          <DataTable columns={columns} rows={rows} pageSizes={[25, 50, 100]} exportName="activations" onRowClick={(row) => { window.location.hash = linkTo(`activation/${row.id}`, route.search); }} />
+        </>
       )}
-      {view === 'calendar' && <Calendar rows={rows} search={route.search} />}
-      {view === 'pipeline' && <Pipeline rows={rows} search={route.search} canDrag={can(state.role, 'activation.status')} dispatch={dispatch} state={state} />}
+      {view === 'calendar' && <Calendar rows={scope.includeUpcoming === false ? rows : rosterRows} search={route.search} />}
+      {view === 'pipeline' && <Pipeline rows={rosterRows} search={route.search} canDrag={can(state.role, 'activation.status')} dispatch={dispatch} state={state} />}
     </section>
   );
 }

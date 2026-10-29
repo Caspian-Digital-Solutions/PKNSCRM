@@ -23,6 +23,10 @@ export function freshState(role = null) {
     spendDeleted: {},
     formsAdded: [],
     formPatches: {},
+    qrAdded: [],
+    qrPatches: {},
+    submissionsAdded: [],
+    submissionPatches: {},
     profilesAdded: [],
     profilePatches: {},
     profileDeleted: {},
@@ -95,18 +99,38 @@ function reducer(state, action) {
       return { ...state, rev: state.rev + 1, formsAdded: [...state.formsAdded, action.form] };
     case 'patchForm':
       return { ...state, rev: state.rev + 1, formPatches: { ...state.formPatches, [action.id]: { ...(state.formPatches[action.id] || {}), ...action.patch } } };
+    case 'addQr':
+      return { ...state, rev: state.rev + 1, seq: state.seq + 1, qrAdded: [...(state.qrAdded || []), action.qr] };
+    case 'patchQr':
+      return { ...state, rev: state.rev + 1, qrPatches: { ...(state.qrPatches || {}), [action.id]: { ...(state.qrPatches?.[action.id] || {}), ...action.patch, style: { ...(state.qrPatches?.[action.id]?.style || {}), ...(action.patch.style || {}) } } } };
+    case 'patchSubmission':
+      return withAudit({
+        ...state,
+        rev: state.rev + 1,
+        seq: state.seq + 1,
+        submissionPatches: { ...(state.submissionPatches || {}), [action.id]: { ...(state.submissionPatches?.[action.id] || {}), ...action.patch } },
+      }, action.entry);
     case 'applySubmission': {
       const next = { ...state, rev: state.rev + 1, seq: state.seq + 1 };
       if (action.created) next.profilesAdded = [...state.profilesAdded, action.created];
       if (action.merged) next.profilePatches = { ...state.profilePatches, [action.merged.id]: action.merged.patch };
-      next.activationPatches = {
-        ...state.activationPatches,
-        [action.activationId]: {
-          ...(state.activationPatches[action.activationId] || {}),
-          outcomes: action.outcomes,
-          qrCodes: action.qrCodes,
-        },
-      };
+      if (action.activationId) {
+        next.activationPatches = {
+          ...state.activationPatches,
+          [action.activationId]: {
+            ...(state.activationPatches[action.activationId] || {}),
+            outcomes: action.outcomes || state.activationPatches[action.activationId]?.outcomes,
+            qrCodes: action.qrCodes || state.activationPatches[action.activationId]?.qrCodes,
+          },
+        };
+      }
+      if (action.formId && action.formPatch) {
+        next.formPatches = { ...state.formPatches, [action.formId]: { ...(state.formPatches[action.formId] || {}), ...action.formPatch } };
+      }
+      if (action.qrId && action.qrPatch) {
+        next.qrPatches = { ...(state.qrPatches || {}), [action.qrId]: { ...(state.qrPatches?.[action.qrId] || {}), ...action.qrPatch } };
+      }
+      if (action.submission) next.submissionsAdded = [action.submission, ...(state.submissionsAdded || [])];
       next.auditExtra = [{ id: `AUD-L${state.seq}`, timestamp: state.now, ...action.audit }, ...state.auditExtra];
       return next;
     }

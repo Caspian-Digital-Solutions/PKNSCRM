@@ -1,11 +1,14 @@
 import { useMemo, useState } from 'react';
-import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import ChartCard from '../components/ChartCard.jsx';
+import { Donut, HBars, VBars } from '../components/Charts.jsx';
 import DataTable from '../components/DataTable.jsx';
+import Kpi from '../components/Kpi.jsx';
+import { QrPreview } from '../components/QrArt.jsx';
 import { PageHead, SampleBadge, Status, auditEntry, linkTo } from '../components/bits.jsx';
 import { can } from '../access.js';
 import { SPEND_CATEGORIES } from '../data/config.js';
 import { useAmp } from '../useAmp.jsx';
-import { date, dec1, num, rm } from '../format.js';
+import { date, dec1, num, pct, rm } from '../format.js';
 import { exportReportPdf } from '../reportPdf.js';
 import { exportSheets } from '../components/ExportButton.jsx';
 
@@ -20,7 +23,7 @@ function counts(rows, key, list) {
 
 export default function ActivationDetail({ id }) {
   const amp = useAmp();
-  const { allActivations, activations, spend, forms, profiles, assets, state, dispatch, route } = amp;
+  const { allActivations, activations, spend, forms, profiles, assets, qrCodes, state, dispatch, route } = amp;
   const act = allActivations.find((item) => item.id === id) || activations.find((item) => item.id === id);
   const [tab, setTab] = useState('Summary');
   const [line, setLine] = useState({ category: SPEND_CATEGORIES[0], vendor: '', description: '', amountRM: '', date: act?.startDate || '2026-10-28' });
@@ -59,11 +62,22 @@ export default function ActivationDetail({ id }) {
   ]);
   return (
     <section>
-      <PageHead title={act.name} lede={`${asset?.name || ''} · ${act.specificLocation || 'Location not set'}`} actions={<Status value={act.status} />} />
+      <PageHead title={act.name} lede={`${asset?.name || ''} · ${act.specificLocation || 'Location not set'}`} back={{ href: linkTo('activations', route.search), label: 'Activations' }} actions={<><Status value={act.status} /><span>{act.runBy}</span></>} />
       <div className="tabs">
         {TABS.map((item) => <button key={item} type="button" className={tab === item ? 'on' : ''} onClick={() => setTab(item)}>{item}</button>)}
       </div>
       {tab === 'Summary' && (
+        <>
+        <div className="kpi-row">
+          <Kpi label="Budget" value={act.budget} format={rm} />
+          <Kpi label="Actual spend" value={actual} format={rm} />
+          <Kpi label="Difference" value={actual - act.budget} format={rm} />
+          <Kpi label="Attendance" value={outcomes.totalAttendance} format={num} />
+          <Kpi label="Registrations" value={outcomes.registrations} format={num} />
+          <Kpi label="New profiles" value={outcomes.newProfiles} format={num} />
+          <Kpi label="Returning" value={outcomes.returningProfiles} format={num} />
+          <Kpi label="Avg rating" value={outcomes.avgRating} format={dec1} />
+        </div>
         <div className="fact-grid">
           <div><div className="fact-label">Run by</div><div className="fact-value">{act.runBy}</div></div>
           <div><div className="fact-label">Type</div><div className="fact-value">{act.type}</div></div>
@@ -86,6 +100,10 @@ export default function ActivationDetail({ id }) {
             </label>
           )}
         </div>
+        <ChartCard title="Budget and actual" rows={[{ name: 'Budget', value: act.budget }, { name: 'Actual', value: actual }]} exportName={`${act.id}-budget`}>
+          <VBars data={[{ name: 'Budget', value: act.budget }, { name: 'Actual', value: actual }]} />
+        </ChartCard>
+        </>
       )}
       {tab === 'Spend' && (
         <>
@@ -115,66 +133,81 @@ export default function ActivationDetail({ id }) {
       )}
       {tab === 'Capture' && (
         <>
-          <p>{form ? <a href={linkTo(`form/${form.id}`, route.search)}>{form.name}</a> : 'No form linked.'}</p>
-          {form && <p><a href={`#/f/${form.id}`}>Open public form</a></p>}
-          <div className="chart-wrap compact">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={outcomes.hourly || []}>
-                <CartesianGrid stroke="#E2E5EA" />
-                <XAxis dataKey="hour" tick={{ fill: '#231F20', fontSize: 14 }} />
-                <YAxis tick={{ fill: '#231F20', fontSize: 14 }} />
-                <Tooltip />
-                <Bar dataKey="registrations" name="Registrations" fill="#3D5A80" />
-              </BarChart>
-            </ResponsiveContainer>
+          <div className="screen-actions">
+            <a className="btn btn-primary" href={linkTo('form/new', route.search, { tpl: 'tpl-family' })}>Create form</a>
+            <a className="btn" href={linkTo('forms', route.search, { tab: 'qr', create: 'qr' })}>Create QR code</a>
+            {form && <a className="btn" href={`#/kiosk/${form.id}`}>Open kiosk mode</a>}
           </div>
-          <p className="fine">Registrations by hour on the first event day.</p>
+          <div className="chart-grid">
+            {(forms.filter((item) => item.activationId === act.id)).map((item) => (
+              <a key={item.id} className="span-4 info-card" href={linkTo(`form/${item.id}`, route.search)}>
+                <strong>{item.publicTitle || item.name}</strong>
+                <p><Status value={item.status} /></p>
+                <p>{num(item.submissionsCount)} submissions · {pct(item.completionRate)}</p>
+              </a>
+            ))}
+            {qrCodes.filter((qr) => qr.activationId === act.id).map((qr) => (
+              <a key={qr.id} className="span-4 info-card" href={linkTo(`qr/${qr.id}`, route.search)}>
+                <QrPreview value={qr.targetUrl?.startsWith('#') ? `${window.location.origin}${window.location.pathname}${qr.targetUrl}` : qr.targetUrl} style={qr.style} size={88} canvasId={`cap-${qr.id}`} />
+                <strong>{qr.touchpoint}</strong>
+                <p>{num(qr.scans)} scans · {num(qr.submissions)} submissions</p>
+              </a>
+            ))}
+          </div>
+          <ChartCard title="Submissions by hour" rows={(outcomes.hourly || []).map((row) => ({ name: row.hour, value: row.registrations }))} exportName={`${act.id}-hours`}>
+            <VBars data={(outcomes.hourly || []).map((row) => ({ name: row.hour, value: row.registrations }))} />
+          </ChartCard>
+          <ChartCard title="Scans by touchpoint" rows={qrCodes.filter((qr) => qr.activationId === act.id).map((qr) => ({ name: qr.touchpoint, value: qr.scans || 0 }))} exportName={`${act.id}-touch`}>
+            <HBars data={qrCodes.filter((qr) => qr.activationId === act.id).map((qr) => ({ name: qr.touchpoint, value: qr.scans || 0 }))} />
+          </ChartCard>
+          <ChartCard title="Scan to submission" rows={[
+            { name: 'Scans', value: qrCodes.filter((qr) => qr.activationId === act.id).reduce((sum, qr) => sum + (qr.funnel?.scans || qr.scans || 0), 0) },
+            { name: 'Opened', value: qrCodes.filter((qr) => qr.activationId === act.id).reduce((sum, qr) => sum + (qr.funnel?.opened || 0), 0) },
+            { name: 'Started', value: qrCodes.filter((qr) => qr.activationId === act.id).reduce((sum, qr) => sum + (qr.funnel?.started || 0), 0) },
+            { name: 'Submitted', value: qrCodes.filter((qr) => qr.activationId === act.id).reduce((sum, qr) => sum + (qr.funnel?.submitted || qr.submissions || 0), 0) },
+          ]} exportName={`${act.id}-funnel`}>
+            <HBars data={[
+              { name: 'Scans', value: qrCodes.filter((qr) => qr.activationId === act.id).reduce((sum, qr) => sum + (qr.scans || 0), 0) },
+              { name: 'Submitted', value: qrCodes.filter((qr) => qr.activationId === act.id).reduce((sum, qr) => sum + (qr.submissions || 0), 0) },
+            ]} />
+          </ChartCard>
         </>
       )}
       {tab === 'Audience' && (
-        <>
-          <p><a href={linkTo('audience', route.search, { activation: act.id })}>View these profiles</a></p>
-          {['ageBand', 'gender', 'party', 'heard'].map((key) => {
-            const table = counts(attendees, key);
+        <div className="chart-grid">
+          <p className="span-12"><a href={linkTo('audience', route.search, { activation: act.id })}>View these profiles</a></p>
+          {[
+            ['Age band', 'ageBand'],
+            ['Gender', 'gender'],
+            ['Who they came with', 'party'],
+            ['How they heard', 'heard'],
+          ].map(([title, key]) => {
+            const table = counts(attendees, key).map((row) => ({ name: row.name, value: row.count }));
             return (
-              <div key={key}>
-                <h2>{key}</h2>
-                <div className="chart-wrap compact">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={table}>
-                      <CartesianGrid stroke="#E2E5EA" />
-                      <XAxis dataKey="name" tick={{ fill: '#231F20', fontSize: 12 }} interval={0} angle={-20} height={70} />
-                      <YAxis tick={{ fill: '#231F20', fontSize: 14 }} />
-                      <Tooltip />
-                      <Bar dataKey="count" fill="#8A9A5B" />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-                <DataTable columns={[{ key: 'name', label: 'Value' }, { key: 'count', label: 'Count', align: 'right', format: num, total: 'sum' }]} rows={table.map((row) => ({ ...row, id: row.name }))} totals exportName={`${act.id}-${key}`} />
+              <div className="span-6" key={key}>
+                <ChartCard title={title} rows={table} exportName={`${act.id}-${key}`}>
+                  <VBars data={table} />
+                </ChartCard>
               </div>
             );
           })}
-          <h2>New and returning</h2>
-          <p>{num(outcomes.newProfiles)} new · {num(outcomes.returningProfiles)} returning</p>
-        </>
+        </div>
       )}
       {tab === 'Feedback' && (
         <>
           <p>Average rating {dec1(outcomes.avgRating)} from {num(outcomes.surveyResponses)} responses.</p>
+          <ChartCard title="Rating distribution" rows={(outcomes.ratingCounts || []).map((count, index) => ({ name: `${index + 1} star`, value: count }))} exportName={`${act.id}-ratings`}>
+            <VBars data={(outcomes.ratingCounts || []).map((count, index) => ({ name: `${index + 1}`, value: count }))} />
+          </ChartCard>
+          <ChartCard title="Comment sentiment" rows={[{ name: 'Positive', value: outcomes.positiveComments || 0 }, { name: 'Neutral', value: outcomes.neutralComments || 0 }, { name: 'Negative', value: outcomes.negativeComments || 0 }]} exportName={`${act.id}-sentiment`}>
+            <Donut data={[{ name: 'Positive', value: outcomes.positiveComments || 0 }, { name: 'Neutral', value: outcomes.neutralComments || 0 }, { name: 'Negative', value: outcomes.negativeComments || 0 }]} />
+          </ChartCard>
           <DataTable
-            columns={[{ key: 'star', label: 'Rating' }, { key: 'count', label: 'Count', align: 'right', format: num, total: 'sum' }]}
-            rows={(outcomes.ratingCounts || []).map((count, index) => ({ id: index + 1, star: index + 1, count }))}
-            totals
-            exportName={`${act.id}-ratings`}
-          />
-          <h2>Sample of comments</h2>
-          <DataTable
-            columns={[{ key: 'text', label: 'Comment' }, { key: 'sentiment', label: 'Sentiment' }]}
+            columns={[{ key: 'text', label: 'Comment', wrap: true }, { key: 'sentiment', label: 'Sentiment' }]}
             rows={(outcomes.comments || []).map((comment, index) => ({ id: index, ...comment }))}
             exportName={`${act.id}-comments`}
             empty="No comments in the sample."
           />
-          <p className="fine">Positive {num(outcomes.positiveComments)} · Neutral {num(outcomes.neutralComments)} · Negative {num(outcomes.negativeComments)}</p>
         </>
       )}
       {tab === 'Report' && (

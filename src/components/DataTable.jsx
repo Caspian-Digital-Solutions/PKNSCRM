@@ -45,10 +45,13 @@ export default function DataTable({
   exportMode = 'csv',
   exportLabel = 'Export CSV',
 }) {
-  const [sort, setSort] = useState(() => initialSort || { key: null, dir: 'asc' });
+  const [sort, setSort] = useState(() => initialSort || { key: null, dir: 'desc' });
   const [filters, setFilters] = useState({});
   const [page, setPage] = useState(0);
   const [size, setSize] = useState(pageSize || (pageSizes ? pageSizes[0] : 0));
+  const [hidden, setHidden] = useState(() => new Set(columns.filter((col) => col.optional).map((col) => col.key)));
+  const [density, setDensity] = useState('comfortable');
+  const visible = columns.filter((col) => !hidden.has(col.key));
 
   const filtered = useMemo(() => rows.filter((row) => columns.every((col) => {
     const chosen = filters[col.key];
@@ -106,18 +109,39 @@ export default function DataTable({
             ))}
           </div>
         )}
-        <ExportButton filename={exportName} columns={columns} rows={exportRows || sorted} mode={exportMode} label={exportLabel} onExport={onExport} />
+        <details className="col-picker">
+          <summary>Columns</summary>
+          <div className="col-picker-panel">
+            {columns.map((col) => (
+              <label key={col.key} className="check-inline">
+                <input
+                  type="checkbox"
+                  checked={!hidden.has(col.key)}
+                  onChange={() => setHidden((current) => {
+                    const next = new Set(current);
+                    if (next.has(col.key)) next.delete(col.key);
+                    else next.add(col.key);
+                    return next;
+                  })}
+                />
+                <span>{col.label}</span>
+              </label>
+            ))}
+          </div>
+        </details>
+        <button type="button" className="btn" onClick={() => setDensity((value) => (value === 'comfortable' ? 'compact' : 'comfortable'))}>{density === 'comfortable' ? 'Compact' : 'Comfortable'}</button>
+        <ExportButton filename={exportName} columns={visible} rows={exportRows || sorted} mode={exportMode} label={exportLabel} onExport={onExport} />
       </div>
       <div className={className ? `table-scroll ${className}` : 'table-scroll'}>
-        <table className={className ? `table data-table ${className}-table` : 'table data-table'}>
-          {columns.some((col) => col.width) && (
+        <table className={`${className ? `table data-table ${className}-table` : 'table data-table'}${density === 'compact' ? ' is-compact' : ''}`}>
+          {visible.some((col) => col.width) && (
             <colgroup>
-              {columns.map((col) => <col key={col.key} style={col.width ? { width: col.width } : undefined} />)}
+              {visible.map((col) => <col key={col.key} style={col.width ? { width: col.width } : undefined} />)}
             </colgroup>
           )}
           <thead>
             <tr>
-              {columns.map((col) => {
+              {visible.map((col) => {
                 const active = sort.key === col.key;
                 const ariaSort = active ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none';
                 const button = (
@@ -127,7 +151,7 @@ export default function DataTable({
                   </button>
                 );
                 return (
-                  <th key={col.key} className={col.align === 'right' ? 'r' : undefined} aria-sort={ariaSort}>
+                  <th key={col.key} className={`${col.align === 'right' ? 'r' : ''}${col.wrap ? ' wrap' : ''}`} aria-sort={ariaSort}>
                     {col.term ? <Term id={col.term}>{button}</Term> : button}
                   </th>
                 );
@@ -143,19 +167,21 @@ export default function DataTable({
                 onKeyDown={onRowClick ? (e) => { if (e.key === 'Enter') onRowClick(row); } : undefined}
                 tabIndex={onRowClick ? 0 : undefined}
               >
-                {columns.map((col) => (
-                  <td key={col.key} className={col.align === 'right' ? 'r' : undefined}>{display(row, col)}</td>
-                ))}
+                {visible.map((col) => {
+                  const text = display(row, col);
+                  const title = col.wrap || typeof text === 'object' ? undefined : String(text ?? '');
+                  return <td key={col.key} className={`${col.align === 'right' ? 'r' : ''}${col.wrap ? ' wrap' : ''}`} title={title}>{text}</td>;
+                })}
               </tr>
             ))}
             {sorted.length === 0 && (
               <tr>
-                <td colSpan={columns.length}>{empty}</td>
+                <td colSpan={visible.length}>{empty}</td>
               </tr>
             )}
             {totals && sorted.length > 0 && (
               <tr className="total">
-                {columns.map((col, index) => {
+                {visible.map((col, index) => {
                   const raw = totalValue(col, sorted);
                   let text = '';
                   if (index === 0 && col.total == null) text = 'Total';
