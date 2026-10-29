@@ -50,6 +50,7 @@ function Heat({ rows, columns, get, mode }) {
 export default function Insights() {
   const { profiles, activations, assets, scope, allActivations } = useAmp();
   const [tab, setTab] = useState(TABS[0]);
+  const [affinityTable, setAffinityTable] = useState(false);
   const [countMode, setCountMode] = useState('count');
   const [metric, setMetric] = useState('Attendance');
   const [bubbleAsset, setBubbleAsset] = useState('');
@@ -202,21 +203,28 @@ export default function Insights() {
       />
       {tab === 'Asset audiences' && (
         <div className="chart-grid">
-          <div className="span-12">
-            <ChartCard title="Asset affinity" rows={affinityRows} columns={[{ key: 'name', label: 'Asset' }, ...[...ageCols, ...houseCols, ...interestCols].map((key) => ({ key, label: key, align: 'right', format: num }))]} exportName="asset-affinity" footer={legend}>
-              <div className="seg-toggle">
-                <button type="button" className={countMode === 'count' ? 'on' : ''} onClick={() => setCountMode('count')}>Count</button>
-                <button type="button" className={countMode === 'pct' ? 'on' : ''} onClick={() => setCountMode('pct')}>% of row</button>
-              </div>
-              <Heat rows={perAsset} columns={[...ageCols, ...houseCols, ...interestCols]} mode={countMode} get={(row, column) => {
-                if (AGE_BANDS.includes(column)) return row.people.filter((profile) => profile.ageBand === column).length;
-                if (HOUSE.includes(column)) return row.people.filter((profile) => householdType(profile) === column).length;
-                return row.people.filter((profile) => (profile.interests || []).includes(column)).length;
-              }} />
-            </ChartCard>
+          <div className="span-12 screen-actions">
+            <button type="button" className={`btn${!affinityTable ? ' on' : ''}`} onClick={() => setAffinityTable(false)}>Chart</button>
+            <button type="button" className={`btn${affinityTable ? ' on' : ''}`} onClick={() => setAffinityTable(true)}>Table</button>
+            <button type="button" className={`btn${countMode === 'count' ? ' on' : ''}`} onClick={() => setCountMode('count')}>Count</button>
+            <button type="button" className={`btn${countMode === 'pct' ? ' on' : ''}`} onClick={() => setCountMode('pct')}>% of row</button>
           </div>
-          <div className="span-6"><ChartCard title="Age mix by asset" rows={ageMix} exportName="age-mix" footer={legend}><StackedBars data={ageMix} keys={AGE_BANDS} /></ChartCard></div>
-          <div className="span-6"><ChartCard title="Household mix by asset" rows={houseMix} exportName="household-mix" footer={legend}><StackedBars data={houseMix} keys={HOUSE} /></ChartCard></div>
+          {affinityTable ? (
+            <div className="span-12">
+              <ChartCard title="Asset affinity" rows={affinityRows} columns={[{ key: 'name', label: 'Asset' }, ...[...ageCols, ...houseCols, ...interestCols].map((key) => ({ key, label: key, align: 'right', format: num }))]} exportName="asset-affinity" footer={legend}>
+                <Heat rows={perAsset} columns={[...ageCols, ...houseCols, ...interestCols]} mode={countMode} get={(row, column) => {
+                  if (AGE_BANDS.includes(column)) return row.people.filter((profile) => profile.ageBand === column).length;
+                  if (HOUSE.includes(column)) return row.people.filter((profile) => householdType(profile) === column).length;
+                  return row.people.filter((profile) => (profile.interests || []).includes(column)).length;
+                }} />
+              </ChartCard>
+            </div>
+          ) : (
+            <>
+              <div className="span-6"><ChartCard title="Age mix by asset" rows={ageMix} columns={[{ key: 'name', label: 'Asset' }, ...AGE_BANDS.map((key) => ({ key, label: key, align: 'right', format: num }))]} exportName="age-mix" footer={legend}><StackedBars data={ageMix} keys={AGE_BANDS} /></ChartCard></div>
+              <div className="span-6"><ChartCard title="Household mix by asset" rows={houseMix} columns={[{ key: 'name', label: 'Asset' }, ...HOUSE.map((key) => ({ key, label: key, align: 'right', format: num }))]} exportName="household-mix" footer={legend}><StackedBars data={houseMix} keys={HOUSE} /></ChartCard></div>
+            </>
+          )}
         </div>
       )}
       {tab === 'Cross-asset movement' && (

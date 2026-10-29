@@ -119,7 +119,7 @@ export default function Forms() {
                   <h3>{form.publicTitle || form.name}</h3>
                   <p><Status value={form.purpose} /> <Status value={form.status} /></p>
                   <p>{form.activation}</p>
-                  <p>{num(form.submissions)} submissions · {num(form.viewsCount)} views · {pct(form.completionRate)} · {num(form.qrCount)} QR</p>
+                  <p>{[`${num(form.submissions)} submissions`, `${num(form.viewsCount)} views`, form.viewsCount ? pct(form.completionRate) : '', `${num(form.qrCount)} QR`].filter(Boolean).join(' · ')}</p>
                   {sparkline(form.spark)}
                   <div className="screen-actions">
                     <a className="btn" href={linkTo(`form/${form.id}`, route.search)}>Open builder</a>
