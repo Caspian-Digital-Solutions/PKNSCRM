@@ -13,6 +13,7 @@ import './styles/round2.css';
 import './styles/alignment.css';
 import './styles/amp.css';
 import './styles/v2.css';
+import './styles/v3.css';
 
 createRoot(document.getElementById('root')).render(
   <StoreProvider>

@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import ChartCard from '../components/ChartCard.jsx';
 import DataTable from '../components/DataTable.jsx';
 import Drawer from '../components/Drawer.jsx';
-import { PageHead, Status, linkTo, personal } from '../components/bits.jsx';
+import { OverflowMenu, PageHead, Status, linkTo, personal } from '../components/bits.jsx';
 import { CheckInline, SelectInput, TextInput } from '../components/controls.jsx';
 import { QrPreview, downloadPdf, downloadPng, downloadSvg } from '../components/QrArt.jsx';
 import { AS_OF_ISO } from '../data/config.js';
@@ -10,6 +10,7 @@ import { FORM_TEMPLATES, PURPOSES, TOUCHPOINTS } from '../data/formTemplates.js'
 import { sampleSubmissions } from '../data/inbox.js';
 import { useAmp } from '../useAmp.jsx';
 import { date, num, pct } from '../format.js';
+import { activationTitle } from '../labels.js';
 import { go } from '../router.js';
 
 const TABS = [
@@ -52,7 +53,7 @@ export default function Forms() {
     }));
     return {
       ...form,
-      activation: form.mode === 'Always-on' ? 'Always-on' : (act?.name || '–'),
+      activation: form.mode === 'Always-on' ? 'Always-on' : activationTitle(act?.name || ''),
       submissions: form.submissionsCount || 0,
       qrCount: linked.length,
       spark: points.sort((a, b) => String(a.day).localeCompare(String(b.day))),
@@ -102,7 +103,12 @@ export default function Forms() {
       />
       {tab === 'forms' && (
         <>
-          <p className="summary-strip">{num(published)} published · {num(submissionsTotal)} submissions · {pct(completion)} average completion · {num(closing)} closing in 7 days</p>
+          <div className="kpi-row">
+            <div className="kpi"><div className="kpi-label">Published</div><div className="kpi-value">{num(published)}</div></div>
+            <div className="kpi"><div className="kpi-label">Submissions</div><div className="kpi-value">{num(submissionsTotal)}</div></div>
+            <div className="kpi"><div className="kpi-label">Avg completion</div><div className="kpi-value">{pct(completion)}</div></div>
+            <div className="kpi"><div className="kpi-label">Closing in 7 days</div><div className="kpi-value">{num(closing)}</div></div>
+          </div>
           <div className="table-toolbar">
             <TextInput ariaLabel="Search forms" placeholder="Search forms" value={query} onChange={setQuery} />
             <SelectInput ariaLabel="Status" value={status} placeholder="All statuses" onChange={setStatus} options={['Draft', 'Published', 'Scheduled', 'Closed', 'Archived'].map((item) => ({ id: item, label: item }))} />
@@ -112,25 +118,35 @@ export default function Forms() {
             <button type="button" className="btn" onClick={() => setCards((value) => !value)}>{cards ? 'Table' : 'Cards'}</button>
           </div>
           {cards ? (
-            <div className="chart-grid">
-              {rows.map((form) => (
-                <article key={form.id} className="span-4 info-card">
-                  <div className="banner-thumb" style={{ background: form.design?.themeColour || '#E31E24' }} />
-                  <h3>{form.publicTitle || form.name}</h3>
-                  <p><Status value={form.purpose} /> <Status value={form.status} /></p>
-                  <p>{form.activation}</p>
-                  <p>{[`${num(form.submissions)} submissions`, `${num(form.viewsCount)} views`, form.viewsCount ? pct(form.completionRate) : '', `${num(form.qrCount)} QR`].filter(Boolean).join(' · ')}</p>
-                  {sparkline(form.spark)}
-                  <div className="screen-actions">
-                    <a className="btn" href={linkTo(`form/${form.id}`, route.search)}>Open builder</a>
-                    <a className="btn" href={`#/f/${form.id}`}>Preview</a>
-                    <button type="button" className="btn" onClick={() => navigator.clipboard?.writeText(`${window.location.origin}${window.location.pathname}#/f/${form.id}`)}>Copy link</button>
-                    <a className="btn" href={`#/qr/${form.qrCount ? qrCodes.find((qr) => qr.formId === form.id)?.id : ''}`}>Show QR</a>
-                    <button type="button" className="btn" onClick={() => go('form', 'new', { tpl: FORM_TEMPLATES.find((item) => item.purpose === form.purpose)?.id || '' })}>Duplicate</button>
-                    <button type="button" className="btn" onClick={() => dispatch({ type: 'patchForm', id: form.id, patch: { status: form.status === 'Closed' ? 'Archived' : 'Closed', active: false } })}>{form.status === 'Closed' ? 'Archive' : 'Close'}</button>
-                  </div>
-                </article>
-              ))}
+            <div className="card-grid forms">
+              {rows.map((form) => {
+                const qr = qrCodes.find((item) => item.formId === form.id);
+                return (
+                  <article key={form.id} className="info-card form-card">
+                    <div className="banner-thumb" style={{ background: form.design?.themeColour || '#E31E24' }} />
+                    <h3>{form.publicTitle || form.name}</h3>
+                    <p><Status value={form.purpose} /> <Status value={form.status} /></p>
+                    <p>{form.activation}</p>
+                    <div className="mini-stats">
+                      <p><strong>{num(form.submissions)}</strong><span>Submissions</span></p>
+                      <p><strong>{num(form.viewsCount)}</strong><span>Views</span></p>
+                      <p><strong>{form.viewsCount ? pct(form.completionRate) : '–'}</strong><span>Completion</span></p>
+                    </div>
+                    {sparkline(form.spark)}
+                    <div className="card-foot">
+                      <a className="btn" href={linkTo(`form/${form.id}`, route.search)}>Open builder</a>
+                      <OverflowMenu items={[
+                        { label: 'Preview', href: `#/f/${form.id}` },
+                        { label: 'Copy link', onClick: () => navigator.clipboard?.writeText(`${window.location.origin}${window.location.pathname}#/f/${form.id}`) },
+                        { label: 'Show QR', href: qr ? `#/qr/${qr.id}` : '#/forms?tab=qr' },
+                        { label: 'Duplicate', onClick: () => go('form', 'new', { tpl: FORM_TEMPLATES.find((item) => item.purpose === form.purpose)?.id || '' }) },
+                        { label: form.status === 'Closed' ? 'Archive' : 'Close', onClick: () => dispatch({ type: 'patchForm', id: form.id, patch: { status: form.status === 'Closed' ? 'Archived' : 'Closed', active: false } }) },
+                      ]}
+                      />
+                    </div>
+                  </article>
+                );
+              })}
             </div>
           ) : (
             <DataTable
@@ -152,14 +168,13 @@ export default function Forms() {
       )}
       {tab === 'qr' && <QrTab amp={amp} scans={scans} unique={unique} qrSubs={qrSubs} active={activeQr.length} onCreate={() => setQrOpen(true)} />}
       {tab === 'templates' && (
-        <div className="chart-grid">
+        <div className="card-grid forms">
           {FORM_TEMPLATES.map((template) => (
-            <article key={template.id} className="span-4 info-card">
+            <article key={template.id} className="info-card">
               <h3>{template.name}</h3>
-              <p>{template.purpose}</p>
               <p>{template.description}</p>
               <p>{template.fields.length} fields</p>
-              <button type="button" className="btn btn-primary" onClick={() => go('form', 'new', { tpl: template.id })}>Use template</button>
+              <button type="button" className="btn" onClick={() => go('form', 'new', { tpl: template.id })}>Use template</button>
             </article>
           ))}
         </div>

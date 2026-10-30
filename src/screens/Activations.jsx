@@ -6,6 +6,7 @@ import { ACTIVATION_TYPES, ASSETS, AS_OF, CONSENT, DEFAULT_FORM_KEYS, FIELD_LIBR
 import { blankOutcomes } from '../data/submit.js';
 import { useAmp } from '../useAmp.jsx';
 import { date, dateSpan, dec1, num, rm } from '../format.js';
+import { activationTitle } from '../labels.js';
 
 const SERIES = ['#3D5A80', '#8A9A5B', '#C9A227', '#7D6B91', '#5C8D89', '#9C6644', '#5E6A82', '#8C7A6B'];
 const STATUSES = ['Planned', 'Approved', 'Live', 'Completed', 'Reported'];
@@ -199,7 +200,7 @@ export default function Activations() {
     rows = rows.filter((act) => `${act.name} ${act.asset} ${act.type} ${act.specificLocation}`.toLowerCase().includes(q));
   }
   const columns = [
-    { key: 'name', label: 'Name', format: (value, row) => <span><i className="asset-dot" style={{ background: row?.colour || '#64748B' }} /> {value}</span> },
+    { key: 'name', label: 'Name', format: (value, row) => <span><i className="asset-dot" style={{ background: row?.colour || '#64748B' }} /> {activationTitle(value)}</span> },
     { key: 'asset', label: 'Asset' },
     { key: 'specificLocation', label: 'Location', optional: true },
     { key: 'runBy', label: 'Run by', optional: true },
@@ -208,21 +209,24 @@ export default function Activations() {
     { key: 'dates', label: 'Dates' },
     { key: 'status', label: 'Status', format: (value) => <Status value={value} /> },
     { key: 'budget', label: 'Budget', align: 'right', format: rm },
-    { key: 'actual', label: 'Actual spend', align: 'right', format: rm },
+    { key: 'actual', label: 'Actual spend', align: 'right', format: rm, optional: true },
     { key: 'attendance', label: 'Attendance', align: 'right', format: num },
     { key: 'fresh', label: 'New profiles', align: 'right', format: num, optional: true },
-    { key: 'cost', label: 'Cost per attendee', align: 'right', format: rm },
+    { key: 'cost', label: 'Cost per attendee', align: 'right', format: rm, optional: true },
     { key: 'rating', label: 'Avg rating', align: 'right', format: (value) => dec1(value), optional: true },
   ];
   return (
     <section>
       <PageHead
         title="Activations"
+        lede="Plan, run and report AMP activations."
         actions={(
           <>
-            <button type="button" className={`btn${view === 'list' ? ' on' : ''}`} onClick={() => setView('list')}>List</button>
-            <button type="button" className={`btn${view === 'calendar' ? ' on' : ''}`} onClick={() => setView('calendar')}>Calendar</button>
-            <button type="button" className={`btn${view === 'pipeline' ? ' on' : ''}`} onClick={() => setView('pipeline')}>Status</button>
+            <div className="segmented" role="tablist" aria-label="Activation view">
+              <button type="button" className={view === 'list' ? 'on' : ''} onClick={() => setView('list')}>List</button>
+              <button type="button" className={view === 'calendar' ? 'on' : ''} onClick={() => setView('calendar')}>Calendar</button>
+              <button type="button" className={view === 'pipeline' ? 'on' : ''} onClick={() => setView('pipeline')}>Status</button>
+            </div>
             {can(state.role, 'activation.edit') && <a className="btn btn-primary" href={linkTo('activations/new', route.search)}>New activation</a>}
           </>
         )}
@@ -233,9 +237,12 @@ export default function Activations() {
       </div>
       {view === 'list' && (
         <>
-          <p className="summary-strip">
-            {num(rosterRows.filter((act) => act.status === 'Planned').length)} planned · {num(rosterRows.filter((act) => act.status === 'Live').length)} live · {num(rosterRows.filter((act) => act.status === 'Completed').length)} completed awaiting report · {rm(rows.reduce((sum, act) => sum + (act.budget || 0), 0))} budget in view
-          </p>
+          <div className="kpi-row">
+            <div className="kpi"><div className="kpi-label">Planned</div><div className="kpi-value">{num(rosterRows.filter((act) => act.status === 'Planned').length)}</div></div>
+            <div className="kpi"><div className="kpi-label">Live</div><div className="kpi-value">{num(rosterRows.filter((act) => act.status === 'Live').length)}</div></div>
+            <div className="kpi"><div className="kpi-label">Awaiting report</div><div className="kpi-value">{num(rosterRows.filter((act) => act.status === 'Completed').length)}</div></div>
+            <div className="kpi"><div className="kpi-label">Budget in view</div><div className="kpi-value">{rm(rows.reduce((sum, act) => sum + (act.budget || 0), 0))}</div></div>
+          </div>
           <DataTable columns={columns} rows={rows} pageSizes={[25, 50, 100]} exportName="activations" onRowClick={(row) => { window.location.hash = linkTo(`activation/${row.id}`, route.search); }} />
         </>
       )}

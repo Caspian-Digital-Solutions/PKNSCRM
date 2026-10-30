@@ -5,7 +5,7 @@ import Avatar from '../components/Avatar.jsx';
 import ChartCard from '../components/ChartCard.jsx';
 import DataTable from '../components/DataTable.jsx';
 import Drawer from '../components/Drawer.jsx';
-import { PageHead, auditEntry, linkTo, personal } from '../components/bits.jsx';
+import { OverflowMenu, PageHead, auditEntry, linkTo, personal } from '../components/bits.jsx';
 import { SelectInput, TextInput } from '../components/controls.jsx';
 import { can } from '../access.js';
 import { AGE_BANDS, ASSETS, GENDERS, INTERESTS, LEAD_TYPES, SOURCE_CHANNELS } from '../data/config.js';
@@ -237,21 +237,25 @@ export default function Segments({ id }) {
           pageSizes={[25, 50, 100]}
         />
       ) : (
-        <div className="chart-grid">
+        <div className="card-grid segments">
           {counted.map((segment) => (
-            <article key={segment.id} className="span-4 segment-card">
-              <h3>{segment.name}</h3>
+            <article key={segment.id} className="segment-card">
+              <div className="card-foot" style={{ marginTop: 0 }}>
+                <h3>{segment.name}</h3>
+                <OverflowMenu items={[
+                  { label: 'Duplicate', onClick: () => edit({ ...segment, id: undefined, name: `${segment.name} copy` }) },
+                  ...(can(state.role, 'contacts.export') ? [{ label: 'Export consented', onClick: () => exportConsented(segment) }] : []),
+                  { label: 'Delete', onClick: () => dispatch({ type: 'patchSegment', id: segment.id, segment: { ...segment, deleted: true } }) },
+                ]}
+                />
+              </div>
               <p>{segment.description || summariseRules(segment)}</p>
-              <p className="kpi-value">{num(segment.matching)}</p>
-              <p>{num(segment.consented)} with marketing consent</p>
+              <p className="kpi-value">{num(segment.matching)} <span className="fine">profiles</span></p>
+              <p>{num(segment.consented)} with marketing consent · {pct(segment.matching ? segment.consented / segment.matching : null)}</p>
               <div className="util-bar"><span style={{ width: `${Math.round((segment.matching ? segment.consented / segment.matching : 0) * 100)}%` }} /></div>
-              <p>{pct(segment.matching ? segment.consented / segment.matching : null)} consented</p>
-              <p className="person-cell"><Avatar name={segment.createdBy} size={24} /> Updated {date(segment.createdAt)}</p>
-              <div className="screen-actions">
+              <div className="card-foot">
+                <p className="person-cell"><Avatar name={segment.createdBy} size={24} /> Updated {date(segment.createdAt)}</p>
                 <a className="btn" href={linkTo(`segment/${segment.id}`, route.search)}>Open</a>
-                <button type="button" className="btn" onClick={() => edit({ ...segment, id: undefined, name: `${segment.name} copy` })}>Duplicate</button>
-                {can(state.role, 'contacts.export') && <button type="button" className="btn" onClick={() => exportConsented(segment)}>Export consented</button>}
-                <button type="button" className="btn" onClick={() => dispatch({ type: 'patchSegment', id: segment.id, segment: { ...segment, deleted: true } })}>Delete</button>
               </div>
             </article>
           ))}

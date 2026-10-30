@@ -1,7 +1,7 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import DataTable from '../components/DataTable.jsx';
 import Modal from '../components/Modal.jsx';
-import { PageHead, SampleBadge, SearchBox, auditEntry } from '../components/bits.jsx';
+import { PageHead, SampleBadge, SearchBox, Status, auditEntry } from '../components/bits.jsx';
 import { ROLES } from '../access.js';
 import { INTEGRATIONS } from '../data/config.js';
 import { liveFields, liveUsers } from '../data/live.js';
@@ -12,13 +12,22 @@ const TABS = ['Users & Roles', 'Operators', 'Field Library', 'Integrations', 'Da
 
 export default function Settings() {
   const amp = useAmp();
-  const [tab, setTab] = useState(TABS[0]);
+  const { route } = amp;
+  const [tab, setTab] = useState(route.search.tab === 'audit' ? 'Audit Log' : TABS[0]);
+  useEffect(() => {
+    if (route.search.tab === 'audit') setTab('Audit Log');
+  }, [route.search.tab]);
   return (
     <section>
-      <PageHead title="Settings" lede="Users, operators, fields, integrations, retention and the audit log." />
-      <div className="tabs">
-        {TABS.map((name) => <button key={name} type="button" className="btn" aria-current={tab === name ? 'page' : undefined} onClick={() => setTab(name)}>{name}</button>)}
-      </div>
+      <PageHead
+        title="Settings"
+        lede="Users, operators, fields, integrations, retention and the audit log."
+        tabs={(
+          <div className="tabs">
+            {TABS.map((name) => <button key={name} type="button" className={tab === name ? 'on' : ''} onClick={() => setTab(name)}>{name}</button>)}
+          </div>
+        )}
+      />
       {tab === 'Users & Roles' && <Users amp={amp} />}
       {tab === 'Operators' && <Operators amp={amp} />}
       {tab === 'Field Library' && <Fields amp={amp} />}
@@ -36,7 +45,7 @@ export default function Settings() {
 }
 
 function Users({ amp }) {
-  const { data, state, dispatch } = amp;
+  const { data, state, dispatch, assets } = amp;
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [form, setForm] = useState({ name: '', email: '', role: 'amp-executive' });
@@ -51,12 +60,12 @@ function Users({ amp }) {
         columns={[
           { key: 'name', label: 'Name' },
           { key: 'email', label: 'Email' },
-          { key: 'roleName', label: 'Role' },
-          { key: 'assets', label: 'Assigned assets' },
-          { key: 'status', label: 'Status' },
+          { key: 'roleName', label: 'Role', format: (value) => <Status value={value} /> },
+          { key: 'assets', label: 'Assigned assets', format: (value) => (Array.isArray(value) ? value.map((name) => <Status key={name} value={name} />) : value) },
+          { key: 'status', label: 'Status', format: (value) => <Status value={value} /> },
           { key: 'lastLogin', label: 'Last login', format: (value) => (value ? dateTime(value) : '–') },
         ]}
-        rows={users.map((user) => ({ ...user, roleName: ROLES[user.role]?.name || user.role, assets: (user.assetIds || []).join(', ') || 'All' }))}
+        rows={users.map((user) => ({ ...user, roleName: ROLES[user.role]?.name || user.role, assets: (user.assetIds || []).length ? user.assetIds.map((id) => assets.find((asset) => asset.id === id)?.name || id) : ['All assets'] }))}
         exportName="users"
         pageSizes={[25, 50, 100]}
         empty="No users."
@@ -165,7 +174,7 @@ function Fields({ amp }) {
 
 function Integrations() {
   return (
-    <div className="card-grid">
+    <div className="card-grid connectors">
       {INTEGRATIONS.map((item) => (
         <article key={item.id} className="info-card">
           {(item.status === 'Sample data' || item.id === 'rentx') && <SampleBadge text={item.id === 'rentx' ? 'Sample data, not connected' : 'Sample data, not connected'} />}

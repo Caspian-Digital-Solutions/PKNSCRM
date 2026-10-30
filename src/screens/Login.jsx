@@ -1,7 +1,16 @@
+import { Building2, LineChart, Settings, Shield, UserRound } from 'lucide-react';
 import logo from '../assets/pkns-logo.png';
 import { ROLES } from '../access.js';
 import { useStore } from '../store.jsx';
 import { go } from '../router.js';
+
+const ICONS = {
+  'amp-manager': Shield,
+  'amp-executive': LineChart,
+  operator: Building2,
+  management: UserRound,
+  admin: Settings,
+};
 
 export default function Login() {
   const { dispatch } = useStore();
@@ -19,10 +28,12 @@ export default function Login() {
         <div className="roles">
           {Object.values(ROLES).map((role) => (
             <button key={role.id} type="button" className="role-card" onClick={() => choose(role.id)}>
+              {(() => { const Icon = ICONS[role.id] || Shield; return <Icon size={20} aria-hidden="true" />; })()}
               <span className="avatar" aria-hidden="true">{role.initials}</span>
               <span className="role-card-name">{role.name}</span>
               <span className="role-person">{role.person}</span>
               <span className="role-card-blurb">{role.title}. {role.blurb}</span>
+              <span className="role-continue">Continue as {role.person}</span>
             </button>
           ))}
         </div>

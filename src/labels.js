@@ -29,6 +29,14 @@ export const FIELD_LABELS = {
   comments: 'Comments',
 };
 
+export function activationTitle(name) {
+  const text = String(name || '');
+  const parts = text.split(' – ');
+  if (parts.length >= 3) return parts[0];
+  if (parts.length === 2 && /Series/i.test(parts[0])) return `${parts[0].replace(/\s+Series$/i, '')} · ${parts[1]}`;
+  return text;
+}
+
 export const OP_LABELS = {
   eq: 'is',
   includes: 'includes',

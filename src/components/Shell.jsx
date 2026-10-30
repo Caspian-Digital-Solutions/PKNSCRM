@@ -27,7 +27,18 @@ const ICONS = {
   import: Upload,
   footfall: Footprints,
   settings: Settings,
+  audit: FileText,
 };
+
+const GROUPS = [
+  { label: 'Plan & capture', ids: ['overview', 'activations', 'forms'] },
+  { label: 'Audience', ids: ['audience', 'segments', 'insights'] },
+  { label: 'Performance', ids: ['channels', 'budget', 'reports'] },
+  { label: 'Admin', ids: ['assets', 'import', 'settings', 'audit'] },
+  { label: 'Coming soon', ids: ['footfall'] },
+];
+
+const FILTER_PAGES = new Set(['overview', 'activations', 'audience', 'segments', 'insights', 'channels', 'budget', 'reports']);
 
 export default function Shell({ current, children }) {
   const { state, dispatch, route, operators, assets } = useAmp();
@@ -36,6 +47,8 @@ export default function Shell({ current, children }) {
   const [menu, setMenu] = useState(false);
   const operator = operators.find((item) => item.id === role.operatorId);
   const operatorAssets = (operator?.assetIds || []).map((id) => assets.find((asset) => asset.id === id)?.name).filter(Boolean);
+  const visible = NAV.filter((item) => item.roles.includes(state.role));
+  const showFilters = FILTER_PAGES.has(route.screen);
 
   const switchRole = (id) => {
     const next = ROLES[id];
@@ -80,14 +93,33 @@ export default function Shell({ current, children }) {
             <span className="side-copy"><span className="side-product">AMP Hub</span></span>
           </a>
           <div className="side-links">
-            {NAV.filter((item) => item.roles.includes(state.role)).map((item) => {
-              const Icon = ICONS[item.id] || LayoutGrid;
+            {GROUPS.map((group) => {
+              const items = group.ids.map((id) => (id === 'audit' && state.role === 'admin' ? { id: 'audit', name: 'Audit log' } : visible.find((item) => item.id === id))).filter(Boolean);
+              if (!items.length) return null;
               return (
-                <a key={item.id} href={`#/${item.id}`} className={current === item.id ? 'active' : ''} onClick={(event) => { event.preventDefault(); openScreen(item.id, route.search); }}>
-                  <span className="nav-icon"><Icon size={18} strokeWidth={1.75} aria-hidden="true" /></span>
-                  <span className="nav-label">{item.name}</span>
-                  {item.phase ? <span className="phase-badge">Phase 2</span> : null}
-                </a>
+                <div key={group.label}>
+                  <p className="nav-group">{group.label}</p>
+                  {items.map((item) => {
+                    const Icon = ICONS[item.id] || LayoutGrid;
+                    const active = item.id === 'audit' ? route.screen === 'settings' && route.search.tab === 'audit' : current === item.id && !(item.id === 'settings' && route.search.tab === 'audit');
+                    return (
+                      <a
+                        key={item.id}
+                        href={item.id === 'audit' ? '#/settings?tab=audit' : `#/${item.id}`}
+                        className={active ? 'active' : ''}
+                        onClick={(event) => {
+                          event.preventDefault();
+                          if (item.id === 'audit') go('settings', { tab: 'audit' });
+                          else openScreen(item.id, route.search);
+                        }}
+                      >
+                        <span className="nav-icon"><Icon size={16} strokeWidth={1.75} aria-hidden="true" /></span>
+                        <span className="nav-label">{item.name}</span>
+                        {item.phase ? <span className="phase-badge">Phase 2</span> : null}
+                      </a>
+                    );
+                  })}
+                </div>
               );
             })}
           </div>
@@ -108,43 +140,45 @@ export default function Shell({ current, children }) {
           </div>
         </nav>
         <div className="main-col">
-          <header className="topbar">
-            <p className="crumb"><span>{NAV.find((item) => item.id === current)?.name || 'AMP Hub'}</span></p>
-            <button type="button" className="search-btn" onClick={() => ui.setPalette(true)}>
-              <span>Search or jump to…</span>
-              <kbd>Ctrl K</kbd>
-            </button>
-            <div className="topbar-right">
-              <div className="user-card">
-                <button type="button" className="role-btn" data-testid="role-menu-button" aria-expanded={menu} onClick={() => setMenu((open) => !open)}>
-                  <span className="avatar">{role.initials}</span>
-                  <span className="user-meta">
-                    <strong>{role.person}</strong>
-                    <span>{role.name}{operator ? ` · ${operator.name}` : ''}</span>
-                  </span>
-                  <ChevronDown size={18} strokeWidth={1.75} aria-hidden="true" />
-                </button>
-                {menu && (
-                  <div className="role-menu" role="menu">
-                    {Object.values(ROLES).map((item) => (
-                      <button key={item.id} type="button" className={item.id === state.role ? 'on' : ''} onClick={() => switchRole(item.id)}>
-                        <strong>{item.name}</strong>
-                        <span>{item.person}, {item.title}</span>
-                      </button>
-                    ))}
-                    <hr />
-                    <button type="button" onClick={() => { dispatch({ type: 'logout' }); setMenu(false); go(''); }}>Back to role selection</button>
-                  </div>
-                )}
+          <header className="app-header">
+            <div className="topbar">
+              <p className="crumb"><span>{NAV.find((item) => item.id === current)?.name || 'AMP Hub'}</span></p>
+              <button type="button" className="search-btn" onClick={() => ui.setPalette(true)}>
+                <span>Search or jump to…</span>
+                <kbd>Ctrl K</kbd>
+              </button>
+              <div className="topbar-right">
+                <div className="user-card">
+                  <button type="button" className="role-btn" data-testid="role-menu-button" aria-expanded={menu} onClick={() => setMenu((open) => !open)}>
+                    <span className="avatar">{role.initials}</span>
+                    <span className="user-meta">
+                      <strong>{role.person}</strong>
+                      <span>{role.name}</span>
+                    </span>
+                    <ChevronDown size={16} strokeWidth={1.75} aria-hidden="true" />
+                  </button>
+                  {menu && (
+                    <div className="role-menu" role="menu">
+                      {Object.values(ROLES).map((item) => (
+                        <button key={item.id} type="button" className={item.id === state.role ? 'on' : ''} onClick={() => switchRole(item.id)}>
+                          <strong>{item.id === state.role ? '✓ ' : ''}{item.name}</strong>
+                          <span>{item.person}{item.operatorName ? ` · ${item.operatorName}` : ''}</span>
+                        </button>
+                      ))}
+                      <hr />
+                      <button type="button" onClick={() => { dispatch({ type: 'logout' }); setMenu(false); go(''); }}>Back to role selection</button>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
+            {showFilters ? <GlobalFilters /> : null}
+            {state.role === 'operator' && (
+              <p className="scope-banner">Viewing data for {operator?.name}. Assets: {operatorAssets.join(' · ')}</p>
+            )}
           </header>
-          <GlobalFilters />
           <main className="content">
             <div className="content-inner page" data-screen={current}>
-              {state.role === 'operator' && (
-                <p className="scope-banner">Viewing data for: {operator?.name} – {operatorAssets.join(', ')}</p>
-              )}
               {children}
             </div>
           </main>

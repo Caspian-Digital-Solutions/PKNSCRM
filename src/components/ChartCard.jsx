@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Table2 } from 'lucide-react';
 import DataTable from './DataTable.jsx';
 import { num } from '../format.js';
 
@@ -25,7 +26,7 @@ export default function ChartCard({
           <h3>{title}</h3>
           {subtitle ? <p>{subtitle}</p> : null}
         </div>
-        <button type="button" className={`btn${table ? ' on' : ''}`} onClick={() => setTable((open) => !open)}>{table ? 'View chart' : 'View data'}</button>
+        <button type="button" className="icon-btn" title={table ? 'View chart' : 'View data'} aria-label={table ? 'View chart' : 'View data'} onClick={() => setTable((open) => !open)}><Table2 size={16} aria-hidden="true" /></button>
       </header>
       <div className="chart-card-body" style={{ minHeight: table ? undefined : height }}>
         {table ? (

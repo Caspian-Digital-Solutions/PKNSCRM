@@ -532,13 +532,13 @@ export const FIELD_LIBRARY = [
 export const DEFAULT_FORM_KEYS = ['fullName', 'mobile', 'email', 'postcode', 'ageBand', 'gender', 'childrenCount', 'interests', 'heard', 'party', 'rating', 'comments'];
 
 export const USERS = [
-  { id: 'u-farah', name: 'Farah Idris', email: 'farah.idris@example.com', role: 'amp-manager', operatorId: null, assetIds: [], status: 'Active', lastLogin: '2026-10-28T09:12:00+08:00' },
-  { id: 'u-danish', name: 'Danish Hakim', email: 'danish.hakim@example.com', role: 'amp-executive', operatorId: null, assetIds: [], status: 'Active', lastLogin: '2026-10-27T16:40:00+08:00' },
-  { id: 'u-aina', name: 'Aina Rahman', email: 'aina.rahman@example.com', role: 'operator', operatorId: 'op-alam', assetIds: ['pas', 'gsa'], status: 'Active', lastLogin: '2026-10-28T08:05:00+08:00' },
-  { id: 'u-hafiz', name: 'Hafiz Kamal', email: 'hafiz.kamal@example.com', role: 'operator', operatorId: 'op-kpsa', assetIds: ['kpsa'], status: 'Active', lastLogin: '2026-10-26T11:20:00+08:00' },
-  { id: 'u-hisham', name: 'Hisham Karim', email: 'hisham.karim@example.com', role: 'management', operatorId: null, assetIds: [], status: 'Active', lastLogin: '2026-10-28T07:55:00+08:00' },
-  { id: 'u-razak', name: 'Razak Ibrahim', email: 'razak.ibrahim@example.com', role: 'admin', operatorId: null, assetIds: [], status: 'Active', lastLogin: '2026-10-25T14:10:00+08:00' },
-  { id: 'u-mariam', name: 'Siti Mariam', email: 'siti.mariam@example.com', role: 'operator', operatorId: 'op-smm', assetIds: ['sacc'], status: 'Invited', lastLogin: null },
+  { id: 'u-farah', name: 'Farah Idris', email: 'farah.idris@pkns-demo.my', role: 'amp-manager', operatorId: null, assetIds: [], status: 'Active', lastLogin: '2026-10-28T09:12:00+08:00' },
+  { id: 'u-danish', name: 'Danish Hakim', email: 'danish.hakim@pkns-demo.my', role: 'amp-executive', operatorId: null, assetIds: [], status: 'Active', lastLogin: '2026-10-27T16:40:00+08:00' },
+  { id: 'u-aina', name: 'Aina Rahman', email: 'aina.rahman@pkns-demo.my', role: 'operator', operatorId: 'op-alam', assetIds: ['pas', 'gsa'], status: 'Active', lastLogin: '2026-10-28T08:05:00+08:00' },
+  { id: 'u-hafiz', name: 'Hafiz Kamal', email: 'hafiz.kamal@pkns-demo.my', role: 'operator', operatorId: 'op-kpsa', assetIds: ['kpsa'], status: 'Active', lastLogin: '2026-10-26T11:20:00+08:00' },
+  { id: 'u-hisham', name: 'Hisham Karim', email: 'hisham.karim@pkns-demo.my', role: 'management', operatorId: null, assetIds: [], status: 'Active', lastLogin: '2026-10-28T07:55:00+08:00' },
+  { id: 'u-razak', name: 'Razak Ibrahim', email: 'razak.ibrahim@pkns-demo.my', role: 'admin', operatorId: null, assetIds: [], status: 'Active', lastLogin: '2026-10-25T14:10:00+08:00' },
+  { id: 'u-mariam', name: 'Siti Mariam', email: 'siti.mariam@pkns-demo.my', role: 'operator', operatorId: 'op-smm', assetIds: ['sacc'], status: 'Invited', lastLogin: null },
 ];
 
 export const SEGMENT_SEEDS = [

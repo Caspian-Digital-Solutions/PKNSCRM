@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { can } from '../access.js';
 import { PageHead, linkTo } from '../components/bits.jsx';
-import { CheckInline, SelectInput, TextInput, Toggle } from '../components/controls.jsx';
+import { CheckInline, Field, SelectInput, TextInput, Toggle } from '../components/controls.jsx';
 import { PhonePreview } from '../components/FormFields.jsx';
 import { QrPreview } from '../components/QrArt.jsx';
 import { AS_OF_ISO, CONSENT, FIELD_LIBRARY } from '../data/config.js';
@@ -177,16 +177,22 @@ export default function FormBuilder({ id }) {
         {STEPS.map((label, index) => <li key={label}><span className={index === step ? 'on' : index < step ? 'done' : ''}>{index + 1}</span>{label}</li>)}
       </ol>
       {step === 0 && (
-        <div className="chart-grid">
-          <button type="button" className="info-card span-4" onClick={() => { setDraft(blankForm()); setStep(1); }}>Blank form</button>
+        <>
+        <div className="card-grid forms">
+          <button type="button" className="option-card" onClick={() => { setDraft(blankForm()); setStep(1); }}>
+            <strong>Blank form</strong>
+            <p>Start without a template</p>
+            <p className="fine">0 fields</p>
+          </button>
           {FORM_TEMPLATES.map((template) => (
-            <button key={template.id} type="button" className="info-card span-4" onClick={() => { setDraft(fromTemplate(template, allActivations)); setStep(1); }}>
+            <button key={template.id} type="button" className="option-card" onClick={() => { setDraft(fromTemplate(template, allActivations)); setStep(1); }}>
               <strong>{template.name}</strong>
-              <p>{template.purpose}</p>
-              <p>{template.fields.length} fields</p>
+              <p>{template.description || template.purpose}</p>
+              <p className="fine">{template.fields.length} fields</p>
             </button>
           ))}
-          <label className="span-12">Duplicate an existing form
+        </div>
+        <label className="field">Duplicate an existing form
             <select className="control" value="" onChange={(event) => {
               const source = forms.find((form) => form.id === event.target.value);
               if (!source) return;
@@ -200,29 +206,39 @@ export default function FormBuilder({ id }) {
               {forms.map((form) => <option key={form.id} value={form.id}>{form.publicTitle || form.name}</option>)}
             </select>
           </label>
-        </div>
+        </>
       )}
       {step === 1 && (
-        <div className="stack-form">
-          <SelectInput ariaLabel="Purpose" value={draft.purpose} onChange={(purpose) => setDraft({ ...draft, purpose })} options={PURPOSES.map((item) => ({ id: item, label: item }))} />
-          <div className="radio-cards">
-            {['Activation', 'Always-on'].map((mode) => (
-              <label key={mode} className={`radio-card${draft.mode === mode ? ' on' : ''}`}>
-                <input type="radio" name="mode" checked={draft.mode === mode} onChange={() => setDraft({ ...draft, mode })} />
-                <span>{mode}</span>
-              </label>
-            ))}
+        <div className="wizard-narrow">
+          <Field label="Purpose">
+            <SelectInput ariaLabel="Purpose" value={draft.purpose} onChange={(purpose) => setDraft({ ...draft, purpose })} options={PURPOSES.map((item) => ({ id: item, label: item }))} />
+          </Field>
+          <div className="field">
+            <span className="field-label">Mode</span>
+            <div className="radio-cards is-pair">
+              {[{ id: 'Activation', hint: 'Tied to one activation and its dates.' }, { id: 'Always-on', hint: 'Stays open for an asset, with no end date.' }].map((mode) => (
+                <label key={mode.id} className={`radio-card${draft.mode === mode.id ? ' on' : ''}`}>
+                  <input type="radio" name="mode" checked={draft.mode === mode.id} onChange={() => setDraft({ ...draft, mode: mode.id })} />
+                  <span className="radio-copy"><strong>{mode.id}</strong><span>{mode.hint}</span></span>
+                </label>
+              ))}
+            </div>
           </div>
           {draft.mode === 'Activation' ? (
-            <SelectInput ariaLabel="Activation" value={draft.activationId || ''} placeholder="Activation" onChange={(activationId) => {
-              const act = allActivations.find((item) => item.id === activationId);
-              setDraft({ ...draft, activationId, assetIds: act ? [act.assetId] : draft.assetIds, publicTitle: draft.publicTitle || String(act?.name || '').split(' – ')[0] });
-            }} options={allActivations.map((act) => ({ id: act.id, label: act.name }))} />
+            <Field label="Linked activation">
+              <SelectInput ariaLabel="Linked activation" value={draft.activationId || ''} placeholder="Search activations" onChange={(activationId) => {
+                const act = allActivations.find((item) => item.id === activationId);
+                setDraft({ ...draft, activationId, assetIds: act ? [act.assetId] : draft.assetIds, publicTitle: draft.publicTitle || String(act?.name || '').split(' – ')[0] });
+              }} options={allActivations.map((act) => ({ id: act.id, label: act.name }))} />
+            </Field>
           ) : (
-            <SelectInput ariaLabel="Asset" value={draft.assetIds?.[0] || ''} placeholder="Asset" onChange={(assetId) => setDraft({ ...draft, assetIds: assetId ? [assetId] : [] })} options={assets.map((asset) => ({ id: asset.id, label: asset.name }))} />
+            <Field label="Asset">
+              <SelectInput ariaLabel="Asset" value={draft.assetIds?.[0] || ''} placeholder="Asset" onChange={(assetId) => setDraft({ ...draft, assetIds: assetId ? [assetId] : [] })} options={assets.map((asset) => ({ id: asset.id, label: asset.name }))} />
+            </Field>
           )}
-          <TextInput ariaLabel="Internal name" placeholder="Internal name" value={draft.name} onChange={(name) => setDraft({ ...draft, name })} />
-          <TextInput ariaLabel="Public title" placeholder="Public title" value={draft.publicTitle} onChange={(publicTitle) => setDraft({ ...draft, publicTitle, design: { ...draft.design, headlineEN: draft.design.headlineEN || publicTitle } })} />
+          <Field label="Internal name"><TextInput ariaLabel="Internal name" value={draft.name} onChange={(name) => setDraft({ ...draft, name })} /></Field>
+          <Field label="Public title (EN)"><TextInput ariaLabel="Public title (EN)" value={draft.publicTitle} onChange={(publicTitle) => setDraft({ ...draft, publicTitle, design: { ...draft.design, headlineEN: publicTitle } })} /></Field>
+          <Field label="Public title (BM)"><TextInput ariaLabel="Public title (BM)" value={draft.design?.headlineBM || ''} onChange={(headlineBM) => setDraft({ ...draft, design: { ...draft.design, headlineBM } })} /></Field>
         </div>
       )}
       {step === 2 && (

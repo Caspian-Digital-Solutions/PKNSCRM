@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { can, ROLES } from '../access.js';
 import { globalQuery } from '../filters.js';
 import { go } from '../router.js';
@@ -16,18 +17,36 @@ export function openScreen(screen, search, ...params) {
   go(screen, ...params, globalQuery(search));
 }
 
-export function PageHead({ title, lede, actions, tabs, back }) {
+export function PageHead({ title, lede, actions, tabs, back, status }) {
   return (
-    <div className="screen-head page-head">
+    <header className="screen-head page-head">
       {back ? <a className="back-link" href={back.href} onClick={back.onClick}>{back.label || 'Back'}</a> : null}
       <div className="page-head-row">
-        <div>
-          <h1>{title}</h1>
+        <div className="page-head-copy">
+          <h1>{title}{status}</h1>
           {lede ? <p className="lead">{lede}</p> : null}
         </div>
         {actions ? <div className="screen-actions">{actions}</div> : null}
       </div>
       {tabs || null}
+    </header>
+  );
+}
+
+export function OverflowMenu({ label = 'More actions', items }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="overflow-menu">
+      <button type="button" className="icon-btn" aria-label={label} aria-expanded={open} onClick={() => setOpen((value) => !value)}>⋯</button>
+      {open ? (
+        <div className="overflow-panel" role="menu">
+          {items.map((item) => (item.href ? (
+            <a key={item.label} href={item.href} role="menuitem" onClick={() => setOpen(false)}>{item.label}</a>
+          ) : (
+            <button key={item.label} type="button" role="menuitem" onClick={() => { setOpen(false); item.onClick?.(); }}>{item.label}</button>
+          )))}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -62,6 +81,10 @@ const STATUS_CLASS = {
   New: 'st-approved',
   'Matched to existing profile': 'st-reported',
   Flagged: 'st-completed',
+  'Opted in': 'st-consent-in',
+  'Not opted in': 'st-consent-out',
+  'Consent unknown': 'st-consent-unknown',
+  'Not connected': 'st-planned',
 };
 
 export function Status({ value }) {
