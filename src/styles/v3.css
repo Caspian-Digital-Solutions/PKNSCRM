@@ -419,6 +419,12 @@ h3, .card-title, .chart-card h3 { font: 600 15px/22px var(--font-text); color: v
   overflow: visible;
 }
 .chart-card.is-large .chart-wrap, .chart-wrap.is-large { height: 360px; }
+.chart-wrap .recharts-cartesian-axis-tick-value {
+  font-size: 12px !important;
+  fill: #374151;
+}
+.chart-wrap .recharts-wrapper,
+.chart-wrap .recharts-surface { overflow: visible; }
 .chart-card-foot { margin-top: var(--space-3); font: 400 12px/16px var(--font-text); color: var(--ink-500); }
 .chart-legend, .code-key { display: flex; flex-wrap: wrap; gap: 8px 16px; list-style: none; margin: 8px 0 0; padding: 0; }
 .chart-legend li, .code-key li { display: inline-flex; align-items: center; gap: 6px; font: 400 12px/16px var(--font-text); color: var(--ink-700); }
