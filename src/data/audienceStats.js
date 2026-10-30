@@ -76,9 +76,9 @@ export function audiencePack(people, from, to, assets) {
     },
     growth: cumulative,
     consent: [
-      { name: 'Opted in', value: consented.length },
-      { name: 'Not opted in', value: people.filter((profile) => !profile.consent?.unknown && !profile.consent?.marketingOptIn).length },
-      { name: 'Consent unknown', value: people.filter((profile) => profile.consent?.unknown).length },
+      { name: 'Opted in', value: consented.length, colour: '#10B981' },
+      { name: 'Not opted in', value: people.filter((profile) => !profile.consent?.unknown && !profile.consent?.marketingOptIn).length, colour: '#9CA3AF' },
+      { name: 'Consent unknown', value: people.filter((profile) => profile.consent?.unknown).length, colour: '#F59E0B' },
     ],
     age: tally(people, (profile) => profile.ageBand, AGE_BANDS),
     gender: tally(people, (profile) => profile.gender, ['Female', 'Male', 'Prefer not to say']),

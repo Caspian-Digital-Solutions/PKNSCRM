@@ -204,10 +204,14 @@ export default function Insights() {
       {tab === 'Asset audiences' && (
         <div className="chart-grid">
           <div className="span-12 screen-actions">
-            <button type="button" className={`btn${!affinityTable ? ' on' : ''}`} onClick={() => setAffinityTable(false)}>Chart</button>
-            <button type="button" className={`btn${affinityTable ? ' on' : ''}`} onClick={() => setAffinityTable(true)}>Table</button>
-            <button type="button" className={`btn${countMode === 'count' ? ' on' : ''}`} onClick={() => setCountMode('count')}>Count</button>
-            <button type="button" className={`btn${countMode === 'pct' ? ' on' : ''}`} onClick={() => setCountMode('pct')}>% of row</button>
+            <div className="segmented">
+              <button type="button" className={!affinityTable ? 'on' : ''} onClick={() => setAffinityTable(false)}>Chart</button>
+              <button type="button" className={affinityTable ? 'on' : ''} onClick={() => setAffinityTable(true)}>Table</button>
+            </div>
+            <div className="segmented">
+              <button type="button" className={countMode === 'count' ? 'on' : ''} onClick={() => setCountMode('count')}>Count</button>
+              <button type="button" className={countMode === 'pct' ? 'on' : ''} onClick={() => setCountMode('pct')}>% of row</button>
+            </div>
           </div>
           {affinityTable ? (
             <div className="span-12">

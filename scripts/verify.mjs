@@ -40,8 +40,8 @@ for (const key of ['ampSpend', 'activations', 'attendance', 'newProfiles', 'data
 
 check('five roles', Object.keys(ROLES).length === 5 && ['amp-manager', 'amp-executive', 'operator', 'management', 'admin'].every((id) => ROLES[id]));
 check('operator scoped', ROLES.operator.operatorId === 'op-alam');
-check('management cannot open audience', !NAV.find((item) => item.id === 'audience').roles.includes('management'));
-check('import is manager only', NAV.find((item) => item.id === 'import').roles.join() === 'amp-manager');
+check('management opens audience overview', NAV.find((item) => item.id === 'audience').roles.includes('management'));
+check('import is manager and admin', ['amp-manager', 'admin'].every((id) => NAV.find((item) => item.id === 'import').roles.includes(id)));
 check('settings is admin only', NAV.find((item) => item.id === 'settings').roles.join() === 'admin');
 
 const view = buildView(data, { role: 'amp-manager', budgetEdits: {}, revealed: {} }, { preset: 'l12' });

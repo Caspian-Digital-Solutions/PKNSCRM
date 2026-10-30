@@ -228,8 +228,8 @@ export default function ImportData() {
       )}
       {step === 4 && (
         <form className="dialog-form" onSubmit={(event) => { event.preventDefault(); setStep(5); }}>
-          <label><input type="radio" name="consent" checked={consentMode === 'captured'} onChange={() => setConsentMode('captured')} /> Consent captured at source (Google Form had consent)</label>
-          <label><input type="radio" name="consent" checked={consentMode === 'unknown'} onChange={() => setConsentMode('unknown')} /> Consent unknown – exclude from marketing exports until re-consented</label>
+          <label className="check-inline"><input type="radio" name="consent" checked={consentMode === 'captured'} onChange={() => setConsentMode('captured')} /> <span>Consent captured at source (Google Form had consent)</span></label>
+          <label className="check-inline"><input type="radio" name="consent" checked={consentMode === 'unknown'} onChange={() => setConsentMode('unknown')} /> <span>Consent unknown – exclude from marketing exports until re-consented</span></label>
           <button type="submit" className="btn">Continue</button>
         </form>
       )}

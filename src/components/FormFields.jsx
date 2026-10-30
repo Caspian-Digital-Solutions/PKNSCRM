@@ -12,12 +12,26 @@ export function FieldControl({ field, value, onChange, lang = 'EN' }) {
       </div>
     );
   }
-  if (field.type === 'select') {
+  if (field.key === 'childrenCount') {
+    const count = Number(value || 0);
     return (
       <div className="field">
         <span className="field-label">{label}{field.required ? ' *' : ''}</span>
-        <div className="radio-cards">
-          {(field.options || []).map((option) => (
+        <div className="stepper-control">
+          <button type="button" aria-label="Fewer children" onClick={() => set(String(Math.max(0, count - 1)))}>−</button>
+          <span>{count}</span>
+          <button type="button" aria-label="More children" onClick={() => set(String(count + 1))}>+</button>
+        </div>
+      </div>
+    );
+  }
+  if (field.type === 'select') {
+    const options = field.options || [];
+    return (
+      <div className="field">
+        <span className="field-label">{label}{field.required ? ' *' : ''}</span>
+        <div className={`radio-cards${options.length >= 5 ? ' is-compact' : ''}`}>
+          {options.map((option) => (
             <label key={option} className={`radio-card${value === option ? ' on' : ''}`}>
               <input type="radio" name={field.key} checked={value === option} onChange={() => set(option)} />
               <span>{option}</span>

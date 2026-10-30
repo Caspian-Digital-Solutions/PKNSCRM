@@ -2,6 +2,7 @@ import { ACTIVATION_TYPES, FILTER_CHANNELS } from '../data/config.js';
 import { PRESETS } from '../filters.js';
 import { setSearch } from '../router.js';
 import { useAmp } from '../useAmp.jsx';
+import { Toggle } from './controls.jsx';
 
 function Multi({ label, options, selected, allIds, param }) {
   const current = selected.length ? selected : allIds;
@@ -34,11 +35,12 @@ export default function GlobalFilters() {
   const typeOptions = ACTIVATION_TYPES.map((item) => ({ id: item, name: item }));
   const channelOptions = FILTER_CHANNELS.map((item) => ({ id: item, name: item }));
   const preset = scope.preset || 'l12';
+  const filtered = Boolean(scope.assetIds?.length && !scope.unrestricted) || Boolean(scope.operatorIds?.length) || Boolean(scope.types?.length) || Boolean(scope.channels?.length) || preset !== 'l12' || scope.includeUpcoming === false;
   return (
     <div className="global-filters">
-      <label>
-        <span className="filter-name">Date range</span>
-        <select value={preset} onChange={(event) => {
+      <label className="filter-pill">
+        <span>Date:</span>
+        <select aria-label="Date range" value={preset} onChange={(event) => {
           const next = PRESETS.find((item) => item.id === event.target.value);
           if (!next || next.id === 'custom') setSearch({ preset: 'custom' });
           else setSearch({ preset: next.id, from: next.from, to: next.to });
@@ -65,14 +67,8 @@ export default function GlobalFilters() {
       )}
       <Multi label="Activation type" options={typeOptions} selected={scope.types} allIds={typeOptions.map((item) => item.id)} param="type" />
       <Multi label="Channel" options={channelOptions} selected={scope.channels} allIds={channelOptions.map((item) => item.id)} param="channel" />
-      <label className="check-inline">
-        <input
-          type="checkbox"
-          checked={scope.includeUpcoming !== false}
-          onChange={(event) => setSearch({ upcoming: event.target.checked ? '' : '0' })}
-        />
-        <span>Include upcoming</span>
-      </label>
+      <Toggle checked={scope.includeUpcoming !== false} onChange={(on) => setSearch({ upcoming: on ? '' : '0' })} label="Include upcoming" />
+      {filtered ? <button type="button" className="btn btn-quiet" onClick={() => setSearch({ preset: 'l12', from: '', to: '', asset: '', operator: '', type: '', channel: '', upcoming: '' })}>Clear all</button> : null}
     </div>
   );
 }

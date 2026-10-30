@@ -90,15 +90,17 @@ export function RadioCards({ value, onChange, options, name }) {
       {options.map((option) => (
         <label key={option.id} className={`radio-card${value === option.id ? ' on' : ''}`}>
           <input type="radio" name={name} checked={value === option.id} onChange={() => onChange(option.id)} />
-          <strong>{option.label}</strong>
-          {option.hint ? <span>{option.hint}</span> : null}
+          <span className="radio-copy">
+            <strong>{option.label}</strong>
+            {option.hint ? <span>{option.hint}</span> : null}
+          </span>
         </label>
       ))}
     </div>
   );
 }
 
-export function Dropzone({ accept, onFile, label = 'Drop a file, or browse' }) {
+export function Dropzone({ accept, onFile, label = 'Drag and drop .xlsx or .csv', hint }) {
   const [name, setName] = useState('');
   return (
     <label className="dropzone">
@@ -112,6 +114,7 @@ export function Dropzone({ accept, onFile, label = 'Drop a file, or browse' }) {
         }}
       />
       <span>{name || label}</span>
+      <span className="fine">{hint || 'or browse · .xlsx, .xls or .csv'}</span>
     </label>
   );
 }

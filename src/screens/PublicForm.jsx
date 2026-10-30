@@ -127,22 +127,25 @@ export default function PublicForm({ kiosk = false }) {
   return (
     <div className={shell}>
       <div className="public-card">
-        <header className="public-hero" style={{ borderTop: `6px solid ${form.design?.themeColour || '#E31E24'}` }}>
-          {form.design?.showPKNSLogo !== false && <img src={logo} alt="PKNS" height="40" />}
-          <div className="screen-actions">
-            <button type="button" className={`btn${lang === 'EN' ? ' on' : ''}`} onClick={() => setLang('EN')}>EN</button>
-            <button type="button" className={`btn${lang === 'BM' ? ' on' : ''}`} onClick={() => setLang('BM')}>BM</button>
+        <div className="public-banner" style={{ background: form.design?.themeColour || '#E31E24' }} />
+        <header className="public-hero">
+          <div className="card-foot" style={{ marginTop: 0 }}>
+            {form.design?.showPKNSLogo !== false && <img src={logo} alt="PKNS" />}
+            <div className="segmented" role="group" aria-label="Language">
+              <button type="button" className={lang === 'EN' ? 'on' : ''} onClick={() => setLang('EN')}>EN</button>
+              <button type="button" className={lang === 'BM' ? 'on' : ''} onClick={() => setLang('BM')}>BM</button>
+            </div>
           </div>
           <h1>{t(form.design?.headlineEN || form.publicTitle || form.name, form.design?.headlineBM || form.publicTitle || form.name)}</h1>
-          {activation && <p className="info-card">{date(activation.startDate)} · {activation.specificLocation}</p>}
+          {activation && <p className="event-meta">{date(activation.startDate)} · {activation.specificLocation}</p>}
           <p>{t(form.design?.introEN || '', form.design?.introBM || '')}</p>
         </header>
         {kiosk && <p className="sample-badge">Submissions queued: 3</p>}
         {kiosk && activation && (
           <div className="info-card">
             <h2>{t('Walk-in counter', 'Kaunter walk-in')}</h2>
-            <p>Adults {walk.adults} <button type="button" className="btn" onClick={() => bumpWalk('adults', 1)}>+</button> <button type="button" className="btn" onClick={() => bumpWalk('adults', -1)}>−</button></p>
-            <p>Children {walk.children} <button type="button" className="btn" onClick={() => bumpWalk('children', 1)}>+</button> <button type="button" className="btn" onClick={() => bumpWalk('children', -1)}>−</button></p>
+            <p className="walk-row"><span>Adults</span> <strong>{walk.adults}</strong> <button type="button" className="btn" onClick={() => bumpWalk('adults', 1)}>+</button> <button type="button" className="btn" onClick={() => bumpWalk('adults', -1)}>−</button></p>
+            <p className="walk-row"><span>Children</span> <strong>{walk.children}</strong> <button type="button" className="btn" onClick={() => bumpWalk('children', 1)}>+</button> <button type="button" className="btn" onClick={() => bumpWalk('children', -1)}>−</button></p>
             <button type="button" className="btn" onClick={() => setPin(true)}>{t('Staff exit', 'Keluar kakitangan')}</button>
           </div>
         )}
@@ -170,14 +173,16 @@ export default function PublicForm({ kiosk = false }) {
             {form.fields.filter((field) => !field.showIf || values[field.showIf.key] === field.showIf.value).map((field) => (
               <FieldControl key={field.key} field={field} lang={lang} value={values[field.key]} onChange={set} />
             ))}
-            <div className="consent-pin">
+            <div className="consent-box">
               <p>{t(form.consentBlock.purposeTextEN, form.consentBlock.purposeTextBM)}</p>
               <label className="check-inline"><input type="checkbox" checked={consent} onChange={(event) => setConsent(event.target.checked)} /><span>{t(form.consentBlock.requiredConsent, form.consentBlock.requiredConsentBM)} *</span></label>
               <label className="check-inline"><input type="checkbox" checked={marketing} onChange={(event) => setMarketing(event.target.checked)} /><span>{t(form.consentBlock.marketingOptIn, form.consentBlock.marketingOptInBM)}</span></label>
-              <button type="button" className="btn" onClick={() => setNotice(true)}>{t('Privacy notice', 'Notis privasi')}</button>
+              <button type="button" className="privacy-link btn btn-quiet" onClick={() => setNotice(true)}>{t('Privacy notice', 'Notis privasi')}</button>
             </div>
             {error && <p className="form-error">{error}</p>}
-            <button type="submit" className="btn btn-primary public-submit">{t('Submit', 'Hantar')}</button>
+            <div className="public-submit">
+              <button type="submit" className="btn btn-primary">{t('Submit', 'Hantar')}</button>
+            </div>
           </form>
         )}
       </div>

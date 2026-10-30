@@ -93,15 +93,16 @@ export default function Reports() {
 
   return (
     <section>
-      <PageHead title="Reports" lede="Monthly AMP management report, activation reports and asset reports." />
+      <PageHead title="Reports" lede="Monthly AMP management report, activation reports and asset reports." actions={<><button type="button" className="btn" onClick={pdf}>Export PDF</button><button type="button" className="btn btn-primary" onClick={excel}>Export Excel</button></>} />
       <h2>Monthly AMP Management Report</h2>
+      <div className="report-layout">
       <form className="dialog-form" onSubmit={(event) => event.preventDefault()}>
-        <label>Month<input className="control" type="month" value={month} onChange={(event) => setMonth(event.target.value)} /></label>
+        <label className="field">Month<input className="control" type="month" value={month} onChange={(event) => setMonth(event.target.value)} /></label>
         <div className="screen-actions">
           <button type="button" className="btn" onClick={() => setChosen(selectable.map((item) => item.id))}>Select all</button>
           <button type="button" className="btn" onClick={() => setChosen([])}>Clear</button>
         </div>
-        <ChipSelect ariaLabel="Assets" value={chosen} onChange={setChosen} options={selectable.map((item) => ({ id: item.id, label: item.shortCode }))} />
+        <ChipSelect ariaLabel="Assets" value={chosen} onChange={setChosen} options={selectable.map((item) => ({ id: item.id, label: item.name }))} />
       </form>
       <article className="report-sheet">
         <h2>{title}</h2>
@@ -110,15 +111,14 @@ export default function Reports() {
         <ChartCard title="Spend by category" rows={categoryRows.map((row) => ({ name: row.category, value: row.amount }))} exportName="report-spend-category">
           <HBars money data={categoryRows.map((row) => ({ name: row.category, value: row.amount }))} />
         </ChartCard>
-        <p className="fine">Generated from PKNS AMP Hub · {date(`${month}-01`)}</p>
+        <p className="fine">Generated from PKNS AMP Hub · {date(new Date().toISOString())}</p>
         <h2>Activations completed</h2>
         <DataTable columns={[{ key: 'name', label: 'Activation' }, { key: 'asset', label: 'Asset' }, { key: 'attendance', label: 'Attendance', align: 'right', format: num }, { key: 'cost', label: 'Cost per attendee', align: 'right', format: rm }]} rows={activationRows} exportName="report-activations" empty="No completed activations in this month." pageSizes={[25, 50, 100]} />
         <h2>Audience mix</h2>
         <DataTable columns={[{ key: 'source', label: 'First source' }, { key: 'count', label: 'New profiles', align: 'right', format: num }]} rows={mix} exportName="report-mix" />
         <p>Comment sentiment — positive {num(sentiment.positive)}, neutral {num(sentiment.neutral)}, negative {num(sentiment.negative)}.</p>
-        <button type="button" className="btn" onClick={pdf}>Export PDF</button>
-        <button type="button" className="btn" onClick={excel}>Export Excel</button>
       </article>
+      </div>
       <h2>Activation report</h2>
       <p>Open the Report tab on an activation to export that activation.</p>
       <DataTable

@@ -92,7 +92,7 @@ function AssetList({ amp }) {
         </form>
       )}
       {mode === 'cards' ? (
-        <div className="card-grid">
+        <div className="card-grid assets">
           {rows.map((row) => (
             <a key={row.id} className="asset-card" href={linkTo(`asset/${row.id}`, route.search)}>
               <Photo code={row.shortCode} colour={row.colour} />
@@ -100,10 +100,10 @@ function AssetList({ amp }) {
               <p>{row.type} · {row.location}</p>
               <p>{row.operator}</p>
               <p><Status value={row.status} /></p>
-              <div className="kpi-row">
-                <p><span className="fine">Activations YTD</span><strong>{num(row.ytdActivations)}</strong></p>
-                <p><span className="fine">Attendance YTD</span><strong>{num(row.ytdAttendance)}</strong></p>
-                <p><span className="fine">Profiles linked</span><strong>{num(row.profiles)}</strong></p>
+              <div className="mini-stats">
+                <p><span>Activations YTD</span><strong>{num(row.ytdActivations)}</strong></p>
+                <p><span>Attendance YTD</span><strong>{num(row.ytdAttendance)}</strong></p>
+                <p><span>Profiles linked</span><strong>{num(row.profiles)}</strong></p>
               </div>
             </a>
           ))}

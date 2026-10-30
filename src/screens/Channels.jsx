@@ -74,7 +74,7 @@ export default function Channels() {
   return (
     <section>
       <PageHead title="Digital Channels" lede="Read-only performance. PKNS keeps its own media and social agencies." />
-      <div className="card-grid">
+      <div className="card-grid connectors">
         {connectors.map((item) => (
           <article key={item.id} className="info-card">
             <div className="screen-actions"><SampleBadge /></div>
@@ -86,10 +86,12 @@ export default function Channels() {
         ))}
       </div>
       <p className="note">PKNS retains its own media and social agencies. The AMP Hub reads performance data only and does not manage campaigns.</p>
-      <ChartCard title="Organic social reach" rows={monthly} columns={[{ key: 'month', label: 'Month' }, { key: 'Facebook', label: 'Facebook', align: 'right', format: num }, { key: 'Instagram', label: 'Instagram', align: 'right', format: num }, { key: 'TikTok', label: 'TikTok', align: 'right', format: num }]} exportName="organic-reach">
-        <TrendChart data={monthly} lines={['Facebook', 'Instagram', 'TikTok'].map((channel) => ({ key: channel, name: channel }))} />
-      </ChartCard>
       <div className="chart-grid">
+        <div className="span-6">
+          <ChartCard title="Organic social reach" rows={monthly} columns={[{ key: 'month', label: 'Month' }, { key: 'Facebook', label: 'Facebook', align: 'right', format: num }, { key: 'Instagram', label: 'Instagram', align: 'right', format: num }, { key: 'TikTok', label: 'TikTok', align: 'right', format: num }]} exportName="organic-reach">
+            <TrendChart data={monthly} lines={['Facebook', 'Instagram', 'TikTok'].map((channel) => ({ key: channel, name: channel }))} />
+          </ChartCard>
+        </div>
         <div className="span-6">
           <ChartCard title="Website sessions" rows={monthly.map((row) => ({ name: row.month, value: row.Website || 0 }))} exportName="website-sessions">
             <TrendChart data={monthly} lines={[{ key: 'Website', name: 'Sessions', colour: '#1F6FEB' }]} />
@@ -100,13 +102,17 @@ export default function Channels() {
             <VBars data={tableRows.filter((row) => row.channel === 'Website').map((row) => ({ name: row.month, value: row.formSubmissions }))} />
           </ChartCard>
         </div>
+        <div className="span-6">
+          <ChartCard title="Google Ads spend" rows={monthly.filter((row) => row.month >= '2026-07').map((row) => ({ name: row.month, value: tableRows.find((item) => item.month === row.month && item.channel === 'Google Ads')?.spendRM || 0 }))} exportName="ads-spend">
+            <VBars money colour="#F59E0B" data={monthly.filter((row) => row.month >= '2026-07').map((row) => ({ name: row.month, value: tableRows.find((item) => item.month === row.month && item.channel === 'Google Ads')?.spendRM || 0 }))} />
+          </ChartCard>
+        </div>
+        <div className="span-6">
+          <ChartCard title="Google Ads clicks" rows={monthly.filter((row) => row.month >= '2026-07').map((row) => ({ name: row.month, value: tableRows.find((item) => item.month === row.month && item.channel === 'Google Ads')?.clicks || 0 }))} exportName="ads-clicks">
+            <TrendChart data={monthly.filter((row) => row.month >= '2026-07').map((row) => ({ month: row.month, clicks: tableRows.find((item) => item.month === row.month && item.channel === 'Google Ads')?.clicks || 0 }))} lines={[{ key: 'clicks', name: 'Clicks', colour: '#1F6FEB' }]} />
+          </ChartCard>
+        </div>
       </div>
-      <ChartCard title="Google Ads spend" rows={monthly.map((row) => ({ name: row.month, value: tableRows.find((item) => item.month === row.month && item.channel === 'Google Ads')?.spendRM || 0 }))} exportName="ads-spend">
-        <VBars colour="#F59E0B" data={monthly.filter((row) => row.month >= '2026-07').map((row) => ({ name: row.month, value: tableRows.find((item) => item.month === row.month && item.channel === 'Google Ads')?.spendRM || 0 }))} />
-      </ChartCard>
-      <ChartCard title="Google Ads clicks" rows={monthly.filter((row) => row.month >= '2026-07').map((row) => ({ name: row.month, value: tableRows.find((item) => item.month === row.month && item.channel === 'Google Ads')?.clicks || 0 }))} exportName="ads-clicks">
-        <TrendChart data={monthly.filter((row) => row.month >= '2026-07').map((row) => ({ month: row.month, clicks: tableRows.find((item) => item.month === row.month && item.channel === 'Google Ads')?.clicks || 0 }))} lines={[{ key: 'clicks', name: 'Clicks', colour: '#1F6FEB' }]} />
-      </ChartCard>
       <div className="table-toolbar"><SearchBox value={query} onChange={setQuery} placeholder="Search month or channel" /></div>
       <DataTable
         columns={[

@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import ChartCard from '../components/ChartCard.jsx';
-import { Donut, HBars, VBars } from '../components/Charts.jsx';
+import { Donut, GroupedBars, HBars, VBars } from '../components/Charts.jsx';
 import DataTable from '../components/DataTable.jsx';
 import Kpi from '../components/Kpi.jsx';
 import { QrPreview } from '../components/QrArt.jsx';
@@ -9,6 +9,7 @@ import { can } from '../access.js';
 import { SPEND_CATEGORIES } from '../data/config.js';
 import { useAmp } from '../useAmp.jsx';
 import { date, dec1, num, pct, rm } from '../format.js';
+import { activationTitle } from '../labels.js';
 import { exportReportPdf } from '../reportPdf.js';
 import { exportSheets } from '../components/ExportButton.jsx';
 
@@ -62,10 +63,25 @@ export default function ActivationDetail({ id }) {
   ]);
   return (
     <section>
-      <PageHead title={act.name} lede={`${asset?.name || ''} · ${act.specificLocation || 'Location not set'}`} back={{ href: linkTo('activations', route.search), label: 'Activations' }} actions={<><Status value={act.status} /><span>{act.runBy}</span></>} />
-      <div className="tabs">
-        {TABS.map((item) => <button key={item} type="button" className={tab === item ? 'on' : ''} onClick={() => setTab(item)}>{item}</button>)}
-      </div>
+      <PageHead
+        title={activationTitle(act.name)}
+        status={<Status value={act.status} />}
+        lede={`${asset?.name || 'Asset'} · ${act.specificLocation || 'Location not set'} · ${date(act.startDate)} – ${date(act.endDate)} · Run by ${act.runBy}`}
+        back={{ href: linkTo('activations', route.search), label: 'Activations' }}
+        actions={can(state.role, 'activation.status') ? (
+          <label className="field">
+            <span className="field-label">Status</span>
+            <select className="control" value={act.status} onChange={(event) => dispatch({ type: 'patchActivation', id: act.id, patch: { status: event.target.value } })}>
+              {['Planned', 'Approved', 'Live', 'Completed', 'Reported'].map((status) => <option key={status}>{status}</option>)}
+            </select>
+          </label>
+        ) : null}
+        tabs={(
+          <div className="tabs">
+            {TABS.map((item) => <button key={item} type="button" className={tab === item ? 'on' : ''} onClick={() => setTab(item)}>{item}</button>)}
+          </div>
+        )}
+      />
       {tab === 'Summary' && (
         <>
         <div className="kpi-row">
@@ -78,30 +94,17 @@ export default function ActivationDetail({ id }) {
           <Kpi label="Returning" value={outcomes.returningProfiles} format={num} />
           <Kpi label="Avg rating" value={outcomes.avgRating} format={dec1} />
         </div>
-        <div className="fact-grid">
-          <div><div className="fact-label">Run by</div><div className="fact-value">{act.runBy}</div></div>
-          <div><div className="fact-label">Type</div><div className="fact-value">{act.type}</div></div>
-          <div><div className="fact-label">Objective</div><div className="fact-value">{act.objective}</div></div>
-          <div><div className="fact-label">Dates</div><div className="fact-value">{date(act.startDate)} – {date(act.endDate)}</div></div>
-          <div><div className="fact-label">Budget</div><div className="fact-value">{rm(act.budget)}</div></div>
-          <div><div className="fact-label">Actual spend</div><div className="fact-value">{rm(actual)}</div></div>
-          <div><div className="fact-label">Difference</div><div className="fact-value">{rm(actual - act.budget)}</div></div>
-          <div><div className="fact-label">Attendance</div><div className="fact-value">{num(outcomes.totalAttendance)}</div></div>
-          <div><div className="fact-label">Registrations</div><div className="fact-value">{num(outcomes.registrations)}</div></div>
-          <div><div className="fact-label">New profiles</div><div className="fact-value">{num(outcomes.newProfiles)}</div></div>
-          <div><div className="fact-label">Returning profiles</div><div className="fact-value">{num(outcomes.returningProfiles)}</div></div>
-          <div><div className="fact-label">Average rating</div><div className="fact-value">{dec1(outcomes.avgRating)}</div></div>
-          <p>{act.description}</p>
-          {can(state.role, 'activation.status') && (
-            <label>Status
-              <select value={act.status} onChange={(event) => dispatch({ type: 'patchActivation', id: act.id, patch: { status: event.target.value } })}>
-                {['Planned', 'Approved', 'Live', 'Completed', 'Reported'].map((status) => <option key={status}>{status}</option>)}
-              </select>
-            </label>
-          )}
-        </div>
+        <article className="info-card">
+          <h2>Details</h2>
+          <div className="fact-grid">
+            <div><div className="fact-label">Type</div><div className="fact-value">{act.type}</div></div>
+            <div><div className="fact-label">Objective</div><div className="fact-value">{act.objective}</div></div>
+            <div><div className="fact-label">Run by</div><div className="fact-value">{act.runBy}</div></div>
+            <div><div className="fact-label">Description</div><div className="fact-value">{act.description || '–'}</div></div>
+          </div>
+        </article>
         <ChartCard title="Budget and actual" rows={[{ name: 'Budget', value: act.budget }, { name: 'Actual', value: actual }]} exportName={`${act.id}-budget`}>
-          <VBars data={[{ name: 'Budget', value: act.budget }, { name: 'Actual', value: actual }]} />
+          <GroupedBars money data={[{ name: 'Comparison', Budget: act.budget, Actual: actual }]} bars={[{ key: 'Budget', name: 'Budget', colour: '#64748B' }, { key: 'Actual', name: 'Actual', colour: '#E31E24' }]} />
         </ChartCard>
         </>
       )}

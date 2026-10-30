@@ -2,17 +2,19 @@ import ChartCard from '../components/ChartCard.jsx';
 import DataTable from '../components/DataTable.jsx';
 import Kpi from '../components/Kpi.jsx';
 import { StackedArea, StackedBars, TrendChart } from '../components/Charts.jsx';
-import { PageHead, Status, linkTo } from '../components/bits.jsx';
+import { PageHead, Status, auditEntry, linkTo } from '../components/bits.jsx';
+import { can } from '../access.js';
 import { SOURCE_CHANNELS } from '../data/config.js';
 import { useAmp } from '../useAmp.jsx';
 import { date, dec1, num, pct, rm } from '../format.js';
+import { activationTitle } from '../labels.js';
 
 function prev(value, format) {
   return `Prev: ${format ? format(value) : num(value)}`;
 }
 
 export default function Overview() {
-  const { route, kpis, prev: previous, formulas, monthly, spendMonthly, spendCategories, growth, byAsset, upcoming, awaiting, operators } = useAmp();
+  const { route, kpis, prev: previous, formulas, monthly, spendMonthly, spendCategories, growth, byAsset, upcoming, awaiting, operators, state, dispatch, assets } = useAmp();
   const search = route.search;
   const operatorName = (id) => operators.find((item) => item.id === id)?.name || 'PKNS-run';
   void operatorName;
@@ -51,7 +53,7 @@ export default function Overview() {
         <Kpi label="Total attendance" formula={formulas.attendance} value={kpis.attendance} format={num} sub={prev(previous.attendance, num)} href={linkTo('activations', search)} />
         <Kpi label="New profiles" formula={formulas.newProfiles} value={kpis.newProfiles} format={num} sub={prev(previous.newProfiles, num)} href={linkTo('audience', search, { arrived: '1' })} />
         <Kpi label="Database size" formula={formulas.database} value={kpis.database} format={num} sub={`Prev: ${num(kpis.databaseAtStart)}`} href={linkTo('audience', search, { stock: '1' })} />
-        <Kpi label="Consented for marketing" formula={formulas.consented} value={kpis.consented} format={() => `${num(kpis.consented)} (${pct(kpis.consentPct)})`} sub={`Prev: ${num(previous.consented)} (${pct(previous.consentPct)})`} href={linkTo('audience', search, { consent: 'yes' })} />
+        <Kpi label="Consented for marketing" formula={formulas.consented} value={kpis.consented} format={num} sub={`${pct(kpis.consentPct)} of the database · Prev: ${num(previous.consented)}`} href={state.role === 'management' ? undefined : linkTo('audience', search, { consent: 'yes' })} />
         <Kpi label="Cost per attendee" formula={formulas.costAttendee} value={kpis.costPerAttendee} format={rm} sub={prev(previous.costPerAttendee, rm)} href={linkTo('activations', search)} />
         <Kpi label="Cost per new profile" formula={formulas.costProfile} value={kpis.costPerNewProfile} format={rm} sub={prev(previous.costPerNewProfile, rm)} href={linkTo('audience', search, { arrived: '1' })} />
       </div>
@@ -74,34 +76,54 @@ export default function Overview() {
       </div>
       <h2>By asset</h2>
       <DataTable columns={columns} rows={byAsset} totals exportName="amp-by-asset" onRowClick={(row) => { window.location.hash = linkTo(`asset/${row.id}`, search); }} />
-      <div className="split">
-        <div>
-          <h2>Upcoming activations</h2>
-          <div className="card-grid">
-            {upcoming.slice(0, 8).map((act) => {
-              const when = date(act.startDate).split(' ');
-              const assetRow = byAsset.find((row) => row.id === act.assetId);
-              return (
-                <a key={act.id} className="info-card" href={linkTo(`activation/${act.id}`, search)}>
-                  <div className="date-block"><strong>{when[0]}</strong><span>{when[1]}</span></div>
-                  <p><i className="asset-dot" style={{ background: assetRow?.colour || '#64748B' }} /> {act.name}</p>
-                  <Status value={act.status} />
-                  <p>{rm(act.budget)}</p>
-                </a>
-              );
-            })}
+      <div className="chart-grid">
+        <div className="span-6">
+          <article className="info-card">
+            <h2>Upcoming activations</h2>
+            <ul className="upcoming-list">
+              {upcoming.slice(0, 8).map((act) => {
+                const when = date(act.startDate).split(' ');
+                const assetRow = byAsset.find((row) => row.id === act.assetId) || assets.find((item) => item.id === act.assetId);
+                return (
+                  <li key={act.id}>
+                    <div className="date-block"><strong>{when[0]}</strong><span>{when[1]}</span></div>
+                    <a className="upcoming-main" href={linkTo(`activation/${act.id}`, search)}>
+                      <strong>{activationTitle(act.name)}</strong>
+                      <span><i className="asset-dot" style={{ background: assetRow?.colour || '#64748B' }} /> {assetRow?.asset || assetRow?.name || 'Asset'}</span>
+                    </a>
+                    <Status value={act.status} />
+                    <span className="upcoming-budget">{rm(act.budget)}</span>
+                  </li>
+                );
+              })}
+            </ul>
             {upcoming.length === 0 && <p>No upcoming activations in this filter.</p>}
-          </div>
+          </article>
         </div>
-        <div>
-          <h2>Completed, not reported</h2>
-          <DataTable
-            columns={[{ key: 'name', label: 'Name' }, { key: 'end', label: 'End date' }, { key: 'status', label: 'Status' }]}
-            rows={awaiting.map((act) => ({ id: act.id, name: act.name, end: date(act.endDate), status: act.status }))}
-            exportName="awaiting-report"
-            onRowClick={(row) => { window.location.hash = linkTo(`activation/${row.id}`, search); }}
-            empty="No completed activations are waiting for a report."
-          />
+        <div className="span-6">
+          <article className="info-card">
+            <h2>Completed, not reported</h2>
+            <ul className="report-list">
+              {awaiting.slice(0, 8).map((act) => {
+                const when = date(act.endDate).split(' ');
+                const assetRow = byAsset.find((row) => row.id === act.assetId);
+                return (
+                  <li key={act.id}>
+                    <div className="date-block"><strong>{when[0]}</strong><span>{when[1]}</span></div>
+                    <a className="upcoming-main" href={linkTo(`activation/${act.id}`, search)}>
+                      <strong>{activationTitle(act.name)}</strong>
+                      <span><i className="asset-dot" style={{ background: assetRow?.colour || '#64748B' }} /> {assetRow?.asset || 'Asset'}</span>
+                    </a>
+                    <Status value={act.status} />
+                    {can(state.role, 'activation.report') ? (
+                      <button type="button" className="btn btn-quiet" onClick={() => { dispatch({ type: 'patchActivation', id: act.id, patch: { status: 'Reported' } }); dispatch({ type: 'audit', entry: auditEntry(state, 'Edited activation', 'Activation', act.id, 'Marked as reported') }); }}>Mark reported</button>
+                    ) : <span />}
+                  </li>
+                );
+              })}
+            </ul>
+            {awaiting.length === 0 && <p>No completed activations are waiting for a report.</p>}
+          </article>
         </div>
       </div>
       <ChartCard title="Database growth by source channel" rows={growth} columns={[{ key: 'month', label: 'Month' }, ...SOURCE_CHANNELS.map((name) => ({ key: name, label: name, align: 'right', format: num }))]} exportName="database-growth">

@@ -44,4 +44,29 @@
   --ctrl-seg: 36px;
   --ctrl-quiet: 32px;
   --radius-ctrl: 8px;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+
+  --ink-400: #9CA3AF;
+  --line: #E5E7EB;
+  --radius-card: 12px;
+  --radius-control: 8px;
+  --radius-chip: 999px;
+  --radius-modal: 16px;
+  --shadow-card: 0 1px 2px rgba(16, 24, 40, 0.06);
+  --shadow-pop: 0 12px 32px rgba(16, 24, 40, 0.16);
+  --pkns-red-600: #C8171D;
+  --chart-9: #84CC16;
+  --chart-10: #F97316;
+  --card-min: 280px;
+  --sidebar: 248px;
+  --header-h: 120px;
 }

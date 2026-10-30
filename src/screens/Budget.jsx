@@ -142,8 +142,10 @@ export default function Budget() {
   return (
     <section>
       <PageHead title="Budget & Spend" lede="Approved AMP budget against spend lines." actions={<a className="btn" href={linkTo('reports', route.search)}>Open reports</a>} />
-      <h2>Approved budget by quarter</h2>
-      <div className="tabs">{QUARTERS.map((item) => <button key={item.id} type="button" className={quarter === item.id ? 'on' : ''} onClick={() => setQuarter(item.id)}>{item.id}</button>)}</div>
+      <div className="section-head">
+        <h2>Approved budget by quarter</h2>
+        <div className="segmented" role="tablist" aria-label="Quarter">{QUARTERS.map((item) => <button key={item.id} type="button" className={quarter === item.id ? 'on' : ''} onClick={() => setQuarter(item.id)}>{item.id}</button>)}</div>
+      </div>
       <DataTable columns={[{ key: 'asset', label: 'Asset' }, ...quarterColumns]} rows={grid} exportName="amp-budget-grid" empty="No assets in this filter." />
       <div className="chart-grid">
         <div className="span-6">
@@ -153,12 +155,12 @@ export default function Budget() {
         </div>
         <div className="span-6">
           <ChartCard title="Spend by asset" rows={byAssetChart.map((row) => ({ name: row.month, value: row.Spend }))} exportName="spend-asset">
-            <HBars money data={byAsset.map((row) => ({ name: assets.find((asset) => asset.id === row.id)?.shortCode || row.asset, value: row.ampSpend, colour: row.colour }))} />
+            <HBars money data={byAsset.map((row) => ({ name: row.asset, value: row.ampSpend, colour: row.colour }))} />
           </ChartCard>
         </div>
         <div className="span-12">
-          <ChartCard title="Budget and actual by asset" rows={byAsset.map((row) => ({ name: assets.find((asset) => asset.id === row.id)?.shortCode || row.asset, Budget: row.budget, Actual: row.ampSpend }))} columns={[{ key: 'name', label: 'Asset' }, { key: 'Budget', label: 'Budget', align: 'right', format: rm }, { key: 'Actual', label: 'Actual', align: 'right', format: rm }]} exportName="budget-vs-actual">
-            <GroupedBars money categoryKey="name" data={byAsset.map((row) => ({ name: assets.find((asset) => asset.id === row.id)?.shortCode || row.asset, Budget: row.budget, Actual: row.ampSpend }))} bars={[{ key: 'Budget', name: 'Budget', colour: '#64748B' }, { key: 'Actual', name: 'Actual', colour: '#E31E24' }]} />
+          <ChartCard title="Budget and actual by asset" rows={byAsset.map((row) => ({ name: row.asset, Budget: row.budget, Actual: row.ampSpend }))} columns={[{ key: 'name', label: 'Asset' }, { key: 'Budget', label: 'Approved', align: 'right', format: rm }, { key: 'Actual', label: 'Actual', align: 'right', format: rm }]} exportName="budget-vs-actual" footer={<ul className="code-key">{assets.map((asset) => <li key={asset.id}><strong>{asset.shortCode}</strong> {asset.name}</li>)}</ul>}>
+            <GroupedBars money categoryKey="name" data={byAsset.map((row) => ({ name: assets.find((asset) => asset.id === row.id)?.shortCode || row.asset, Budget: row.budget, Actual: row.ampSpend }))} bars={[{ key: 'Budget', name: 'Approved', colour: '#64748B' }, { key: 'Actual', name: 'Actual', colour: '#E31E24' }]} />
           </ChartCard>
         </div>
       </div>

@@ -68,7 +68,9 @@ export default function Audience() {
     return true;
   }), [profiles, scope]);
   const pack = useMemo(() => audiencePack(people, scope.from, scope.to, assets.filter((asset) => scope.assetIds.includes(asset.id))), [people, scope, assets]);
+  const management = state.role === 'management';
   const openDirectory = (patch) => {
+    if (management) return;
     setFilters((current) => ({ ...current, ...patch }));
     setTab('directory');
   };
@@ -152,7 +154,7 @@ export default function Audience() {
         tabs={(
           <div className="tabs">
             <button type="button" className={tab === 'overview' ? 'on' : ''} onClick={() => setTab('overview')}>Overview</button>
-            <button type="button" className={tab === 'directory' ? 'on' : ''} onClick={() => setTab('directory')}>Directory</button>
+            {management ? null : <button type="button" className={tab === 'directory' ? 'on' : ''} onClick={() => setTab('directory')}>Directory</button>}
           </div>
         )}
         actions={tab === 'directory' ? (
@@ -169,7 +171,7 @@ export default function Audience() {
             <Kpi label="Total profiles" value={pack.total} format={num} spark={pack.sparks.total} href={linkTo('audience', route.search)} />
             <Kpi label="New this period" value={pack.fresh} format={num} spark={pack.sparks.fresh} />
             <Kpi label="Returning this period" value={pack.returning} format={num} spark={pack.sparks.returning} />
-            <Kpi label="Marketing consent" value={pack.consented} format={() => `${num(pack.consented)} (${pct(pack.consentPct)})`} spark={pack.sparks.consented} />
+            <Kpi label="Marketing consent" value={pack.consented} format={num} sub={`${pct(pack.consentPct)} of profiles`} spark={pack.sparks.consented} />
             <Kpi label="Families with children" value={pack.familiesPct} format={pct} spark={pack.sparks.families} />
             <Kpi label="Average activations" value={pack.avgActivations} format={(value) => (value == null ? '–' : Number(value).toFixed(1))} spark={pack.sparks.avg} />
           </div>
@@ -184,7 +186,7 @@ export default function Audience() {
                 <Donut data={pack.consent} centre={num(pack.total)} />
               </ChartCard>
             </div>
-            <div className="span-4"><ChartCard title="Age band" rows={pack.age} exportName="age-band"><VBars data={pack.age} onPick={(row) => openDirectory({ age: row.name })} /></ChartCard></div>
+            <div className="span-4"><ChartCard title="Age band" rows={pack.age} exportName="age-band"><VBars data={pack.age} onPick={management ? undefined : (row) => openDirectory({ age: row.name })} /></ChartCard></div>
             <div className="span-4"><ChartCard title="Gender" rows={pack.gender} exportName="gender"><Donut data={pack.gender} /></ChartCard></div>
             <div className="span-4"><ChartCard title="Household type" rows={pack.household} exportName="household"><Donut data={pack.household} /></ChartCard></div>
             <div className="span-6"><ChartCard title="Lead type mix" rows={pack.leads} exportName="lead-types"><HBars data={pack.leads} onPick={(row) => openDirectory({ lead: row.name })} /></ChartCard></div>
